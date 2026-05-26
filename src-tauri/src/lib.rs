@@ -822,8 +822,11 @@ pub fn run() {
 mod tests {
     use super::*;
     use std::{
+        env,
         io::{Read, Write},
         net::TcpListener,
+        path::PathBuf,
+        process::{Child, Command, Stdio},
         sync::{Arc, Mutex as StdMutex},
         thread,
     };
@@ -900,6 +903,81 @@ mod tests {
                 "completed_at": "2026-05-26T12:00:03Z"
             }),
         }
+    }
+
+    struct RealBackendProcess {
+        child: Child,
+        base_url: String,
+    }
+
+    impl Drop for RealBackendProcess {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+    }
+
+    fn desktop_repo_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("desktop repo root")
+            .to_path_buf()
+    }
+
+    fn backend_repo_root() -> PathBuf {
+        if let Ok(path) = env::var("STEALTH_LIGHTBEACON_BACKEND_ROOT") {
+            return PathBuf::from(path);
+        }
+
+        desktop_repo_root()
+            .parent()
+            .expect("workspace root")
+            .join("stealth-lightbeacon")
+    }
+
+    fn backend_python_path(backend_root: &std::path::Path) -> PathBuf {
+        if let Ok(path) = env::var("STEALTH_LIGHTBEACON_BACKEND_PYTHON") {
+            return PathBuf::from(path);
+        }
+
+        backend_root.join(".venv").join("bin").join("python")
+    }
+
+    fn spawn_real_backend_server() -> RealBackendProcess {
+        let backend_root = backend_repo_root();
+        let python = backend_python_path(&backend_root);
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let port = listener.local_addr().expect("port").port();
+        drop(listener);
+
+        let child = Command::new(python)
+            .current_dir(&backend_root)
+            .arg("-m")
+            .arg("companion.http_api")
+            .arg("--host")
+            .arg("127.0.0.1")
+            .arg("--port")
+            .arg(port.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn real backend");
+
+        RealBackendProcess {
+            child,
+            base_url: format!("http://127.0.0.1:{port}"),
+        }
+    }
+
+    async fn wait_for_real_backend(config: &BackendConfig) -> HealthResponse {
+        for _ in 0..40 {
+            if let Ok(health) = api_health_check_impl(config).await {
+                return health;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        panic!("real backend did not become ready");
     }
 
     fn spawn_stub_server(exchanges: Vec<StubExchange>) -> (String, Arc<StdMutex<Vec<String>>>) {
@@ -1320,5 +1398,48 @@ mod tests {
 
         assert_eq!(error.code, "decode_error");
         assert_eq!(error.message, "The backend response could not be decoded.");
+    }
+
+    #[tokio::test]
+    async fn desktop_adapter_bootstraps_against_real_backend_server() {
+        let backend = spawn_real_backend_server();
+        let config = sample_config(backend.base_url.clone());
+
+        let health = wait_for_real_backend(&config).await;
+        assert_eq!(health.status, "ok");
+        assert_eq!(health.service, "stealth-lightbeacon-api");
+
+        let capabilities = get_capabilities_impl(&config).await.expect("capabilities");
+        assert_eq!(capabilities.api_mode.base_url, backend.base_url);
+        assert_eq!(capabilities.api_mode.transport, "http");
+        assert!(!capabilities.api_mode.supports_remote);
+        assert!(capabilities.supports_artifacts);
+    }
+
+    #[tokio::test]
+    async fn desktop_adapter_preserves_real_backend_api_errors() {
+        let backend = spawn_real_backend_server();
+        let config = sample_config(backend.base_url.clone());
+
+        let _ = wait_for_real_backend(&config).await;
+
+        let error = send_json_request::<(), HealthResponse>(
+            &config,
+            reqwest::Method::GET,
+            &["missing-route"],
+            None,
+        )
+        .await
+        .expect_err("real backend api error");
+
+        assert_eq!(
+            error,
+            ApiError {
+                code: "not_found".into(),
+                message: "Route not found.".into(),
+                status: Some(404),
+                details: Some("/missing-route".into()),
+            }
+        );
     }
 }

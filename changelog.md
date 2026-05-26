@@ -8,6 +8,8 @@
   backend.
 - `AGENTS.md` with repo-specific guidance for future agents.
 - `readme-CLI.md` documenting local developer commands and validation flow.
+- `plan-review-traceability.md` mapping review findings into roadmap actions.
+- `integration_log.jsonl` capturing the plan-review integration decisions.
 
 ### Changed
 
@@ -17,6 +19,9 @@
   bootstrap flow, and architectural drift.
 - Reworked `backlog.md` into a validated phase tracker plus merged remediation
   backlog sourced from the current code review.
+- Rewrote `implementation-roadmap.md` into a gated TDD-first execution plan with
+  per-phase review, test-first work, implementation scope, validation gates,
+  and exit criteria.
 
 ### Reviewed
 

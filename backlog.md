@@ -15,6 +15,24 @@ the adversarial review backlog. Status reflects the repository as validated on
 | 4. Hybrid local and remote backend operations | Partial | Mode selection exists, but local companion lifecycle, remote auth, and compatibility enforcement are still missing. |
 | 5. History and release hardening | Not started | No intentional result/history cache, release bundle flow, compatibility matrix, or hardening policy exists yet. |
 
+## Execution Order
+
+The original audit above is preserved for completion tracking against the
+superseded phase list. Active implementation sequencing is now defined by
+[implementation-roadmap.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/implementation-roadmap.md)
+and expands the remaining work into:
+
+- `Phase 1R`: reliability and contract guardrails
+- `Phase 2A`: terminal result retrieval
+- `Phase 2B`: artifact retrieval and last-opened snapshot
+- `Phase 3`: hybrid desktop operability
+- `Phase 4`: recon advisory flow
+- `Phase 5`: history and release hardening
+
+That execution order intentionally moves recon after hybrid operability and
+pulls validation/hardening work earlier whenever it blocks a working desktop
+app.
+
 ## Merged Remaining Backlog
 
 ### Phase 1 Follow-Up Remediation

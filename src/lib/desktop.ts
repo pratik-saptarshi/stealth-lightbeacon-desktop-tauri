@@ -87,6 +87,21 @@ export type ArtifactDescriptor = {
   downloadUrl?: string | null
 }
 
+export type ReconRequest = {
+  target: string
+}
+
+export type ReconResponse = {
+  target: string
+  recommendation: string
+  posture: string
+  confidence: number
+  evidence: string[]
+  evidenceSummary: string
+  signals: string[]
+  autoSelectAllowed: boolean
+}
+
 export type LastOpenedSnapshot = {
   evaluation: CreateEvaluationResponse
   evaluationStatus: EvaluationStatusResponse
@@ -260,6 +275,10 @@ export async function getEvaluationArtifacts(evaluationId: string) {
   })
 
   return normalizeArtifacts(artifacts)
+}
+
+export async function runRecon(request: ReconRequest) {
+  return invokeCommand<ReconResponse>('run_recon', { request })
 }
 
 function normalizeLastOpenedSnapshot(value: unknown): LastOpenedSnapshot | null {

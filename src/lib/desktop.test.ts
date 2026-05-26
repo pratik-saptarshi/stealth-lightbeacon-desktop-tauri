@@ -29,6 +29,9 @@ describe('desktop adapter', () => {
       failOnCritical: true,
       budgetGate: false,
     }
+    const reconRequest: desktop.ReconRequest = {
+      target: 'https://example.com',
+    }
     const snapshot: desktop.LastOpenedSnapshot = {
       evaluation: {
         evaluationId: 'eval/123',
@@ -71,6 +74,7 @@ describe('desktop adapter', () => {
     await desktop.getEvaluationStatus('eval/123')
     await desktop.getEvaluationResult('eval/123')
     await desktop.getEvaluationArtifacts('eval/123')
+    await desktop.runRecon(reconRequest)
     await desktop.getLastOpenedSnapshot()
     await desktop.setLastOpenedSnapshot(snapshot)
 
@@ -88,8 +92,9 @@ describe('desktop adapter', () => {
     expect(invoke).toHaveBeenNthCalledWith(8, 'get_evaluation_artifacts', {
       evaluationId: 'eval/123',
     })
-    expect(invoke).toHaveBeenNthCalledWith(9, 'get_last_opened_snapshot', undefined)
-    expect(invoke).toHaveBeenNthCalledWith(10, 'set_last_opened_snapshot', {
+    expect(invoke).toHaveBeenNthCalledWith(9, 'run_recon', { request: reconRequest })
+    expect(invoke).toHaveBeenNthCalledWith(10, 'get_last_opened_snapshot', undefined)
+    expect(invoke).toHaveBeenNthCalledWith(11, 'set_last_opened_snapshot', {
       snapshot,
     })
   })

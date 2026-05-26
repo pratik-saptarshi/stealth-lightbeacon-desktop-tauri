@@ -132,6 +132,25 @@ struct ArtifactDescriptor {
     download_url: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ReconRequest {
+    target: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ReconResponse {
+    target: String,
+    recommendation: String,
+    posture: String,
+    confidence: f64,
+    evidence: Vec<String>,
+    evidence_summary: String,
+    signals: Vec<String>,
+    auto_select_allowed: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct LastOpenedSnapshot {
@@ -685,6 +704,17 @@ fn validate_evaluation_id(evaluation_id: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+fn validate_recon_request(request: &ReconRequest) -> Result<(), ApiError> {
+    if request.target.trim().is_empty() {
+        return Err(ApiError::new(
+            "invalid_request",
+            "Recon target URL is required.",
+        ));
+    }
+
+    Ok(())
+}
+
 fn current_backend_config(state: &State<'_, AppState>) -> Result<BackendConfig, ApiError> {
     current_backend_config_from_app_state(state.inner())
 }
@@ -1000,6 +1030,20 @@ async fn get_evaluation_artifacts_impl(
     .await
 }
 
+async fn run_recon_impl(
+    config: &BackendConfig,
+    request: &ReconRequest,
+) -> Result<ReconResponse, ApiError> {
+    validate_recon_request(request)?;
+    send_json_request(
+        config,
+        reqwest::Method::POST,
+        &["recon"],
+        Some(request),
+    )
+    .await
+}
+
 #[tauri::command]
 fn get_backend_config(state: State<'_, AppState>) -> Result<BackendConfig, ApiError> {
     current_backend_config(&state)
@@ -1069,6 +1113,15 @@ async fn get_evaluation_artifacts(
 }
 
 #[tauri::command]
+async fn run_recon(
+    state: State<'_, AppState>,
+    request: ReconRequest,
+) -> Result<ReconResponse, ApiError> {
+    let config = effective_backend_config_from_app_state(state.inner()).await?;
+    run_recon_impl(&config, &request).await
+}
+
+#[tauri::command]
 fn get_last_opened_snapshot(app: AppHandle) -> Result<Option<LastOpenedSnapshot>, ApiError> {
     load_last_opened_snapshot(&app)
 }
@@ -1099,6 +1152,7 @@ pub fn run() {
             get_evaluation_status,
             get_evaluation_result,
             get_evaluation_artifacts,
+            run_recon,
             get_last_opened_snapshot,
             set_last_opened_snapshot
         ])
@@ -1159,6 +1213,10 @@ mod tests {
             fail_on_critical: true,
             budget_gate: false,
         }
+    }
+
+    fn sample_recon_request(target: String) -> ReconRequest {
+        ReconRequest { target }
     }
 
     fn sample_terminal_status() -> EvaluationStatusResponse {
@@ -1593,6 +1651,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn http_adapter_runs_recon_requests() {
+        let (base_url, recorded_requests) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "POST /recon HTTP/1.1",
+            expected_body: Some(r#""target":"https://example.com""#),
+            status_line: "200 OK",
+            response_body: r#"{"target":"https://example.com","recommendation":"stealth","posture":"browser","confidence":0.9,"evidence":["cloudflare","status:403"],"evidenceSummary":"cloudflare, status:403","signals":["cloudflare"],"autoSelectAllowed":true}"#,
+        }]);
+
+        let config = sample_config(base_url);
+        let response = run_recon_impl(&config, &sample_recon_request("https://example.com".into()))
+            .await
+            .expect("recon");
+
+        assert_eq!(response.recommendation, "stealth");
+        assert_eq!(response.posture, "browser");
+        assert_eq!(response.evidence_summary, "cloudflare, status:403");
+        assert_eq!(recorded_requests.lock().expect("recorded").len(), 1);
+    }
+
+    #[tokio::test]
     async fn http_adapter_url_encodes_evaluation_id_path_segments() {
         let (base_url, recorded_requests) = spawn_stub_server(vec![StubExchange {
             expected_prefix: "GET /evaluations/eval%2Fwith%20space%3Fand%23hash HTTP/1.1",
@@ -1974,6 +2052,23 @@ mod tests {
 
         assert!(!artifacts.is_empty());
         assert!(artifacts.iter().any(|artifact| artifact.kind == "normalized_report"));
+    }
+
+    #[tokio::test]
+    async fn desktop_adapter_runs_recon_against_real_backend_server() {
+        let backend = spawn_real_backend_server();
+        let target_url = spawn_target_site();
+        let config = sample_config(backend.base_url.clone());
+
+        let _ = wait_for_real_backend(&config).await;
+
+        let response = run_recon_impl(&config, &sample_recon_request(target_url))
+            .await
+            .expect("real recon");
+
+        assert_eq!(response.posture, "http");
+        assert_eq!(response.recommendation, "http");
+        assert!(response.evidence_summary.contains("no-anti-bot-signals"));
     }
 
     #[tokio::test]

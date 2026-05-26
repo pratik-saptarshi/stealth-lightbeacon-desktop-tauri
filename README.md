@@ -1,90 +1,90 @@
 # Stealth Lightbeacon Desktop Client
 
 This repository is the Tauri desktop client for Stealth Lightbeacon. The audit
-engine and canonical backend API live in
-`/Volumes/dev/Git-SCM/stealth-lightbeacon`. This repo is the thin desktop
-boundary: it stores local connection settings, calls the backend over HTTP, and
-renders operator workflow for evaluation submission and polling.
+engine, companion HTTP API, and canonical OpenAPI contract live in the sibling
+backend worktree at `/private/tmp/stealth-lightbeacon-phase-0a-0b` and the
+source repository path `/Volumes/dev/Git-SCM/stealth-lightbeacon`.
 
-The backend companion contract is now produced from the sibling repo, and the
-desktop repo validates its pinned snapshot against that producer before release.
+The desktop repo owns:
 
-## What Works Today
+- local backend configuration persistence
+- trusted Rust-side HTTP transport and validation
+- local companion startup and shutdown in `local` mode
+- remote transport policy and auth-token lookup in `remote` mode
+- operator workflow for submission, polling, results, artifacts, recon, and
+  last-opened snapshot restore
 
-- Persist backend mode, base URL, and timeout in the Tauri app config
-  directory.
-- Validate backend reachability through `GET /health`.
-- Load backend capabilities through `GET /capabilities`.
-- Submit evaluations through `POST /evaluations`.
-- Poll evaluation state through `GET /evaluations/{evaluation_id}` until a
-  terminal state is returned.
-- Retrieve terminal results through
-  `GET /evaluations/{evaluation_id}/result`.
-- Retrieve artifact descriptors through
-  `GET /evaluations/{evaluation_id}/artifacts`.
-- Run advisory recon through `POST /recon`.
-- Auto-start and stop a managed local companion in desktop local mode.
-- Enforce remote HTTPS-only transport, desktop compatibility headers, and remote
-  auth via Rust-only environment lookup.
-- Persist and restore the last-opened terminal snapshot.
-- Validate contract sync, frontend adapter behavior, and Rust transport through
-  scripted release validation.
+## Implemented Surface
 
-## Current Completion Status
+- `GET /health`
+- `GET /capabilities`
+- `POST /evaluations`
+- `GET /evaluations/{evaluation_id}`
+- `GET /evaluations/{evaluation_id}/result`
+- `GET /evaluations/{evaluation_id}/artifacts`
+- `POST /recon`
 
-- Phase 0: complete.
-- Phase 1: complete.
-- Phase 2: complete.
-- Phase 3: complete.
-- Phase 4: complete.
-- Phase 5: complete.
+Desktop behavior implemented against that surface:
 
-See [backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/backlog.md)
-for the validated phase audit and merged remediation backlog.
-See
-[desktop-backend-contract.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/desktop-backend-contract.md)
-for the verified backend contract delta.
+- persist backend mode, base URL, and timeout in Tauri app config
+- validate connectivity and capabilities before operator actions
+- submit evaluations and poll to terminal completion
+- retrieve terminal results and artifact descriptors
+- auto-start and stop a managed local companion
+- enforce remote `https://` policy plus Rust-only bearer-token lookup through
+  `STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN`
+- persist and restore the last-opened terminal snapshot
+- validate contract sync and cross-repo release readiness
+- keep recon transport support behind the desktop adapter pending operator UI
+  wiring
 
-## Architecture
+## Completion Ledger
 
-- React in `src/` owns UI state and workflow rendering.
-- `src/lib/desktop.ts` is the only frontend-to-Tauri adapter.
-- Rust in `src-tauri/src/` is the trusted desktop boundary for validation,
-  config persistence, and HTTP transport.
-- The backend remains the source of truth for evaluation state, results,
-  artifacts, and future recon behavior.
+The desktop and backend substrate work solved the original critical path, but
+the operator-facing completion ledger is more nuanced:
 
-See [architecture.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/architecture.md)
-for the transport and trust-boundary model.
+- Phase `0`, `1`, and `2`: complete
+- Phase `3`: partial because recon transport exists but the React workflow is
+  not yet wired
+- Phase `4`: partial because the local/remote runtime substrate exists but the
+  operator-facing auth and compatibility UX still needs work
+- Phase `5`: partial because local validation is strong but GitHub publication
+  plumbing is still missing in this checkout
 
-## Contract
+See:
 
-- Upstream source of truth: sibling backend repo serves `/openapi.json` and
-  exports `contracts/backend-api.openapi.json`.
-- Pinned local snapshot:
+- [backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/backlog.md)
+  for the verified completion ledger and remaining remediation backlog
+- [desktop-backend-contract.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/desktop-backend-contract.md)
+  for the cross-repo contract map
+- [architecture.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/architecture.md)
+  for transport and trust boundaries
+
+## Contract Boundary
+
+- Backend source of truth: sibling backend serves `/openapi.json` and exports
+  `contracts/backend-api.openapi.json`
+- Pinned desktop snapshot:
   [contracts/backend-api.openapi.json](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/contracts/backend-api.openapi.json)
-- Contract drift gate: `npm run check:contract-sync`
+- Drift gate: `npm run check:contract-sync`
 
 ## Release Boundary
 
-- Local mode is supported through a sibling backend checkout or compatible
-  companion runtime discovered from the workspace.
-- Remote mode requires `https://` and reads the bearer token from
-  `STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN` in Rust, not persisted frontend
-  config.
-- The desktop package does not yet embed a Python runtime; the companion remains
-  a separately versioned backend deliverable.
-
-## Local Defaults
-
+- Local mode requires a sibling backend checkout or compatible companion
+  runtime on the same machine.
+- Remote mode requires `https://`.
+- The desktop package does not embed a Python runtime; the companion remains a
+  separately versioned backend deliverable.
 - Default local backend target: `http://127.0.0.1:8000`
 - Frontend dev server: `http://localhost:1420`
-- Release validation: `npm run validate:release`
+- Cross-repo validation lane: `npm run validate:release`
+- Tauri package build (`.app` bundle): `npm run tauri:build`
 
-## Developer Docs
+## Repo Map
 
-- Repo map: [codemap.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/codemap.md)
-- CLI and test commands:
-  [readme-CLI.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/readme-CLI.md)
-- Change log:
-  [changelog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/changelog.md)
+- [codemap.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/codemap.md)
+- [readme-CLI.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/readme-CLI.md)
+- [changelog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/changelog.md)
+- [contributing.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/contributing.md)
+- [security-policy.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/security-policy.md)
+- [bill-of-materials.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/bill-of-materials.md)

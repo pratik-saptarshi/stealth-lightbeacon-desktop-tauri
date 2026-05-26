@@ -2,34 +2,33 @@
 
 ## 2026-05-26
 
-### Added
+### Verified Completion
 
-- Root and folder codemaps for the desktop repo, frontend adapter, and Tauri
-  backend.
-- `AGENTS.md` with repo-specific guidance for future agents.
-- `readme-CLI.md` documenting local developer commands and validation flow.
-- `plan-review-traceability.md` mapping review findings into roadmap actions.
-- `integration_log.jsonl` capturing the plan-review integration decisions.
+- Revalidated the original phased roadmap against the implemented desktop repo
+  and the backend companion worktree.
+- Confirmed the backend substrate phases `0A` through `5` are implemented across
+  desktop and backend.
+- Corrected the desktop truth docs to distinguish completed substrate work from
+  remaining operator-facing recon and remote-policy UX work.
 
-### Changed
+### Release Hardening
 
-- Rewrote `README.md` to reflect actual implementation status instead of the
-  earlier Phase 1-only framing.
-- Rewrote `architecture.md` to document the current transport boundary,
-  bootstrap flow, and architectural drift.
-- Reworked `backlog.md` into a validated phase tracker plus merged remediation
-  backlog sourced from the current code review.
-- Rewrote `implementation-roadmap.md` into a gated TDD-first execution plan with
-  per-phase review, test-first work, implementation scope, validation gates,
-  and exit criteria.
+- Fixed the desktop release validator to exercise the actual Tauri package
+  boundary instead of stopping at the web bundle, using the macOS `.app`
+  artifact path instead of a failing DMG-only path.
+- Activated Tauri bundling in `src-tauri/tauri.conf.json`.
+- Refreshed `README.md`, `architecture.md`, `readme-CLI.md`, `backlog.md`,
+  `implementation-roadmap.md`, `plan-review-traceability.md`, `AGENTS.md`, and
+  codemap files to reflect current runtime behavior.
 
-### Reviewed
+### Governance Docs
 
-- Audited the repo against the original phased plan.
-- Ran an adversarial parallel review focused on transport correctness, contract
-  drift, persistence scope, test realism, and remote-mode readiness.
+- Added `contributing.md`.
+- Added `security-policy.md`.
+- Added `bill-of-materials.md`.
 
-### Notes
+### Release Notes
 
-- This update is documentation and project-state alignment work. It does not add
-  new runtime features beyond the codemap metadata and repo guidance files.
+- This change set is primarily repository-truth and release-operability work.
+- Runtime features were already present; the work here makes the completion
+  ledger, packaging lane, and release documentation honest.

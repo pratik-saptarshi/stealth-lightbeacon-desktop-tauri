@@ -33,6 +33,7 @@ def main() -> None:
     )
     run(["cargo", "test", "--manifest-path", "src-tauri/Cargo.toml"], cwd=ROOT)
     run(["npm", "run", "build"], cwd=ROOT)
+    run(["npm", "run", "tauri:build"], cwd=ROOT)
 
     print("release-validation: ok")
 

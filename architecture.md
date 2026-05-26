@@ -1,52 +1,53 @@
 # Desktop Architecture
 
 This repository implements the desktop operator client for Stealth Lightbeacon.
-The intended backend executes evaluations and remains authoritative for job
-state, results, artifacts, and future recon output. The desktop client is a
-thin transport and UX layer.
+The backend companion executes evaluations and remains authoritative for job
+state, terminal results, artifacts, recon output, and the canonical OpenAPI
+contract. The desktop client is a thin but trusted UX and transport layer.
 
-## System Shape
+## Runtime Topology
 
-1. React renders connection, submission, polling, result, and artifact
-   workflow.
+1. React renders connection setup, evaluation submission, polling, terminal
+   result, artifacts, recon, and snapshot restore.
 2. The frontend calls Tauri commands through `src/lib/desktop.ts`.
-3. Rust validates local input, persists local settings, and performs HTTP
-   requests to the backend API.
+3. Rust validates local input, persists local settings, manages the optional
+   local companion process, and performs HTTP requests to the backend API.
 4. The backend API owns evaluation lifecycle state and contract semantics.
 
 ## Cross-Repo Reality
 
-The sibling repository `/Volumes/dev/Git-SCM/stealth-lightbeacon` is currently
-implemented as a Typer CLI audit engine. It is not yet the HTTP/OpenAPI
-companion that this desktop repo expects.
+The earlier plan assumed the backend substrate did not exist yet. That is now
+outdated. The validated backend worktree
+`/private/tmp/stealth-lightbeacon-phase-0a-0b` exposes:
 
-That means:
+- generated OpenAPI at `/openapi.json`
+- bootstrap routes `/health` and `/capabilities`
+- evaluation submission and polling
+- terminal result and artifact routes
+- recon route
+- auth and compatibility metadata
 
-- the desktop repo's transport and UI flows through `Phase 2B` are implemented
-  locally
-- the remaining critical path is now cross-repo work in the backend repo:
-  OpenAPI production, HTTP routes, evaluation job lifecycle, and companion
-  process behavior
-- completion of later desktop phases depends on that backend substrate becoming
-  real
+This desktop repo is therefore no longer blocked on the original early phases,
+but some operator-facing completion work remains in this repo.
 
 ## Trust Boundaries
 
-- React is untrusted for filesystem access, credential storage, and raw
-  transport behavior.
-- Rust is the trusted desktop boundary for config validation, persistence, and
-  transport error normalization.
-- The backend is the source of truth for evaluation status and any terminal
-  report data.
+- React is untrusted for filesystem access, credential storage, and transport
+  policy.
+- Rust is the trusted desktop boundary for config validation, persistence,
+  local companion lifecycle, remote auth-token lookup, and transport error
+  normalization.
+- The backend is the source of truth for evaluation status, terminal outputs,
+  artifacts, recon output, and compatibility policy.
 
 ## Current Runtime Flow
 
-### Bootstrap
-
 1. Tauri starts and loads persisted `backend-config.json` from the app config
    directory.
-2. React requests the saved config from Rust.
+2. React requests the saved config and any terminal snapshot from Rust.
 3. React checks backend reachability and capability data.
+4. In local mode, Rust can discover and start the sibling backend companion and
+   wait for an `ok` health state before continuing.
 
 ### Evaluation Lifecycle
 
@@ -54,49 +55,49 @@ That means:
 2. The operator submits an evaluation request from the React form.
 3. Rust validates the payload and sends `POST /evaluations`.
 4. React stores the accepted evaluation ID in memory and polls
-   `GET /evaluations/{evaluation_id}` until the backend reports `terminal=true`.
-5. React then retrieves `GET /evaluations/{evaluation_id}/result` and
+   `GET /evaluations/{evaluation_id}` until `terminal=true`.
+5. React retrieves `GET /evaluations/{evaluation_id}/result` and
    `GET /evaluations/{evaluation_id}/artifacts`.
-6. Rust persists only the thin last-opened terminal snapshot needed for fast
-   restore.
+6. Rust persists only the thin last-opened terminal snapshot needed for a fast
+   restore, not a full desktop history store.
+7. Recon transport exists through `POST /recon`, but the React shell does not
+   yet expose an operator workflow for it.
 
 ## Contract Boundary
 
-The intended contract source of truth is the backend's `/openapi.json`. This
-repo currently pins a local snapshot at `contracts/backend-api.openapi.json`,
-but the sibling backend repo does not yet produce that artifact. The runtime
-DTOs are still maintained manually in both TypeScript and Rust. That means the
-contract boundary is documented and tested locally, but not yet generated or
-enforced end to end across repos.
+The contract source of truth is the backend's `/openapi.json`, exported to
+`contracts/backend-api.openapi.json` in the backend repo and pinned here at
+`contracts/backend-api.openapi.json`. The desktop repo validates its copy
+against the backend producer with `npm run check:contract-sync`.
 
-## Implemented Versus Planned
+## Implemented Surface
 
-- Implemented now in the desktop repo:
-  - backend config persistence
-  - health and capability checks
-  - evaluation create and status polling
-  - result retrieval and rendering
-  - artifact retrieval and rendering
-  - last-opened terminal snapshot persistence
-- Planned but not yet implemented cross-repo:
-  - backend HTTP/OpenAPI producer surface in the sibling repo
-  - recon commands and UX against a real backend route
-  - local companion process lifecycle
-  - remote auth and API compatibility enforcement
-  - thin cache for last-opened result metadata and any approved history views
+- backend config persistence
+- health and capability checks
+- evaluation create and status polling
+- terminal result retrieval and rendering
+- artifact retrieval and rendering
+- recon transport support in the desktop adapter and Rust runtime
+- local companion startup, readiness, degraded-state, and shutdown handling
+- remote HTTPS enforcement, version header injection, and Rust-only auth-token
+  lookup
+- last-opened terminal snapshot persistence
+- cross-repo release validation including Tauri packaging
 
-## Known Architectural Drift
+## Remaining Gaps
 
-- The pinned snapshot already contains later routes, while the sibling backend
-  repo does not yet expose those routes at all.
-- The UI exposes `local` and `remote` modes, but the Rust layer does not yet
-  enforce different policy for loopback, TLS, auth, or versioning.
-- Current persistence covers backend config plus the thin last-opened terminal
-  snapshot only.
+- Recon is not yet wired into `src/App.tsx`.
+- Remote auth-required and compatibility-mismatch handling exists at the
+  transport layer, but operator-facing UX is still thin.
+- GitHub publication is not yet configured in this local checkout because no
+  `origin` remote exists.
+- The desktop package still depends on a separately versioned backend runtime;
+  it does not embed Python or the audit engine.
+- Long-term Rust decomposition is still desirable because `src-tauri/src/lib.rs`
+  remains monolithic.
 
 ## Explicit Exclusions
 
-- No Python sidecar orchestration inside Tauri.
-- No MCP configuration endpoints or agent-card surface.
-- No semantic-search, vector, or LadyBugDB desktop feature line.
-- No desktop-authoritative artifact or run history store.
+- No audit-engine execution inside the frontend.
+- No desktop-authoritative artifact store or full run-history database.
+- No MCP configuration endpoints or agent-card surface in the desktop app.

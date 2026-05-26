@@ -10,7 +10,7 @@
     "check": "npm run lint && npm run test && npm run test:python && npm run test:rust",
     "lint": "eslint .",
     "preview": "vite preview",
-    "tauri:build": "tauri build",
+    "tauri:build": "tauri build --bundles app",
     "tauri:dev": "tauri dev",
     "test": "vitest run",
     "test:python": "python3 -m unittest discover -s tests/contracts -p 'test_*.py'",

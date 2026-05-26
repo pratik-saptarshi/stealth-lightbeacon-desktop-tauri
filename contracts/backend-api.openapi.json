@@ -3,7 +3,7 @@
   "info": {
     "title": "Stealth Lightbeacon Backend API",
     "version": "0.1.0",
-    "description": "Pinned Phase 1 desktop snapshot for the Stealth Lightbeacon backend contract."
+    "description": "Generated backend companion contract for Stealth Lightbeacon desktop integration."
   },
   "servers": [
     {
@@ -39,6 +39,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CapabilitiesResponse"
+                },
+                "example": {
+                  "apiMode": {
+                    "mode": "local",
+                    "baseUrl": "http://127.0.0.1:8000",
+                    "transport": "http",
+                    "apiVersion": "0.1.0",
+                    "supportsRemote": false
+                  },
+                  "evaluationProfiles": [
+                    "seo",
+                    "performance",
+                    "accessibility",
+                    "aeo-geo",
+                    "ux",
+                    "security"
+                  ],
+                  "outputFormats": [
+                    "json",
+                    "html",
+                    "both",
+                    "llm",
+                    "geo-xml"
+                  ],
+                  "supportsRecon": true,
+                  "supportsArtifacts": true
                 }
               }
             }
@@ -197,6 +223,11 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReconResponse"
+                },
+                "example": {
+                  "recommendation": "stealth",
+                  "confidence": 0.9,
+                  "evidenceSummary": "cloudflare, status:403"
                 }
               }
             }

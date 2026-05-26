@@ -1,8 +1,11 @@
 use std::{
+    env,
     fs,
+    net::TcpListener,
     path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
     sync::Mutex,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -185,9 +188,15 @@ impl ApiError {
     }
 }
 
+struct LocalBackendProcess {
+    child: Child,
+    base_url: String,
+}
+
 struct AppState {
     backend_config: Mutex<BackendConfig>,
     bootstrap_error: Mutex<Option<ApiError>>,
+    local_backend: Mutex<Option<LocalBackendProcess>>,
 }
 
 impl AppState {
@@ -195,6 +204,7 @@ impl AppState {
         Self {
             backend_config: Mutex::new(backend_config),
             bootstrap_error: Mutex::new(None),
+            local_backend: Mutex::new(None),
         }
     }
 
@@ -204,7 +214,173 @@ impl AppState {
             Err(error) => Self {
                 backend_config: Mutex::new(BackendConfig::default()),
                 bootstrap_error: Mutex::new(Some(error)),
+                local_backend: Mutex::new(None),
             },
+        }
+    }
+}
+
+impl Drop for AppState {
+    fn drop(&mut self) {
+        if let Ok(slot) = self.local_backend.get_mut() {
+            if let Some(process) = slot.as_mut() {
+                stop_local_backend_process(process);
+            }
+        }
+    }
+}
+
+fn stop_local_backend_process(process: &mut LocalBackendProcess) {
+    let _ = process.child.kill();
+    let _ = process.child.wait();
+}
+
+fn desktop_repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("desktop repo root")
+        .to_path_buf()
+}
+
+fn backend_repo_root() -> PathBuf {
+    if let Ok(path) = env::var("STEALTH_LIGHTBEACON_BACKEND_ROOT") {
+        return PathBuf::from(path);
+    }
+
+    let sibling = desktop_repo_root()
+        .parent()
+        .expect("workspace root")
+        .join("stealth-lightbeacon");
+    if backend_python_path(&sibling).exists() {
+        return sibling;
+    }
+
+    if let Ok(entries) = fs::read_dir("/private/tmp") {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+                continue;
+            };
+            if !name.starts_with("stealth-lightbeacon") {
+                continue;
+            }
+            if backend_python_path(&path).exists() {
+                return path;
+            }
+        }
+    }
+
+    sibling
+}
+
+fn backend_python_path(backend_root: &Path) -> PathBuf {
+    if let Ok(path) = env::var("STEALTH_LIGHTBEACON_BACKEND_PYTHON") {
+        return PathBuf::from(path);
+    }
+
+    backend_root.join(".venv").join("bin").join("python")
+}
+
+fn allocate_local_backend_port() -> Result<u16, ApiError> {
+    let listener = TcpListener::bind("127.0.0.1:0").map_err(|err| {
+        ApiError::with_details(
+            "local_backend_port_error",
+            "Unable to reserve a loopback port for the local backend.",
+            err.to_string(),
+        )
+    })?;
+    let port = listener.local_addr().map_err(|err| {
+        ApiError::with_details(
+            "local_backend_port_error",
+            "Unable to read the reserved loopback port for the local backend.",
+            err.to_string(),
+        )
+    })?;
+    Ok(port.port())
+}
+
+fn env_override<'a>(extra_env: &'a [(&'a str, &'a str)], key: &str) -> Option<&'a str> {
+    extra_env
+        .iter()
+        .find(|(candidate, _)| *candidate == key)
+        .map(|(_, value)| *value)
+}
+
+fn spawn_local_backend_process_with_env(
+    extra_env: &[(&str, &str)],
+) -> Result<LocalBackendProcess, ApiError> {
+    let backend_root = env_override(extra_env, "STEALTH_LIGHTBEACON_BACKEND_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(backend_repo_root);
+    let python = env_override(extra_env, "STEALTH_LIGHTBEACON_BACKEND_PYTHON")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| backend_python_path(&backend_root));
+    let port = allocate_local_backend_port()?;
+    let mut command = Command::new(&python);
+    command
+        .current_dir(&backend_root)
+        .env("SLB_ALLOW_PRIVATE", "1")
+        .arg("-m")
+        .arg("companion.http_api")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg(port.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    for (key, value) in extra_env {
+        command.env(key, value);
+    }
+
+    let child = command.spawn().map_err(|err| {
+        ApiError::with_details(
+            "local_backend_spawn_error",
+            "Unable to launch the local backend companion.",
+            format!("{} ({})", python.display(), err),
+        )
+    })?;
+
+    Ok(LocalBackendProcess {
+        child,
+        base_url: format!("http://127.0.0.1:{port}"),
+    })
+}
+
+fn stop_local_backend_in_app_state(state: &AppState) -> Result<(), ApiError> {
+    let mut guard = state
+        .local_backend
+        .lock()
+        .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
+    if let Some(mut process) = guard.take() {
+        stop_local_backend_process(&mut process);
+    }
+    Ok(())
+}
+
+fn current_local_backend_base_url(state: &AppState) -> Result<Option<String>, ApiError> {
+    let mut guard = state
+        .local_backend
+        .lock()
+        .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
+    let Some(process) = guard.as_mut() else {
+        return Ok(None);
+    };
+    match process.child.try_wait().map_err(|err| {
+        ApiError::with_details(
+            "local_backend_state_error",
+            "Unable to inspect the local backend companion process.",
+            err.to_string(),
+        )
+    })? {
+        None => Ok(Some(process.base_url.clone())),
+        Some(status) => {
+            let details = status.to_string();
+            *guard = None;
+            Err(ApiError::with_details(
+                "local_backend_stopped",
+                "The local backend companion exited before it became ready.",
+                details,
+            ))
         }
     }
 }
@@ -507,6 +683,82 @@ fn current_backend_config_from_app_state(state: &AppState) -> Result<BackendConf
         .map(|guard| guard.clone())
 }
 
+async fn wait_for_local_backend_health(config: &BackendConfig) -> Result<(), ApiError> {
+    let deadline = Instant::now() + Duration::from_millis(config.timeout_ms.max(1_000));
+    loop {
+        match api_health_check_impl(config).await {
+            Ok(health) if health.status == "ok" => return Ok(()),
+            Ok(health) if health.status == "degraded" => {
+                return Err(ApiError::with_details(
+                    "local_backend_degraded",
+                    "The local backend companion reported a degraded startup state.",
+                    config.base_url.clone(),
+                ))
+            }
+            Ok(_) => {}
+            Err(error) if matches!(error.code.as_str(), "transport_error" | "timeout") => {}
+            Err(error) => return Err(error),
+        }
+        if Instant::now() >= deadline {
+            return Err(ApiError::with_details(
+                "local_backend_timeout",
+                "The local backend companion did not become ready before the timeout elapsed.",
+                config.base_url.clone(),
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+async fn effective_backend_config_from_app_state_with_env(
+    state: &AppState,
+    extra_env: &[(&str, &str)],
+) -> Result<BackendConfig, ApiError> {
+    let config = current_backend_config_from_app_state(state)?;
+    if config.mode != BackendMode::Local {
+        return Ok(config);
+    }
+
+    let base_url = match current_local_backend_base_url(state) {
+        Ok(Some(base_url)) => base_url,
+        Ok(None) => {
+            let process = spawn_local_backend_process_with_env(extra_env)?;
+            let base_url = process.base_url.clone();
+            let mut guard = state
+                .local_backend
+                .lock()
+                .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
+            *guard = Some(process);
+            base_url
+        }
+        Err(error) if error.code == "local_backend_stopped" => {
+            let process = spawn_local_backend_process_with_env(extra_env)?;
+            let base_url = process.base_url.clone();
+            let mut guard = state
+                .local_backend
+                .lock()
+                .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
+            *guard = Some(process);
+            base_url
+        }
+        Err(error) => return Err(error),
+    };
+
+    let mut runtime_config = config;
+    runtime_config.base_url = base_url;
+
+    if let Err(error) = wait_for_local_backend_health(&runtime_config).await {
+        let _ = stop_local_backend_in_app_state(state);
+        return Err(error);
+    }
+
+    Ok(runtime_config)
+}
+
+async fn effective_backend_config_from_app_state(state: &AppState) -> Result<BackendConfig, ApiError> {
+    effective_backend_config_from_app_state_with_env(state, &[]).await
+}
+
 fn normalize_backend_config(mut config: BackendConfig) -> BackendConfig {
     config.base_url = config.base_url.trim().trim_end_matches('/').to_string();
     config
@@ -728,19 +980,22 @@ fn set_backend_config(
 ) -> Result<BackendConfig, ApiError> {
     let config = normalize_backend_config(config);
     validate_backend_config(&config)?;
+    if config.mode != BackendMode::Local {
+        stop_local_backend_in_app_state(state.inner())?;
+    }
     save_backend_config(&app, &config)?;
     replace_backend_config_in_app_state(state.inner(), config)
 }
 
 #[tauri::command]
 async fn api_health_check(state: State<'_, AppState>) -> Result<HealthResponse, ApiError> {
-    let config = current_backend_config(&state)?;
+    let config = effective_backend_config_from_app_state(state.inner()).await?;
     api_health_check_impl(&config).await
 }
 
 #[tauri::command]
 async fn get_capabilities(state: State<'_, AppState>) -> Result<CapabilitiesResponse, ApiError> {
-    let config = current_backend_config(&state)?;
+    let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_capabilities_impl(&config).await
 }
 
@@ -749,7 +1004,7 @@ async fn create_evaluation(
     state: State<'_, AppState>,
     request: CreateEvaluationRequest,
 ) -> Result<CreateEvaluationResponse, ApiError> {
-    let config = current_backend_config(&state)?;
+    let config = effective_backend_config_from_app_state(state.inner()).await?;
     create_evaluation_impl(&config, &request).await
 }
 
@@ -758,7 +1013,7 @@ async fn get_evaluation_status(
     state: State<'_, AppState>,
     evaluation_id: String,
 ) -> Result<EvaluationStatusResponse, ApiError> {
-    let config = current_backend_config(&state)?;
+    let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_evaluation_status_impl(&config, &evaluation_id).await
 }
 
@@ -767,7 +1022,7 @@ async fn get_evaluation_result(
     state: State<'_, AppState>,
     evaluation_id: String,
 ) -> Result<EvaluationResultResponse, ApiError> {
-    let config = current_backend_config(&state)?;
+    let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_evaluation_result_impl(&config, &evaluation_id).await
 }
 
@@ -776,7 +1031,7 @@ async fn get_evaluation_artifacts(
     state: State<'_, AppState>,
     evaluation_id: String,
 ) -> Result<Vec<ArtifactDescriptor>, ApiError> {
-    let config = current_backend_config(&state)?;
+    let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_evaluation_artifacts_impl(&config, &evaluation_id).await
 }
 
@@ -822,7 +1077,6 @@ pub fn run() {
 mod tests {
     use super::*;
     use std::{
-        env,
         io::{Read, Write},
         net::TcpListener,
         path::PathBuf,
@@ -886,6 +1140,15 @@ mod tests {
         }
     }
 
+    fn local_backend_test_root() -> PathBuf {
+        let sibling = backend_repo_root();
+        if backend_python_path(&sibling).exists() {
+            return sibling;
+        }
+
+        PathBuf::from("/private/tmp/stealth-lightbeacon-phase-0a-0b")
+    }
+
     fn sample_result() -> EvaluationResultResponse {
         EvaluationResultResponse {
             evaluation_id: "eval-terminal".into(),
@@ -917,35 +1180,9 @@ mod tests {
         }
     }
 
-    fn desktop_repo_root() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("desktop repo root")
-            .to_path_buf()
-    }
-
-    fn backend_repo_root() -> PathBuf {
-        if let Ok(path) = env::var("STEALTH_LIGHTBEACON_BACKEND_ROOT") {
-            return PathBuf::from(path);
-        }
-
-        desktop_repo_root()
-            .parent()
-            .expect("workspace root")
-            .join("stealth-lightbeacon")
-    }
-
-    fn backend_python_path(backend_root: &std::path::Path) -> PathBuf {
-        if let Ok(path) = env::var("STEALTH_LIGHTBEACON_BACKEND_PYTHON") {
-            return PathBuf::from(path);
-        }
-
-        backend_root.join(".venv").join("bin").join("python")
-    }
-
     fn spawn_real_backend_server() -> RealBackendProcess {
-        let backend_root = backend_repo_root();
-        let python = backend_python_path(&backend_root);
+        let backend_root = super::backend_repo_root();
+        let python = super::backend_python_path(&backend_root);
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
         let port = listener.local_addr().expect("port").port();
         drop(listener);
@@ -1633,5 +1870,174 @@ mod tests {
 
         assert!(!artifacts.is_empty());
         assert!(artifacts.iter().any(|artifact| artifact.kind == "normalized_report"));
+    }
+
+    #[tokio::test]
+    async fn local_mode_starts_managed_companion_and_reuses_runtime_url() {
+        let state = AppState::new(BackendConfig::default());
+        let backend_root = local_backend_test_root();
+        let backend_root_text = backend_root.display().to_string();
+        let backend_python = backend_python_path(&backend_root).display().to_string();
+        let overrides = [
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_ROOT",
+                backend_root_text.as_str(),
+            ),
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_PYTHON",
+                backend_python.as_str(),
+            ),
+        ];
+
+        let first = effective_backend_config_from_app_state_with_env(&state, &overrides)
+            .await
+            .expect("first local config");
+        let second = effective_backend_config_from_app_state_with_env(&state, &overrides)
+            .await
+            .expect("second local config");
+        let health = api_health_check_impl(&first).await.expect("health");
+
+        assert_eq!(first.mode, BackendMode::Local);
+        assert_ne!(first.base_url, DEFAULT_LOCAL_BASE_URL);
+        assert_eq!(second.base_url, first.base_url);
+        assert_eq!(health.status, "ok");
+
+        stop_local_backend_in_app_state(&state).expect("stop local backend");
+    }
+
+    #[tokio::test]
+    async fn local_mode_waits_for_companion_readiness() {
+        let state = AppState::new(BackendConfig::default());
+        let started = Instant::now();
+        let backend_root = local_backend_test_root();
+        let backend_root_text = backend_root.display().to_string();
+        let backend_python = backend_python_path(&backend_root).display().to_string();
+        let overrides = [
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_ROOT",
+                backend_root_text.as_str(),
+            ),
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_PYTHON",
+                backend_python.as_str(),
+            ),
+            ("SLB_COMPANION_STARTUP_DELAY_MS", "250"),
+        ];
+
+        let config = effective_backend_config_from_app_state_with_env(&state, &overrides)
+        .await
+        .expect("delayed local config");
+
+        assert!(started.elapsed() >= Duration::from_millis(200));
+        assert_ne!(config.base_url, DEFAULT_LOCAL_BASE_URL);
+
+        stop_local_backend_in_app_state(&state).expect("stop local backend");
+    }
+
+    #[tokio::test]
+    async fn local_mode_reports_degraded_companion_startup() {
+        let state = AppState::new(BackendConfig::default());
+        let backend_root = local_backend_test_root();
+        let backend_root_text = backend_root.display().to_string();
+        let backend_python = backend_python_path(&backend_root).display().to_string();
+        let overrides = [
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_ROOT",
+                backend_root_text.as_str(),
+            ),
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_PYTHON",
+                backend_python.as_str(),
+            ),
+            ("SLB_COMPANION_DEGRADED_REASON", "fixture"),
+        ];
+
+        let error = effective_backend_config_from_app_state_with_env(&state, &overrides)
+        .await
+        .expect_err("degraded local backend");
+
+        assert_eq!(error.code, "local_backend_degraded");
+        assert_eq!(
+            error.message,
+            "The local backend companion reported a degraded startup state."
+        );
+    }
+
+    #[tokio::test]
+    async fn local_mode_shutdown_stops_managed_companion() {
+        let state = AppState::new(BackendConfig::default());
+        let backend_root = local_backend_test_root();
+        let backend_root_text = backend_root.display().to_string();
+        let backend_python = backend_python_path(&backend_root).display().to_string();
+        let overrides = [
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_ROOT",
+                backend_root_text.as_str(),
+            ),
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_PYTHON",
+                backend_python.as_str(),
+            ),
+        ];
+        let config = effective_backend_config_from_app_state_with_env(&state, &overrides)
+            .await
+            .expect("local config");
+
+        stop_local_backend_in_app_state(&state).expect("stop local backend");
+
+        let error = api_health_check_impl(&config)
+            .await
+            .expect_err("stopped local backend");
+        assert!(matches!(error.code.as_str(), "transport_error" | "timeout"));
+    }
+
+    #[tokio::test]
+    async fn local_mode_auto_starts_and_completes_an_evaluation() {
+        let state = AppState::new(BackendConfig::default());
+        let backend_root = local_backend_test_root();
+        let backend_root_text = backend_root.display().to_string();
+        let backend_python = backend_python_path(&backend_root).display().to_string();
+        let overrides = [
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_ROOT",
+                backend_root_text.as_str(),
+            ),
+            (
+                "STEALTH_LIGHTBEACON_BACKEND_PYTHON",
+                backend_python.as_str(),
+            ),
+        ];
+        let target_url = spawn_target_site();
+
+        let config = effective_backend_config_from_app_state_with_env(&state, &overrides)
+            .await
+            .expect("local config");
+        let accepted = create_evaluation_impl(
+            &config,
+            &CreateEvaluationRequest {
+                target: target_url,
+                ..sample_request()
+            },
+        )
+        .await
+        .expect("create evaluation");
+
+        let mut terminal_status = None;
+        for _ in 0..30 {
+            let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
+                .await
+                .expect("evaluation status");
+            if status.terminal {
+                terminal_status = Some(status);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let terminal_status = terminal_status.expect("terminal status");
+        assert!(terminal_status.terminal);
+        assert!(terminal_status.exit_state.is_some());
+
+        stop_local_backend_in_app_state(&state).expect("stop local backend");
     }
 }

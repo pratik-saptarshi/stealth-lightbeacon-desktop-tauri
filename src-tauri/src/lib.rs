@@ -147,12 +147,24 @@ impl ApiError {
 
 struct AppState {
     backend_config: Mutex<BackendConfig>,
+    bootstrap_error: Mutex<Option<ApiError>>,
 }
 
 impl AppState {
     fn new(backend_config: BackendConfig) -> Self {
         Self {
             backend_config: Mutex::new(backend_config),
+            bootstrap_error: Mutex::new(None),
+        }
+    }
+
+    fn from_bootstrap_result(result: Result<BackendConfig, ApiError>) -> Self {
+        match result {
+            Ok(config) => Self::new(config),
+            Err(error) => Self {
+                backend_config: Mutex::new(BackendConfig::default()),
+                bootstrap_error: Mutex::new(Some(error)),
+            },
         }
     }
 }
@@ -306,6 +318,19 @@ fn validate_evaluation_request(request: &CreateEvaluationRequest) -> Result<(), 
 }
 
 fn current_backend_config(state: &State<'_, AppState>) -> Result<BackendConfig, ApiError> {
+    current_backend_config_from_app_state(state.inner())
+}
+
+fn current_backend_config_from_app_state(state: &AppState) -> Result<BackendConfig, ApiError> {
+    if let Some(error) = state
+        .bootstrap_error
+        .lock()
+        .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?
+        .clone()
+    {
+        return Err(error);
+    }
+
     state
         .backend_config
         .lock()
@@ -318,19 +343,89 @@ fn normalize_backend_config(mut config: BackendConfig) -> BackendConfig {
     config
 }
 
+fn replace_backend_config_in_app_state(
+    state: &AppState,
+    config: BackendConfig,
+) -> Result<BackendConfig, ApiError> {
+    {
+        let mut guard = state
+            .backend_config
+            .lock()
+            .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?;
+        *guard = config.clone();
+    }
+
+    let mut bootstrap_error = state
+        .bootstrap_error
+        .lock()
+        .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?;
+    *bootstrap_error = None;
+
+    Ok(config)
+}
+
+fn resolve_backend_endpoint(
+    config: &BackendConfig,
+    path_segments: &[&str],
+) -> Result<reqwest::Url, ApiError> {
+    validate_backend_config(config)?;
+
+    let mut endpoint = reqwest::Url::parse(config.base_url.trim()).map_err(|err| {
+        ApiError::with_details(
+            "invalid_config",
+            "Backend base URL must be a valid absolute URL.",
+            err.to_string(),
+        )
+    })?;
+
+    let mut segments = endpoint.path_segments_mut().map_err(|_| {
+        ApiError::new(
+            "invalid_config",
+            "Backend base URL must support hierarchical path segments.",
+        )
+    })?;
+
+    for segment in path_segments {
+        if !segment.is_empty() {
+            segments.push(segment);
+        }
+    }
+    drop(segments);
+
+    Ok(endpoint)
+}
+
+async fn decode_backend_error(response: reqwest::Response) -> ApiError {
+    let status = response.status().as_u16();
+    let details = response.text().await.ok();
+
+    if let Some(body) = details.as_deref() {
+        if let Ok(mut error) = serde_json::from_str::<ApiError>(body) {
+            error.status = error.status.or(Some(status));
+            return error;
+        }
+    }
+
+    ApiError::with_status(
+        "backend_error",
+        format!("Backend request failed with status {}.", status),
+        status,
+        details,
+    )
+}
+
 async fn send_json_request<B, T>(
     config: &BackendConfig,
     method: reqwest::Method,
-    path: &str,
+    path_segments: &[&str],
     body: Option<&B>,
 ) -> Result<T, ApiError>
 where
     B: Serialize + ?Sized,
     T: DeserializeOwned,
 {
-    validate_backend_config(config)?;
-
-    let endpoint = format!("{}{}", config.base_url.trim_end_matches('/'), path);
+    let endpoint = resolve_backend_endpoint(config, path_segments)?;
+    let endpoint_text = endpoint.to_string();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(config.timeout_ms))
         .build()
@@ -354,7 +449,7 @@ where
             ApiError::with_details(
                 "timeout",
                 "The backend request timed out.",
-                endpoint.clone(),
+                endpoint_text.clone(),
             )
         } else {
             ApiError::with_details(
@@ -367,13 +462,7 @@ where
 
     let status = response.status();
     if !status.is_success() {
-        let details = response.text().await.ok();
-        return Err(ApiError::with_status(
-            "backend_error",
-            format!("Backend request failed with status {}.", status.as_u16()),
-            status.as_u16(),
-            details,
-        ));
+        return Err(decode_backend_error(response).await);
     }
 
     response.json::<T>().await.map_err(|err| {
@@ -386,14 +475,14 @@ where
 }
 
 async fn api_health_check_impl(config: &BackendConfig) -> Result<HealthResponse, ApiError> {
-    send_json_request::<(), HealthResponse>(config, reqwest::Method::GET, "/health", None).await
+    send_json_request::<(), HealthResponse>(config, reqwest::Method::GET, &["health"], None).await
 }
 
 async fn get_capabilities_impl(config: &BackendConfig) -> Result<CapabilitiesResponse, ApiError> {
     send_json_request::<(), CapabilitiesResponse>(
         config,
         reqwest::Method::GET,
-        "/capabilities",
+        &["capabilities"],
         None,
     )
     .await
@@ -407,7 +496,7 @@ async fn create_evaluation_impl(
     send_json_request(
         config,
         reqwest::Method::POST,
-        "/evaluations",
+        &["evaluations"],
         Some(request),
     )
     .await
@@ -427,7 +516,7 @@ async fn get_evaluation_status_impl(
     send_json_request::<(), EvaluationStatusResponse>(
         config,
         reqwest::Method::GET,
-        &format!("/evaluations/{evaluation_id}"),
+        &["evaluations", evaluation_id],
         None,
     )
     .await
@@ -447,14 +536,7 @@ fn set_backend_config(
     let config = normalize_backend_config(config);
     validate_backend_config(&config)?;
     save_backend_config(&app, &config)?;
-
-    let mut guard = state
-        .backend_config
-        .lock()
-        .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?;
-    *guard = config.clone();
-
-    Ok(config)
+    replace_backend_config_in_app_state(state.inner(), config)
 }
 
 #[tauri::command]
@@ -491,8 +573,8 @@ async fn get_evaluation_status(
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let config = load_backend_config(app.handle()).unwrap_or_default();
-            app.manage(AppState::new(config));
+            let state = AppState::from_bootstrap_result(load_backend_config(app.handle()));
+            app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -634,6 +716,30 @@ mod tests {
         assert_eq!(error.code, "invalid_request");
     }
 
+    #[test]
+    fn bootstrap_state_surfaces_corrupted_config_errors_until_replaced() {
+        let path = temp_config_path("config-corrupted");
+        fs::write(&path, "{not-json").expect("write corrupted config");
+
+        let error = load_backend_config_from(&path).expect_err("corrupted config");
+        assert_eq!(error.code, "config_parse_error");
+
+        let state = AppState::from_bootstrap_result(Err(error.clone()));
+        let surfaced = current_backend_config_from_app_state(&state).expect_err("bootstrap error");
+        assert_eq!(surfaced, error);
+
+        let config = sample_config("http://127.0.0.1:9200".into());
+        let replaced =
+            replace_backend_config_in_app_state(&state, config.clone()).expect("replace config");
+        assert_eq!(replaced, config);
+        assert_eq!(
+            current_backend_config_from_app_state(&state).expect("current config"),
+            config
+        );
+
+        let _ = fs::remove_file(path);
+    }
+
     #[tokio::test]
     async fn http_adapter_supports_create_and_poll_flow() {
         let (base_url, recorded_requests) = spawn_stub_server(vec![
@@ -695,5 +801,48 @@ mod tests {
         assert_eq!(complete.exit_state.as_deref(), Some("success"));
 
         assert_eq!(recorded_requests.lock().expect("recorded").len(), 5);
+    }
+
+    #[tokio::test]
+    async fn http_adapter_preserves_structured_api_errors() {
+        let (base_url, _) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "POST /evaluations HTTP/1.1",
+            expected_body: Some(r#""profile":"baseline""#),
+            status_line: "422 Unprocessable Entity",
+            response_body: r#"{"code":"invalid_profile","message":"Profile is not supported.","details":"baseline is disabled"}"#,
+        }]);
+
+        let config = sample_config(base_url);
+        let error = create_evaluation_impl(&config, &sample_request())
+            .await
+            .expect_err("structured api error");
+
+        assert_eq!(
+            error,
+            ApiError {
+                code: "invalid_profile".into(),
+                message: "Profile is not supported.".into(),
+                status: Some(422),
+                details: Some("baseline is disabled".into()),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn http_adapter_url_encodes_evaluation_id_path_segments() {
+        let (base_url, recorded_requests) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "GET /evaluations/eval%2Fwith%20space%3Fand%23hash HTTP/1.1",
+            expected_body: None,
+            status_line: "200 OK",
+            response_body: r#"{"evaluationId":"eval/with space?and#hash","status":"running","stage":"analysis","progressPercent":10,"message":"Encoded path received.","exitState":null,"terminal":false}"#,
+        }]);
+
+        let config = sample_config(base_url);
+        let status = get_evaluation_status_impl(&config, "eval/with space?and#hash")
+            .await
+            .expect("encoded status");
+
+        assert_eq!(status.evaluation_id, "eval/with space?and#hash");
+        assert_eq!(recorded_requests.lock().expect("recorded").len(), 1);
     }
 }

@@ -59,7 +59,7 @@ export type CommandError = {
   code?: string
   message: string
   status?: number | null
-  details?: string | null
+  details?: unknown
 }
 
 type InvokeArgs = Record<string, unknown> | undefined
@@ -99,21 +99,76 @@ export async function getEvaluationStatus(evaluationId: string) {
   })
 }
 
+function formatCommandErrorValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+  ) {
+    return JSON.stringify(value)
+  }
+
+  return String(value)
+}
+
+function formatCommandErrorDetails(details: unknown): string[] {
+  if (details == null) {
+    return []
+  }
+
+  if (typeof details === 'string') {
+    const trimmed = details.trim()
+    return trimmed ? [trimmed] : []
+  }
+
+  if (Array.isArray(details)) {
+    return details.flatMap((detail) => formatCommandErrorDetails(detail))
+  }
+
+  if (typeof details === 'object') {
+    return Object.entries(details as Record<string, unknown>).map(
+      ([key, value]) => `${key}: ${formatCommandErrorValue(value)}`,
+    )
+  }
+
+  return [String(details)]
+}
+
 export function formatCommandError(error: unknown) {
   if (typeof error === 'string') {
     return error
   }
 
+  if (error instanceof Error) {
+    return error.message
+  }
+
   if (error && typeof error === 'object') {
-    const candidate = error as CommandError
-    const parts = [candidate.message]
-    if (candidate.status) {
-      parts.push(`status ${candidate.status}`)
+    const candidate = error as Partial<CommandError>
+    const message =
+      typeof candidate.message === 'string' && candidate.message.trim()
+        ? candidate.message.trim()
+        : 'Unknown desktop command error.'
+    const headline =
+      typeof candidate.code === 'string' && candidate.code.trim()
+        ? `[${candidate.code.trim()}] ${message}`
+        : message
+    const parts = [headline]
+
+    if (typeof candidate.status === 'number' && Number.isFinite(candidate.status)) {
+      parts.push(`HTTP ${candidate.status}`)
     }
-    if (candidate.details) {
-      parts.push(candidate.details)
+
+    const details = formatCommandErrorDetails(candidate.details)
+    if (details.length > 0) {
+      parts.push(details.join('; '))
     }
-    return parts.filter(Boolean).join(' - ')
+
+    return parts.join(' | ')
   }
 
   return 'Unknown desktop command error.'

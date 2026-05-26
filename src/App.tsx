@@ -31,6 +31,8 @@ type ActivityItem = {
   detail: string
 }
 
+type CapabilitiesLoadState = 'idle' | 'loading' | 'ready' | 'failed'
+
 const defaultBackendConfig: BackendConfig = {
   mode: 'local',
   baseUrl: 'http://127.0.0.1:8000',
@@ -49,6 +51,10 @@ const defaultRequest: CreateEvaluationRequest = {
 
 const fallbackProfiles = ['baseline', 'deep', 'export']
 const fallbackFormats = ['json', 'markdown', 'html']
+const maxDepthBounds = { min: 1, max: 8 }
+const maxUrlsBounds = { min: 1, max: 5000 }
+const pollDelayMs = 1500
+const maxAutomaticPollRetries = 2
 
 function formatBackendMode(mode: BackendMode | string) {
   return mode === 'local' ? 'Local companion' : 'Remote API'
@@ -60,6 +66,65 @@ function summarizeHealth(health: HealthResponse | null) {
   }
 
   return `${health.status.toUpperCase()} / API ${health.apiVersion}`
+}
+
+function isIntegerWithinRange(value: number, minimum: number, maximum: number) {
+  return Number.isInteger(value) && value >= minimum && value <= maximum
+}
+
+function validateEvaluationRequest(
+  request: CreateEvaluationRequest,
+  capabilities: CapabilitiesResponse | null,
+) {
+  const issues: string[] = []
+
+  if (!request.target.trim()) {
+    issues.push('Enter a target URL before submitting.')
+  }
+
+  if (request.outputFormats.length === 0) {
+    issues.push('Select at least one output format before submitting.')
+  }
+
+  if (
+    !isIntegerWithinRange(
+      request.maxDepth,
+      maxDepthBounds.min,
+      maxDepthBounds.max,
+    )
+  ) {
+    issues.push(
+      `Max depth must be an integer between ${maxDepthBounds.min} and ${maxDepthBounds.max}.`,
+    )
+  }
+
+  if (
+    !isIntegerWithinRange(
+      request.maxUrls,
+      maxUrlsBounds.min,
+      maxUrlsBounds.max,
+    )
+  ) {
+    issues.push(
+      `Max URLs must be an integer between ${maxUrlsBounds.min} and ${maxUrlsBounds.max}.`,
+    )
+  }
+
+  if (capabilities) {
+    if (!capabilities.evaluationProfiles.includes(request.profile)) {
+      issues.push('Select a profile that the backend currently supports.')
+    }
+
+    const hasUnsupportedFormat = request.outputFormats.some(
+      (format) => !capabilities.outputFormats.includes(format),
+    )
+
+    if (hasUnsupportedFormat) {
+      issues.push('Choose output formats that match the loaded backend capabilities.')
+    }
+  }
+
+  return issues
 }
 
 function App() {
@@ -77,11 +142,17 @@ function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [capabilities, setCapabilities] =
     useState<CapabilitiesResponse | null>(null)
+  const [capabilitiesLoadState, setCapabilitiesLoadState] =
+    useState<CapabilitiesLoadState>('idle')
   const [request, setRequest] = useState<CreateEvaluationRequest>(defaultRequest)
   const [activeEvaluation, setActiveEvaluation] =
     useState<CreateEvaluationResponse | null>(null)
   const [evaluationStatus, setEvaluationStatus] =
     useState<EvaluationStatusResponse | null>(null)
+  const [pollingPaused, setPollingPaused] = useState(false)
+  const [pollFailureCount, setPollFailureCount] = useState(0)
+  const [pollError, setPollError] = useState<string | null>(null)
+  const [pollRestartToken, setPollRestartToken] = useState(0)
   const [notice, setNotice] = useState(
     'Load backend settings, confirm health, then submit an evaluation job.',
   )
@@ -156,6 +227,7 @@ function App() {
       startTransition(() => {
         setHealth(null)
         setCapabilities(null)
+        setCapabilitiesLoadState('idle')
         setNotice(
           'Desktop commands are unavailable in browser preview. Launch `npm run tauri:dev` to connect to the backend API.',
         )
@@ -165,30 +237,87 @@ function App() {
     }
 
     setRefreshingConnection(true)
+    setCapabilitiesLoadState('loading')
     try {
-      const [nextHealth, nextCapabilities] = await Promise.all([
+      const [nextHealthResult, nextCapabilitiesResult] = await Promise.allSettled([
         apiHealthCheck(),
         getCapabilities(),
       ])
 
-      startTransition(() => {
-        setHealth(nextHealth)
-        setCapabilities(nextCapabilities)
-        setNotice(
-          `${nextHealth.service} is reachable. Create an evaluation to begin polling backend job state.`,
+      if (
+        nextHealthResult.status === 'fulfilled' &&
+        nextCapabilitiesResult.status === 'fulfilled'
+      ) {
+        startTransition(() => {
+          setHealth(nextHealthResult.value)
+          setCapabilities(nextCapabilitiesResult.value)
+          setCapabilitiesLoadState('ready')
+          setNotice(
+            `${nextHealthResult.value.service} is reachable. Create an evaluation to begin polling backend job state.`,
+          )
+          setStatusLine(
+            `${formatBackendMode(mode)} / ${nextHealthResult.value.apiVersion}`,
+          )
+        })
+        syncProfilesFromCapabilities(nextCapabilitiesResult.value)
+        recordActivity(
+          'Backend connection verified',
+          `${nextHealthResult.value.service} responded with API ${nextHealthResult.value.apiVersion}.`,
         )
-        setStatusLine(`${formatBackendMode(mode)} / ${nextHealth.apiVersion}`)
+        return
+      }
+
+      const healthMessage =
+        nextHealthResult.status === 'rejected'
+          ? formatCommandError(nextHealthResult.reason)
+          : null
+      const capabilitiesMessage =
+        nextCapabilitiesResult.status === 'rejected'
+          ? formatCommandError(nextCapabilitiesResult.reason)
+          : null
+      const nextNotice = capabilitiesMessage
+        ? `Capabilities unavailable. ${capabilitiesMessage}`
+        : healthMessage ?? 'Backend unavailable.'
+      const nextStatusLine =
+        nextHealthResult.status === 'fulfilled'
+          ? capabilitiesMessage
+            ? `${formatBackendMode(mode)} / ${nextHealthResult.value.apiVersion} / capabilities unavailable`
+            : `${formatBackendMode(mode)} / ${nextHealthResult.value.apiVersion}`
+          : 'Backend unavailable'
+
+      startTransition(() => {
+        setHealth(
+          nextHealthResult.status === 'fulfilled' ? nextHealthResult.value : null,
+        )
+        setCapabilities(
+          nextCapabilitiesResult.status === 'fulfilled'
+            ? nextCapabilitiesResult.value
+            : null,
+        )
+        setCapabilitiesLoadState(
+          nextCapabilitiesResult.status === 'fulfilled' ? 'ready' : 'failed',
+        )
+        setNotice(nextNotice)
+        setStatusLine(nextStatusLine)
       })
-      syncProfilesFromCapabilities(nextCapabilities)
+
+      if (nextCapabilitiesResult.status === 'fulfilled') {
+        syncProfilesFromCapabilities(nextCapabilitiesResult.value)
+      }
+
       recordActivity(
-        'Backend connection verified',
-        `${nextHealth.service} responded with API ${nextHealth.apiVersion}.`,
+        nextCapabilitiesResult.status === 'rejected' &&
+          nextHealthResult.status === 'fulfilled'
+          ? 'Backend capabilities failed'
+          : 'Backend connection failed',
+        nextNotice,
       )
     } catch (error) {
       const message = formatCommandError(error)
       startTransition(() => {
         setHealth(null)
         setCapabilities(null)
+        setCapabilitiesLoadState('failed')
         setNotice(message)
         setStatusLine('Backend unavailable')
       })
@@ -255,17 +384,31 @@ function App() {
   }, [clearPollTimer, desktopRuntime, recordActivity, refreshConnectionState])
 
   useEffect(() => {
-    if (!activeEvaluation?.evaluationId || !desktopRuntime) {
+    if (!activeEvaluation?.evaluationId || !desktopRuntime || pollingPaused) {
       return
     }
 
     const evaluationId = activeEvaluation.evaluationId
+    let cancelled = false
+    let consecutiveFailures = 0
     clearPollTimer()
 
     async function pollOnce() {
+      if (cancelled) {
+        return
+      }
+
       try {
         const nextStatus = await getEvaluationStatus(evaluationId)
+        if (cancelled) {
+          return
+        }
+
+        consecutiveFailures = 0
         startTransition(() => {
+          setPollingPaused(false)
+          setPollFailureCount(0)
+          setPollError(null)
           setEvaluationStatus(nextStatus)
           setNotice(
             nextStatus.message ?? `Evaluation ${evaluationId} is ${nextStatus.status}.`,
@@ -292,26 +435,60 @@ function App() {
 
         pollTimerRef.current = window.setTimeout(() => {
           void pollOnce()
-        }, 1500)
+        }, pollDelayMs)
       } catch (error) {
+        if (cancelled) {
+          return
+        }
+
         const message = formatCommandError(error)
+        const nextFailureCount = consecutiveFailures + 1
+        consecutiveFailures = nextFailureCount
+
+        if (nextFailureCount <= maxAutomaticPollRetries) {
+          startTransition(() => {
+            setPollFailureCount(nextFailureCount)
+            setPollError(message)
+            setNotice(
+              `Polling failed for ${evaluationId}. Retrying automatically (${nextFailureCount}/${maxAutomaticPollRetries}).`,
+            )
+            setStatusLine(`Retrying evaluation ${evaluationId}`)
+          })
+          recordActivity(
+            'Evaluation polling retry scheduled',
+            `${evaluationId}: ${message}`,
+          )
+          pollTimerRef.current = window.setTimeout(() => {
+            void pollOnce()
+          }, pollDelayMs)
+          return
+        }
+
         startTransition(() => {
-          setNotice(message)
-          setStatusLine(`Polling failed for ${evaluationId}`)
+          setPollFailureCount(nextFailureCount)
+          setPollError(message)
+          setPollingPaused(true)
+          setNotice(
+            `Polling paused for ${evaluationId} after ${nextFailureCount} failed attempts.`,
+          )
+          setStatusLine(`Polling paused for ${evaluationId}`)
         })
-        recordActivity('Evaluation polling failed', message)
+        recordActivity('Evaluation polling paused', `${evaluationId}: ${message}`)
       }
     }
 
     void pollOnce()
 
     return () => {
+      cancelled = true
       clearPollTimer()
     }
   }, [
     activeEvaluation?.evaluationId,
     clearPollTimer,
     desktopRuntime,
+    pollRestartToken,
+    pollingPaused,
     recordActivity,
   ])
 
@@ -359,12 +536,42 @@ function App() {
       return
     }
 
+    const requestValidationErrors = validateEvaluationRequest(
+      request,
+      capabilitiesLoadState === 'ready' ? capabilities : null,
+    )
+    const submissionGateMessage =
+      capabilitiesLoadState === 'failed'
+        ? 'Reload backend capabilities before submitting an evaluation.'
+        : capabilitiesLoadState !== 'ready'
+          ? 'Wait for backend capabilities before submitting an evaluation.'
+          : !health
+            ? 'Restore backend connectivity before submitting an evaluation.'
+            : requestValidationErrors[0] ??
+              'Evaluation request is not ready to submit.'
+
+    if (
+      capabilitiesLoadState !== 'ready' ||
+      !health ||
+      requestValidationErrors.length > 0
+    ) {
+      startTransition(() => {
+        setNotice(submissionGateMessage)
+        setStatusLine('Submission blocked')
+      })
+      recordActivity('Evaluation submission blocked', submissionGateMessage)
+      return
+    }
+
     clearPollTimer()
     setSubmitting(true)
     try {
       const accepted = await createEvaluation(request)
       startTransition(() => {
         setActiveEvaluation(accepted)
+        setPollingPaused(false)
+        setPollFailureCount(0)
+        setPollError(null)
         setEvaluationStatus({
           evaluationId: accepted.evaluationId,
           status: accepted.status,
@@ -393,6 +600,25 @@ function App() {
     }
   }
 
+  function handleResumePolling() {
+    if (!activeEvaluation?.evaluationId) {
+      return
+    }
+
+    startTransition(() => {
+      setPollingPaused(false)
+      setPollFailureCount(0)
+      setPollError(null)
+      setNotice(`Resuming polling for ${activeEvaluation.evaluationId}.`)
+      setStatusLine(`Retrying evaluation ${activeEvaluation.evaluationId}`)
+    })
+    recordActivity(
+      'Evaluation polling resumed',
+      `${activeEvaluation.evaluationId} manual recovery requested.`,
+    )
+    setPollRestartToken((current) => current + 1)
+  }
+
   const availableProfiles =
     capabilities?.evaluationProfiles.length
       ? capabilities.evaluationProfiles
@@ -402,6 +628,26 @@ function App() {
       ? capabilities.outputFormats
       : fallbackFormats
   const progressValue = evaluationStatus?.progressPercent ?? 0
+  const requestValidationErrors = validateEvaluationRequest(
+    request,
+    capabilitiesLoadState === 'ready' ? capabilities : null,
+  )
+  const submissionIssues = [
+    ...(capabilitiesLoadState === 'failed'
+      ? ['Reload backend capabilities before submitting an evaluation.']
+      : capabilitiesLoadState !== 'ready'
+        ? ['Wait for backend capabilities before submitting an evaluation.']
+        : !health
+          ? ['Restore backend connectivity before submitting an evaluation.']
+          : []),
+    ...requestValidationErrors,
+  ]
+  const canSubmit =
+    desktopRuntime &&
+    !submitting &&
+    health !== null &&
+    capabilitiesLoadState === 'ready' &&
+    requestValidationErrors.length === 0
 
   return (
     <div className="app-shell">
@@ -571,7 +817,11 @@ function App() {
                 <h2>Evaluation Request</h2>
               </div>
               <span className="status-pill status-muted">
-                {capabilities ? 'Capabilities loaded' : 'Using defaults'}
+                {capabilitiesLoadState === 'ready'
+                  ? 'Capabilities loaded'
+                  : capabilitiesLoadState === 'failed'
+                    ? 'Capabilities unavailable'
+                    : 'Loading capabilities'}
               </span>
             </div>
 
@@ -708,12 +958,20 @@ function App() {
               <button
                 type="button"
                 className="primary-action"
-                disabled={submitting || !desktopRuntime}
+                disabled={!canSubmit}
                 onClick={() => void handleCreateEvaluation()}
               >
                 {submitting ? 'Submitting Evaluation' : 'Submit Evaluation'}
               </button>
             </div>
+
+            {submissionIssues.length > 0 ? (
+              <div className="validation-list" role="alert" aria-live="polite">
+                {submissionIssues.map((issue) => (
+                  <p key={issue}>{issue}</p>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           <section className="panel">
@@ -785,6 +1043,26 @@ function App() {
                 </p>
               </article>
             </div>
+
+            {pollingPaused ? (
+              <div className="action-row">
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={handleResumePolling}
+                >
+                  Resume Polling
+                </button>
+              </div>
+            ) : null}
+
+            {pollError ? (
+              <div className="validation-list" role="status" aria-live="polite">
+                <p>
+                  Last polling error ({pollFailureCount}): {pollError}
+                </p>
+              </div>
+            ) : null}
           </section>
 
           <section className="panel">

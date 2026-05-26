@@ -18,6 +18,7 @@ describe('desktop adapter', () => {
     const config: desktop.BackendConfig = {
       mode: 'remote',
       baseUrl: 'https://api.example.test',
+      port: 9443,
       timeoutMs: 20000,
     }
     const request: desktop.CreateEvaluationRequest = {

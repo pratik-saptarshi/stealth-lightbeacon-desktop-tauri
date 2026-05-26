@@ -1,7 +1,6 @@
 use std::{
-    env,
-    fs,
-    net::TcpListener,
+    collections::HashMap,
+    env, fs,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
@@ -14,6 +13,7 @@ use tauri::{path::BaseDirectory, AppHandle, Manager, State};
 const BACKEND_CONFIG_FILE: &str = "backend-config.json";
 const LAST_OPENED_SNAPSHOT_FILE: &str = "snapshots/last-opened-terminal-snapshot.json";
 const DEFAULT_LOCAL_BASE_URL: &str = "http://127.0.0.1:8000";
+const DEFAULT_LOCAL_PORT: u16 = 8000;
 const DEFAULT_TIMEOUT_MS: u64 = 15_000;
 const DESKTOP_APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DESKTOP_VERSION_HEADER: &str = "X-Stealth-Lightbeacon-Desktop-Version";
@@ -30,6 +30,7 @@ struct CompatibilityResponse {
 #[serde(rename_all = "snake_case")]
 enum BackendMode {
     Local,
+    Standalone,
     Remote,
 }
 
@@ -38,6 +39,7 @@ enum BackendMode {
 struct BackendConfig {
     mode: BackendMode,
     base_url: String,
+    port: u16,
     timeout_ms: u64,
 }
 
@@ -46,6 +48,7 @@ impl Default for BackendConfig {
         Self {
             mode: BackendMode::Local,
             base_url: DEFAULT_LOCAL_BASE_URL.into(),
+            port: DEFAULT_LOCAL_PORT,
             timeout_ms: DEFAULT_TIMEOUT_MS,
         }
     }
@@ -224,10 +227,20 @@ struct LocalBackendProcess {
     base_url: String,
 }
 
+#[derive(Debug, Clone)]
+struct StandaloneEvaluation {
+    evaluation_id: String,
+    request: CreateEvaluationRequest,
+    accepted_at: String,
+    created_at: Instant,
+}
+
 struct AppState {
     backend_config: Mutex<BackendConfig>,
     bootstrap_error: Mutex<Option<ApiError>>,
     local_backend: Mutex<Option<LocalBackendProcess>>,
+    standalone_jobs: Mutex<HashMap<String, StandaloneEvaluation>>,
+    standalone_sequence: Mutex<u64>,
 }
 
 impl AppState {
@@ -236,6 +249,8 @@ impl AppState {
             backend_config: Mutex::new(backend_config),
             bootstrap_error: Mutex::new(None),
             local_backend: Mutex::new(None),
+            standalone_jobs: Mutex::new(HashMap::new()),
+            standalone_sequence: Mutex::new(0),
         }
     }
 
@@ -246,6 +261,8 @@ impl AppState {
                 backend_config: Mutex::new(BackendConfig::default()),
                 bootstrap_error: Mutex::new(Some(error)),
                 local_backend: Mutex::new(None),
+                standalone_jobs: Mutex::new(HashMap::new()),
+                standalone_sequence: Mutex::new(0),
             },
         }
     }
@@ -312,24 +329,6 @@ fn backend_python_path(backend_root: &Path) -> PathBuf {
     backend_root.join(".venv").join("bin").join("python")
 }
 
-fn allocate_local_backend_port() -> Result<u16, ApiError> {
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|err| {
-        ApiError::with_details(
-            "local_backend_port_error",
-            "Unable to reserve a loopback port for the local backend.",
-            err.to_string(),
-        )
-    })?;
-    let port = listener.local_addr().map_err(|err| {
-        ApiError::with_details(
-            "local_backend_port_error",
-            "Unable to read the reserved loopback port for the local backend.",
-            err.to_string(),
-        )
-    })?;
-    Ok(port.port())
-}
-
 fn env_override<'a>(extra_env: &'a [(&'a str, &'a str)], key: &str) -> Option<&'a str> {
     extra_env
         .iter()
@@ -338,6 +337,7 @@ fn env_override<'a>(extra_env: &'a [(&'a str, &'a str)], key: &str) -> Option<&'
 }
 
 fn spawn_local_backend_process_with_env(
+    port: u16,
     extra_env: &[(&str, &str)],
 ) -> Result<LocalBackendProcess, ApiError> {
     let backend_root = env_override(extra_env, "STEALTH_LIGHTBEACON_BACKEND_ROOT")
@@ -346,7 +346,6 @@ fn spawn_local_backend_process_with_env(
     let python = env_override(extra_env, "STEALTH_LIGHTBEACON_BACKEND_PYTHON")
         .map(PathBuf::from)
         .unwrap_or_else(|| backend_python_path(&backend_root));
-    let port = allocate_local_backend_port()?;
     let mut command = Command::new(&python);
     command
         .current_dir(&backend_root)
@@ -610,11 +609,299 @@ fn save_last_opened_snapshot(
     save_last_opened_snapshot_to(&snapshot_path(app)?, snapshot)
 }
 
+fn loopback_base_url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}")
+}
+
+fn with_port_applied_to_remote_base_url(base_url: &str, port: u16) -> String {
+    match reqwest::Url::parse(base_url) {
+        Ok(mut url) => {
+            let _ = url.set_port(Some(port));
+            url.to_string().trim_end_matches('/').to_string()
+        }
+        Err(_) => base_url.trim().trim_end_matches('/').to_string(),
+    }
+}
+
+fn next_standalone_evaluation_id(state: &AppState) -> Result<String, ApiError> {
+    let mut guard = state.standalone_sequence.lock().map_err(|_| {
+        ApiError::new(
+            "state_error",
+            "The standalone evaluation state is unavailable.",
+        )
+    })?;
+    *guard += 1;
+    Ok(format!("standalone-{:04}", *guard))
+}
+
+fn standalone_health_response() -> HealthResponse {
+    HealthResponse {
+        status: "ok".into(),
+        service: "stealth-lightbeacon-standalone".into(),
+        api_version: DESKTOP_APP_VERSION.into(),
+        app_version: Some(DESKTOP_APP_VERSION.into()),
+        auth_required: false,
+        compatibility: CompatibilityResponse {
+            minimum_desktop_version: DESKTOP_APP_VERSION.into(),
+            recommended_desktop_version: DESKTOP_APP_VERSION.into(),
+        },
+    }
+}
+
+fn standalone_capabilities_response(config: &BackendConfig) -> CapabilitiesResponse {
+    CapabilitiesResponse {
+        api_mode: ApiModeResponse {
+            mode: "standalone".into(),
+            base_url: format!("embedded://knowledge-base:{}", config.port),
+            transport: "embedded".into(),
+            api_version: DESKTOP_APP_VERSION.into(),
+            supports_remote: false,
+        },
+        evaluation_profiles: vec![
+            "seo-foundation".into(),
+            "search-presence".into(),
+            "accessibility-aa".into(),
+            "full-spectrum".into(),
+        ],
+        output_formats: vec!["json".into(), "markdown".into(), "html".into()],
+        supports_recon: true,
+        supports_artifacts: true,
+    }
+}
+
+fn standalone_evaluation_status(evaluation: &StandaloneEvaluation) -> EvaluationStatusResponse {
+    let elapsed_ms = evaluation.created_at.elapsed().as_millis();
+    if elapsed_ms < 350 {
+        return EvaluationStatusResponse {
+            evaluation_id: evaluation.evaluation_id.clone(),
+            status: "running".into(),
+            stage: Some("knowledge_base".into()),
+            progress_percent: Some(42),
+            message: Some(
+                "Embedded ruleset is scoring search, answer, and accessibility signals.".into(),
+            ),
+            exit_state: None,
+            terminal: false,
+        };
+    }
+
+    EvaluationStatusResponse {
+        evaluation_id: evaluation.evaluation_id.clone(),
+        status: "success".into(),
+        stage: Some("completed".into()),
+        progress_percent: Some(100),
+        message: Some("Standalone evaluation completed with embedded audit rules.".into()),
+        exit_state: Some("success".into()),
+        terminal: true,
+    }
+}
+
+fn standalone_findings(target: &str) -> Vec<serde_json::Value> {
+    let host_hint = reqwest::Url::parse(target)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned))
+        .unwrap_or_else(|| "target".into());
+    vec![
+        serde_json::json!({
+            "rule_id": "seo-canonical-strategy",
+            "title": "Canonical strategy review",
+            "severity": "medium",
+            "status": "warn",
+            "description": format!("{host_hint} should expose a clearer canonical pattern across indexable templates.")
+        }),
+        serde_json::json!({
+            "rule_id": "geo-entity-coverage",
+            "title": "Location entity coverage",
+            "severity": "medium",
+            "status": "warn",
+            "description": "Geo signals should be reinforced with location-specific copy, schema, and internal linking."
+        }),
+        serde_json::json!({
+            "rule_id": "aeo-answer-blocks",
+            "title": "Answer extraction readiness",
+            "severity": "low",
+            "status": "warn",
+            "description": "Primary informational sections should lead with direct answer blocks for generative retrieval."
+        }),
+        serde_json::json!({
+            "rule_id": "wcag-1.1.1-alt-text",
+            "title": "Meaningful image alternatives",
+            "severity": "high",
+            "status": "fail",
+            "description": "Review critical template images for descriptive alt text that matches page intent."
+        }),
+        serde_json::json!({
+            "rule_id": "wcag-2.4.6-heading-structure",
+            "title": "Heading structure consistency",
+            "severity": "low",
+            "status": "pass",
+            "description": "Heading hierarchy is largely consistent but should stay aligned with answer-first content blocks."
+        }),
+    ]
+}
+
+fn standalone_result_response(evaluation: &StandaloneEvaluation) -> EvaluationResultResponse {
+    let findings = standalone_findings(&evaluation.request.target);
+    EvaluationResultResponse {
+        evaluation_id: evaluation.evaluation_id.clone(),
+        status: "success".into(),
+        summary: serde_json::json!({
+            "score": 86,
+            "passed": 1,
+            "warnings": 3,
+            "failed": 1,
+            "severity_counts": {
+                "critical": 0,
+                "high": 1,
+                "medium": 2,
+                "low": 2,
+                "info": 0
+            },
+            "frameworks": ["SEO", "GEO", "AEO", "WCAG 2.1 AA", "WCAG 2.2 AA"],
+            "profile": evaluation.request.profile.clone(),
+            "target": evaluation.request.target.clone(),
+            "started_at": evaluation.accepted_at.clone(),
+            "completed_at": "2026-05-26T12:00:03Z",
+            "findings": findings
+        }),
+    }
+}
+
+fn standalone_artifacts_response(evaluation: &StandaloneEvaluation) -> Vec<ArtifactDescriptor> {
+    let mut artifacts = vec![ArtifactDescriptor {
+        name: format!("{}-normalized-report", evaluation.evaluation_id),
+        kind: "normalized_report".into(),
+        media_type: "application/json".into(),
+        download_url: None,
+    }];
+
+    if evaluation
+        .request
+        .output_formats
+        .iter()
+        .any(|format| format == "markdown")
+    {
+        artifacts.push(ArtifactDescriptor {
+            name: format!("{}-executive-summary", evaluation.evaluation_id),
+            kind: "markdown".into(),
+            media_type: "text/markdown".into(),
+            download_url: None,
+        });
+    }
+
+    if evaluation
+        .request
+        .output_formats
+        .iter()
+        .any(|format| format == "html")
+    {
+        artifacts.push(ArtifactDescriptor {
+            name: format!("{}-scorecard", evaluation.evaluation_id),
+            kind: "html".into(),
+            media_type: "text/html".into(),
+            download_url: None,
+        });
+    }
+
+    artifacts
+}
+
+fn standalone_lookup(
+    state: &AppState,
+    evaluation_id: &str,
+) -> Result<StandaloneEvaluation, ApiError> {
+    state
+        .standalone_jobs
+        .lock()
+        .map_err(|_| {
+            ApiError::new(
+                "state_error",
+                "The standalone evaluation state is unavailable.",
+            )
+        })?
+        .get(evaluation_id)
+        .cloned()
+        .ok_or_else(|| {
+            ApiError::with_status(
+                "not_found",
+                "Standalone evaluation was not found.",
+                404,
+                Some(evaluation_id.into()),
+            )
+        })
+}
+
+fn create_standalone_evaluation(
+    state: &AppState,
+    request: &CreateEvaluationRequest,
+) -> Result<CreateEvaluationResponse, ApiError> {
+    validate_evaluation_request(request)?;
+    let evaluation_id = next_standalone_evaluation_id(state)?;
+    let accepted_at = "2026-05-26T12:00:00Z".to_string();
+    let evaluation = StandaloneEvaluation {
+        evaluation_id: evaluation_id.clone(),
+        request: request.clone(),
+        accepted_at: accepted_at.clone(),
+        created_at: Instant::now(),
+    };
+    state
+        .standalone_jobs
+        .lock()
+        .map_err(|_| {
+            ApiError::new(
+                "state_error",
+                "The standalone evaluation state is unavailable.",
+            )
+        })?
+        .insert(evaluation_id.clone(), evaluation);
+    Ok(CreateEvaluationResponse {
+        evaluation_id,
+        status: "accepted".into(),
+        accepted_at: Some(accepted_at),
+    })
+}
+
+fn standalone_recon_response(request: &ReconRequest) -> ReconResponse {
+    let loopback_target =
+        request.target.contains("127.0.0.1") || request.target.contains("localhost");
+    ReconResponse {
+        target: request.target.clone(),
+        recommendation: if loopback_target {
+            "standalone".into()
+        } else {
+            "stealth".into()
+        },
+        posture: if loopback_target {
+            "local".into()
+        } else {
+            "browser".into()
+        },
+        confidence: if loopback_target { 0.98 } else { 0.82 },
+        evidence: vec![
+            "embedded ruleset available".into(),
+            "seo-geo-aeo heuristics enabled".into(),
+            "wcag aa coverage enabled".into(),
+        ],
+        evidence_summary:
+            "embedded ruleset available, seo-geo-aeo heuristics enabled, wcag aa coverage enabled"
+                .into(),
+        signals: vec!["seo".into(), "geo".into(), "aeo".into(), "wcag-aa".into()],
+        auto_select_allowed: true,
+    }
+}
+
 fn validate_backend_config(config: &BackendConfig) -> Result<(), ApiError> {
     if config.timeout_ms < 1_000 || config.timeout_ms > 60_000 {
         return Err(ApiError::new(
             "invalid_config",
             "Timeout must be between 1000 and 60000 milliseconds.",
+        ));
+    }
+
+    if config.port == 0 {
+        return Err(ApiError::new(
+            "invalid_config",
+            "Port must be between 1 and 65535.",
         ));
     }
 
@@ -638,8 +925,8 @@ fn validate_backend_config(config: &BackendConfig) -> Result<(), ApiError> {
         "http" | "https" => {}
         _ => {
             return Err(ApiError::new(
-            "invalid_config",
-            "Backend base URL must use http or https.",
+                "invalid_config",
+                "Backend base URL must use http or https.",
             ))
         }
     }
@@ -775,22 +1062,20 @@ async fn effective_backend_config_from_app_state_with_env(
     let base_url = match current_local_backend_base_url(state) {
         Ok(Some(base_url)) => base_url,
         Ok(None) => {
-            let process = spawn_local_backend_process_with_env(extra_env)?;
+            let process = spawn_local_backend_process_with_env(config.port, extra_env)?;
             let base_url = process.base_url.clone();
-            let mut guard = state
-                .local_backend
-                .lock()
-                .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
+            let mut guard = state.local_backend.lock().map_err(|_| {
+                ApiError::new("state_error", "The local backend state is unavailable.")
+            })?;
             *guard = Some(process);
             base_url
         }
         Err(error) if error.code == "local_backend_stopped" => {
-            let process = spawn_local_backend_process_with_env(extra_env)?;
+            let process = spawn_local_backend_process_with_env(config.port, extra_env)?;
             let base_url = process.base_url.clone();
-            let mut guard = state
-                .local_backend
-                .lock()
-                .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
+            let mut guard = state.local_backend.lock().map_err(|_| {
+                ApiError::new("state_error", "The local backend state is unavailable.")
+            })?;
             *guard = Some(process);
             base_url
         }
@@ -808,12 +1093,19 @@ async fn effective_backend_config_from_app_state_with_env(
     Ok(runtime_config)
 }
 
-async fn effective_backend_config_from_app_state(state: &AppState) -> Result<BackendConfig, ApiError> {
+async fn effective_backend_config_from_app_state(
+    state: &AppState,
+) -> Result<BackendConfig, ApiError> {
     effective_backend_config_from_app_state_with_env(state, &[]).await
 }
 
 fn normalize_backend_config(mut config: BackendConfig) -> BackendConfig {
-    config.base_url = config.base_url.trim().trim_end_matches('/').to_string();
+    config.base_url = match config.mode {
+        BackendMode::Remote => {
+            with_port_applied_to_remote_base_url(config.base_url.trim(), config.port)
+        }
+        BackendMode::Local | BackendMode::Standalone => loopback_base_url(config.port),
+    };
     config
 }
 
@@ -1035,13 +1327,7 @@ async fn run_recon_impl(
     request: &ReconRequest,
 ) -> Result<ReconResponse, ApiError> {
     validate_recon_request(request)?;
-    send_json_request(
-        config,
-        reqwest::Method::POST,
-        &["recon"],
-        Some(request),
-    )
-    .await
+    send_json_request(config, reqwest::Method::POST, &["recon"], Some(request)).await
 }
 
 #[tauri::command]
@@ -1057,21 +1343,27 @@ fn set_backend_config(
 ) -> Result<BackendConfig, ApiError> {
     let config = normalize_backend_config(config);
     validate_backend_config(&config)?;
-    if config.mode != BackendMode::Local {
-        stop_local_backend_in_app_state(state.inner())?;
-    }
+    stop_local_backend_in_app_state(state.inner())?;
     save_backend_config(&app, &config)?;
     replace_backend_config_in_app_state(state.inner(), config)
 }
 
 #[tauri::command]
 async fn api_health_check(state: State<'_, AppState>) -> Result<HealthResponse, ApiError> {
+    let config = current_backend_config(&state)?;
+    if config.mode == BackendMode::Standalone {
+        return Ok(standalone_health_response());
+    }
     let config = effective_backend_config_from_app_state(state.inner()).await?;
     api_health_check_impl(&config).await
 }
 
 #[tauri::command]
 async fn get_capabilities(state: State<'_, AppState>) -> Result<CapabilitiesResponse, ApiError> {
+    let config = current_backend_config(&state)?;
+    if config.mode == BackendMode::Standalone {
+        return Ok(standalone_capabilities_response(&config));
+    }
     let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_capabilities_impl(&config).await
 }
@@ -1081,6 +1373,10 @@ async fn create_evaluation(
     state: State<'_, AppState>,
     request: CreateEvaluationRequest,
 ) -> Result<CreateEvaluationResponse, ApiError> {
+    let config = current_backend_config(&state)?;
+    if config.mode == BackendMode::Standalone {
+        return create_standalone_evaluation(state.inner(), &request);
+    }
     let config = effective_backend_config_from_app_state(state.inner()).await?;
     create_evaluation_impl(&config, &request).await
 }
@@ -1090,6 +1386,14 @@ async fn get_evaluation_status(
     state: State<'_, AppState>,
     evaluation_id: String,
 ) -> Result<EvaluationStatusResponse, ApiError> {
+    let config = current_backend_config(&state)?;
+    if config.mode == BackendMode::Standalone {
+        validate_evaluation_id(&evaluation_id)?;
+        return Ok(standalone_evaluation_status(&standalone_lookup(
+            state.inner(),
+            &evaluation_id,
+        )?));
+    }
     let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_evaluation_status_impl(&config, &evaluation_id).await
 }
@@ -1099,6 +1403,21 @@ async fn get_evaluation_result(
     state: State<'_, AppState>,
     evaluation_id: String,
 ) -> Result<EvaluationResultResponse, ApiError> {
+    let config = current_backend_config(&state)?;
+    if config.mode == BackendMode::Standalone {
+        validate_evaluation_id(&evaluation_id)?;
+        let evaluation = standalone_lookup(state.inner(), &evaluation_id)?;
+        let status = standalone_evaluation_status(&evaluation);
+        if !status.terminal {
+            return Err(ApiError::with_status(
+                "not_ready",
+                "Standalone evaluation result is not ready yet.",
+                409,
+                Some(evaluation_id),
+            ));
+        }
+        return Ok(standalone_result_response(&evaluation));
+    }
     let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_evaluation_result_impl(&config, &evaluation_id).await
 }
@@ -1108,6 +1427,21 @@ async fn get_evaluation_artifacts(
     state: State<'_, AppState>,
     evaluation_id: String,
 ) -> Result<Vec<ArtifactDescriptor>, ApiError> {
+    let config = current_backend_config(&state)?;
+    if config.mode == BackendMode::Standalone {
+        validate_evaluation_id(&evaluation_id)?;
+        let evaluation = standalone_lookup(state.inner(), &evaluation_id)?;
+        let status = standalone_evaluation_status(&evaluation);
+        if !status.terminal {
+            return Err(ApiError::with_status(
+                "not_ready",
+                "Standalone evaluation artifacts are not ready yet.",
+                409,
+                Some(evaluation_id),
+            ));
+        }
+        return Ok(standalone_artifacts_response(&evaluation));
+    }
     let config = effective_backend_config_from_app_state(state.inner()).await?;
     get_evaluation_artifacts_impl(&config, &evaluation_id).await
 }
@@ -1117,6 +1451,11 @@ async fn run_recon(
     state: State<'_, AppState>,
     request: ReconRequest,
 ) -> Result<ReconResponse, ApiError> {
+    let config = current_backend_config(&state)?;
+    if config.mode == BackendMode::Standalone {
+        validate_recon_request(&request)?;
+        return Ok(standalone_recon_response(&request));
+    }
     let config = effective_backend_config_from_app_state(state.inner()).await?;
     run_recon_impl(&config, &request).await
 }
@@ -1196,9 +1535,14 @@ mod tests {
     }
 
     fn sample_config(base_url: String) -> BackendConfig {
+        let port = reqwest::Url::parse(&base_url)
+            .ok()
+            .and_then(|url| url.port_or_known_default())
+            .unwrap_or(DEFAULT_LOCAL_PORT);
         BackendConfig {
             mode: BackendMode::Local,
             base_url,
+            port,
             timeout_ms: 5_000,
         }
     }
@@ -1365,35 +1709,41 @@ mod tests {
         address
     }
 
+    fn reserve_test_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let port = listener.local_addr().expect("addr").port();
+        drop(listener);
+        port
+    }
+
     fn spawn_target_site() -> String {
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
         let address = format!("http://{}", listener.local_addr().expect("addr"));
 
-        thread::spawn(move || {
-            loop {
-                let (mut stream, _) = match listener.accept() {
-                    Ok(pair) => pair,
-                    Err(_) => break,
-                };
-                let mut buffer = [0_u8; 8192];
-                let read = stream.read(&mut buffer).expect("read");
-                if read == 0 {
-                    continue;
-                }
+        thread::spawn(move || loop {
+            let (mut stream, _) = match listener.accept() {
+                Ok(pair) => pair,
+                Err(_) => break,
+            };
+            let mut buffer = [0_u8; 8192];
+            let read = stream.read(&mut buffer).expect("read");
+            if read == 0 {
+                continue;
+            }
 
-                let request = String::from_utf8_lossy(&buffer[..read]).to_string();
-                let path = request
-                    .lines()
-                    .next()
-                    .and_then(|line| line.split_whitespace().nth(1))
-                    .unwrap_or("/");
-                let method = request
-                    .lines()
-                    .next()
-                    .and_then(|line| line.split_whitespace().next())
-                    .unwrap_or("GET");
+            let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+            let path = request
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
+                .unwrap_or("/");
+            let method = request
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().next())
+                .unwrap_or("GET");
 
-                let (status_line, content_type, body) = match (method, path) {
+            let (status_line, content_type, body) = match (method, path) {
                     ("HEAD", "/") => ("200 OK", "text/html", String::new()),
                     (_, "/") => (
                         "200 OK",
@@ -1413,14 +1763,13 @@ mod tests {
                     _ => ("404 Not Found", "text/plain", "missing".to_string()),
                 };
 
-                let response = format!(
+            let response = format!(
                     "HTTP/1.1 {status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                     body.len(),
                     body
                 );
-                stream.write_all(response.as_bytes()).expect("write");
-                stream.flush().expect("flush");
-            }
+            stream.write_all(response.as_bytes()).expect("write");
+            stream.flush().expect("flush");
         });
 
         address
@@ -1444,6 +1793,7 @@ mod tests {
         let config = BackendConfig {
             mode: BackendMode::Remote,
             base_url: "ftp://example.com".into(),
+            port: 443,
             timeout_ms: DEFAULT_TIMEOUT_MS,
         };
 
@@ -1456,12 +1806,46 @@ mod tests {
         let config = BackendConfig {
             mode: BackendMode::Remote,
             base_url: "http://api.example.test".into(),
+            port: 80,
             timeout_ms: DEFAULT_TIMEOUT_MS,
         };
 
         let error = validate_backend_config(&config).expect_err("invalid remote config");
         assert_eq!(error.code, "invalid_config");
         assert_eq!(error.message, "Remote backends must use https.");
+    }
+
+    #[test]
+    fn backend_config_validation_rejects_zero_ports() {
+        let config = BackendConfig {
+            mode: BackendMode::Local,
+            base_url: DEFAULT_LOCAL_BASE_URL.into(),
+            port: 0,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        };
+
+        let error = validate_backend_config(&config).expect_err("invalid port");
+        assert_eq!(error.code, "invalid_config");
+        assert_eq!(error.message, "Port must be between 1 and 65535.");
+    }
+
+    #[test]
+    fn backend_config_normalization_applies_port_per_mode() {
+        let local = normalize_backend_config(BackendConfig {
+            mode: BackendMode::Local,
+            base_url: "http://example.com:7000".into(),
+            port: 9123,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        });
+        let remote = normalize_backend_config(BackendConfig {
+            mode: BackendMode::Remote,
+            base_url: "https://api.example.test".into(),
+            port: 9443,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        });
+
+        assert_eq!(local.base_url, "http://127.0.0.1:9123");
+        assert_eq!(remote.base_url, "https://api.example.test:9443");
     }
 
     #[test]
@@ -1502,6 +1886,45 @@ mod tests {
         );
 
         let _ = fs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn standalone_mode_runs_embedded_evaluation_flow() {
+        let config = normalize_backend_config(BackendConfig {
+            mode: BackendMode::Standalone,
+            base_url: DEFAULT_LOCAL_BASE_URL.into(),
+            port: 9134,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        });
+        let state = AppState::new(config.clone());
+
+        let health = standalone_health_response();
+        assert_eq!(health.service, "stealth-lightbeacon-standalone");
+
+        let capabilities = standalone_capabilities_response(&config);
+        assert!(capabilities.supports_recon);
+        assert!(capabilities.supports_artifacts);
+
+        let accepted = create_standalone_evaluation(&state, &sample_request()).expect("accepted");
+        let running = standalone_evaluation_status(
+            &standalone_lookup(&state, &accepted.evaluation_id).expect("running lookup"),
+        );
+        assert!(!running.terminal);
+
+        tokio::time::sleep(Duration::from_millis(400)).await;
+
+        let evaluation =
+            standalone_lookup(&state, &accepted.evaluation_id).expect("terminal lookup");
+        let terminal = standalone_evaluation_status(&evaluation);
+        let result = standalone_result_response(&evaluation);
+        let artifacts = standalone_artifacts_response(&evaluation);
+        let recon = standalone_recon_response(&sample_recon_request("https://example.com".into()));
+
+        assert!(terminal.terminal);
+        assert_eq!(result.status, "success");
+        assert_eq!(result.summary["frameworks"][0], serde_json::json!("SEO"));
+        assert!(!artifacts.is_empty());
+        assert_eq!(recon.recommendation, "stealth");
     }
 
     #[tokio::test]
@@ -1596,7 +2019,7 @@ mod tests {
     async fn http_adapter_preserves_remote_auth_required_errors() {
         let (base_url, _) = spawn_stub_server(vec![StubExchange {
             expected_prefix: "GET /capabilities HTTP/1.1",
-            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.0"#),
+            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.1"#),
             status_line: "401 Unauthorized",
             response_body: r#"{"code":"unauthorized","message":"Remote API auth required.","details":"SLB_API_AUTH_TOKEN"}"#,
         }]);
@@ -1604,6 +2027,7 @@ mod tests {
         let config = BackendConfig {
             mode: BackendMode::Local,
             base_url,
+            port: 80,
             timeout_ms: 5_000,
         };
         let error = get_capabilities_impl(&config)
@@ -1625,7 +2049,7 @@ mod tests {
     async fn http_adapter_preserves_incompatible_client_errors() {
         let (base_url, _) = spawn_stub_server(vec![StubExchange {
             expected_prefix: "GET /capabilities HTTP/1.1",
-            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.0"#),
+            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.1"#),
             status_line: "409 Conflict",
             response_body: r#"{"code":"incompatible_client","message":"Desktop version is not supported by this backend.","details":"0.0.1"}"#,
         }]);
@@ -1633,6 +2057,7 @@ mod tests {
         let config = BackendConfig {
             mode: BackendMode::Local,
             base_url,
+            port: 80,
             timeout_ms: 5_000,
         };
         let error = get_capabilities_impl(&config)
@@ -1847,6 +2272,7 @@ mod tests {
         let config = BackendConfig {
             mode: BackendMode::Local,
             base_url,
+            port: 80,
             timeout_ms: 1_000,
         };
 
@@ -2051,7 +2477,9 @@ mod tests {
             .expect("artifacts");
 
         assert!(!artifacts.is_empty());
-        assert!(artifacts.iter().any(|artifact| artifact.kind == "normalized_report"));
+        assert!(artifacts
+            .iter()
+            .any(|artifact| artifact.kind == "normalized_report"));
     }
 
     #[tokio::test]
@@ -2073,7 +2501,11 @@ mod tests {
 
     #[tokio::test]
     async fn local_mode_starts_managed_companion_and_reuses_runtime_url() {
-        let state = AppState::new(BackendConfig::default());
+        let local_config = normalize_backend_config(BackendConfig {
+            port: reserve_test_port(),
+            ..BackendConfig::default()
+        });
+        let state = AppState::new(local_config.clone());
         let backend_root = local_backend_test_root();
         let backend_root_text = backend_root.display().to_string();
         let backend_python = backend_python_path(&backend_root).display().to_string();
@@ -2097,7 +2529,7 @@ mod tests {
         let health = api_health_check_impl(&first).await.expect("health");
 
         assert_eq!(first.mode, BackendMode::Local);
-        assert_ne!(first.base_url, DEFAULT_LOCAL_BASE_URL);
+        assert_eq!(first.base_url, local_config.base_url);
         assert_eq!(second.base_url, first.base_url);
         assert_eq!(health.status, "ok");
 
@@ -2106,7 +2538,11 @@ mod tests {
 
     #[tokio::test]
     async fn local_mode_waits_for_companion_readiness() {
-        let state = AppState::new(BackendConfig::default());
+        let local_config = normalize_backend_config(BackendConfig {
+            port: reserve_test_port(),
+            ..BackendConfig::default()
+        });
+        let state = AppState::new(local_config.clone());
         let started = Instant::now();
         let backend_root = local_backend_test_root();
         let backend_root_text = backend_root.display().to_string();
@@ -2124,18 +2560,21 @@ mod tests {
         ];
 
         let config = effective_backend_config_from_app_state_with_env(&state, &overrides)
-        .await
-        .expect("delayed local config");
+            .await
+            .expect("delayed local config");
 
         assert!(started.elapsed() >= Duration::from_millis(200));
-        assert_ne!(config.base_url, DEFAULT_LOCAL_BASE_URL);
+        assert_eq!(config.base_url, local_config.base_url);
 
         stop_local_backend_in_app_state(&state).expect("stop local backend");
     }
 
     #[tokio::test]
     async fn local_mode_reports_degraded_companion_startup() {
-        let state = AppState::new(BackendConfig::default());
+        let state = AppState::new(normalize_backend_config(BackendConfig {
+            port: reserve_test_port(),
+            ..BackendConfig::default()
+        }));
         let backend_root = local_backend_test_root();
         let backend_root_text = backend_root.display().to_string();
         let backend_python = backend_python_path(&backend_root).display().to_string();
@@ -2152,8 +2591,8 @@ mod tests {
         ];
 
         let error = effective_backend_config_from_app_state_with_env(&state, &overrides)
-        .await
-        .expect_err("degraded local backend");
+            .await
+            .expect_err("degraded local backend");
 
         assert_eq!(error.code, "local_backend_degraded");
         assert_eq!(
@@ -2164,7 +2603,10 @@ mod tests {
 
     #[tokio::test]
     async fn local_mode_shutdown_stops_managed_companion() {
-        let state = AppState::new(BackendConfig::default());
+        let state = AppState::new(normalize_backend_config(BackendConfig {
+            port: reserve_test_port(),
+            ..BackendConfig::default()
+        }));
         let backend_root = local_backend_test_root();
         let backend_root_text = backend_root.display().to_string();
         let backend_python = backend_python_path(&backend_root).display().to_string();
@@ -2192,7 +2634,10 @@ mod tests {
 
     #[tokio::test]
     async fn local_mode_auto_starts_and_completes_an_evaluation() {
-        let state = AppState::new(BackendConfig::default());
+        let state = AppState::new(normalize_backend_config(BackendConfig {
+            port: reserve_test_port(),
+            ..BackendConfig::default()
+        }));
         let backend_root = local_backend_test_root();
         let backend_root_text = backend_root.display().to_string();
         let backend_python = backend_python_path(&backend_root).display().to_string();

@@ -37,6 +37,7 @@ const desktopApi = vi.mocked(desktop)
 const backendConfig: desktop.BackendConfig = {
   mode: 'local',
   baseUrl: 'http://127.0.0.1:9000',
+  port: 9000,
   timeoutMs: 10000,
 }
 
@@ -198,20 +199,60 @@ describe('App shell', () => {
     expect(await screen.findByText('baseline, deep, export')).toBeInTheDocument()
   })
 
-  it('saves edited backend connection settings through the desktop adapter', async () => {
-    const user = userEvent.setup()
+  it('renders standalone mode metadata when the embedded engine is configured', async () => {
+    desktopApi.getBackendConfig.mockResolvedValueOnce({
+      mode: 'standalone',
+      baseUrl: 'http://127.0.0.1:9311',
+      port: 9311,
+      timeoutMs: 10000,
+    })
+    desktopApi.apiHealthCheck.mockResolvedValueOnce({
+      ...health,
+      service: 'stealth-lightbeacon-standalone',
+      apiVersion: '0.1.1',
+    })
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      apiMode: {
+        ...capabilities.apiMode,
+        mode: 'standalone',
+        transport: 'embedded',
+      },
+      evaluationProfiles: ['seo-foundation', 'accessibility-aa', 'full-spectrum'],
+      supportsRecon: true,
+    })
 
     render(<App />)
 
+    expect((await screen.findAllByText('Standalone audit engine')).length).toBeGreaterThan(0)
+    expect(await screen.findByText('Embedded ruleset')).toBeInTheDocument()
+    expect(await screen.findByText('SEO / GEO / AEO / WCAG AA')).toBeInTheDocument()
+  })
+
+  it('saves edited backend connection settings through the desktop adapter', async () => {
+    const user = userEvent.setup()
+    const savedConfig: desktop.BackendConfig = {
+      mode: 'remote',
+      baseUrl: 'https://api.example.test:9443',
+      port: 9443,
+      timeoutMs: 10000,
+    }
+    desktopApi.setBackendConfig.mockResolvedValueOnce(savedConfig)
+
+    render(<App />)
+
+    await user.selectOptions(await screen.findByLabelText('Backend mode'), 'remote')
     const baseUrlInput = await screen.findByLabelText('Backend base URL')
-    fireEvent.change(baseUrlInput, { target: { value: 'http://api.example.test' } })
+    fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.test' } })
+    fireEvent.change(screen.getByLabelText('Port'), { target: { value: '9443' } })
     await user.click(screen.getByRole('button', { name: 'Save Connection' }))
 
     await waitFor(() =>
       expect(desktopApi.setBackendConfig).toHaveBeenCalledWith(
         expect.objectContaining({
-          mode: 'local',
-          baseUrl: 'http://api.example.test',
+          mode: 'remote',
+          baseUrl: 'https://api.example.test:9443',
+          port: 9443,
           timeoutMs: 10000,
         }),
       ),
@@ -459,6 +500,29 @@ describe('App shell', () => {
     expect(await screen.findByText('Score 92')).toBeInTheDocument()
     expect(await screen.findByText('normalized-report')).toBeInTheDocument()
     expect(desktopApi.getEvaluationStatus).not.toHaveBeenCalled()
+  })
+
+  it('collapses trace and reporting panels on demand', async () => {
+    const user = userEvent.setup()
+    desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
+
+    render(<App />)
+
+    expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Collapse trace' }))
+    expect(screen.getByRole('button', { name: 'Expand trace' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(document.getElementById('trace-panel')).toHaveAttribute('hidden')
+
+    expect(await screen.findByText('Terminal report')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Collapse reporting' }))
+    expect(screen.getByRole('button', { name: 'Expand reporting' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(document.getElementById('reporting-panel')).toHaveAttribute('hidden')
   })
 
   it('retries polling failures and allows manual recovery after repeated errors', async () => {

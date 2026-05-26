@@ -1,8 +1,9 @@
-export type BackendMode = 'local' | 'remote'
+export type BackendMode = 'local' | 'standalone' | 'remote'
 
 export type BackendConfig = {
   mode: BackendMode
   baseUrl: string
+  port: number
   timeoutMs: number
 }
 

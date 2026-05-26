@@ -60,9 +60,12 @@ type EvaluationResultView = {
   findings: EvaluationResultFindingView[]
 }
 
+const defaultPort = 8000
+
 const defaultBackendConfig: BackendConfig = {
   mode: 'local',
-  baseUrl: 'http://127.0.0.1:8000',
+  baseUrl: `http://127.0.0.1:${defaultPort}`,
+  port: defaultPort,
   timeoutMs: 15000,
 }
 
@@ -85,7 +88,68 @@ const maxAutomaticPollRetries = 2
 const severityOrder = ['critical', 'high', 'medium', 'low', 'info'] as const
 
 function formatBackendMode(mode: BackendMode | string) {
-  return mode === 'local' ? 'Local companion' : 'Remote API'
+  switch (mode) {
+    case 'local':
+      return 'Local companion'
+    case 'standalone':
+      return 'Standalone audit engine'
+    default:
+      return 'Remote API'
+  }
+}
+
+function buildLoopbackBaseUrl(port: number) {
+  return `http://127.0.0.1:${port}`
+}
+
+function buildRemoteBaseUrl(port: number) {
+  return `https://api.example.test:${port}`
+}
+
+function inferPortFromBaseUrl(baseUrl: string) {
+  try {
+    const url = new URL(baseUrl)
+    if (url.port) {
+      return Number(url.port)
+    }
+    if (url.protocol === 'https:') {
+      return 443
+    }
+    if (url.protocol === 'http:') {
+      return 80
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+function withPortApplied(baseUrl: string, port: number) {
+  try {
+    const url = new URL(baseUrl.trim() || buildRemoteBaseUrl(port))
+    url.port = String(port)
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return baseUrl
+  }
+}
+
+function nextDraftConfigForMode(mode: BackendMode, current: BackendConfig): BackendConfig {
+  if (mode === 'remote') {
+    return {
+      ...current,
+      mode,
+      baseUrl:
+        current.mode === 'remote' ? current.baseUrl : buildRemoteBaseUrl(current.port),
+    }
+  }
+
+  return {
+    ...current,
+    mode,
+    baseUrl: buildLoopbackBaseUrl(current.port),
+  }
 }
 
 function summarizeHealth(health: HealthResponse | null) {
@@ -276,6 +340,8 @@ function App() {
   const [artifactsLoadState, setArtifactsLoadState] =
     useState<ResultLoadState>('idle')
   const [artifactsError, setArtifactsError] = useState<string | null>(null)
+  const [traceExpanded, setTraceExpanded] = useState(true)
+  const [reportExpanded, setReportExpanded] = useState(true)
   const [pollingPaused, setPollingPaused] = useState(false)
   const [pollFailureCount, setPollFailureCount] = useState(0)
   const [pollError, setPollError] = useState<string | null>(null)
@@ -284,14 +350,15 @@ function App() {
   const [snapshotPersistedForEvaluationId, setSnapshotPersistedForEvaluationId] =
     useState<string | null>(null)
   const [notice, setNotice] = useState(
-    'Load backend settings, confirm health, then submit an evaluation job.',
+    'Choose companion, standalone, or remote mode, confirm health, then submit an audit run.',
   )
   const [statusLine, setStatusLine] = useState('Waiting for desktop runtime')
   const [activity, setActivity] = useState<ActivityItem[]>([
     {
       id: 0,
       title: 'Desktop bootstrap pending',
-      detail: 'Phase 1 keeps the Tauri app thin and hands evaluation state to the backend API.',
+      detail:
+        'The desktop shell coordinates companion, standalone, and remote audit execution paths.',
     },
   ])
 
@@ -351,6 +418,33 @@ function App() {
     },
     [],
   )
+
+  const updateDraftMode = useCallback((mode: BackendMode) => {
+    setDraftConfig((current) => nextDraftConfigForMode(mode, current))
+  }, [])
+
+  const updateDraftBaseUrl = useCallback((baseUrl: string) => {
+    setDraftConfig((current) => ({
+      ...current,
+      baseUrl,
+      port: current.mode === 'remote' ? inferPortFromBaseUrl(baseUrl) ?? current.port : current.port,
+    }))
+  }, [])
+
+  const updateDraftPort = useCallback((portValue: string) => {
+    const parsedPort = Number(portValue)
+    setDraftConfig((current) => {
+      const nextPort = Number.isFinite(parsedPort) ? Math.trunc(parsedPort) : 0
+      return {
+        ...current,
+        port: nextPort,
+        baseUrl:
+          current.mode === 'remote'
+            ? withPortApplied(current.baseUrl, nextPort || defaultPort)
+            : buildLoopbackBaseUrl(nextPort || defaultPort),
+      }
+    })
+  }, [])
 
   const refreshConnectionState = useCallback(async (mode: BackendMode) => {
     if (!desktopRuntime) {
@@ -982,6 +1076,14 @@ function App() {
   const terminalResultView = evaluationResult
     ? buildEvaluationResultView(evaluationResult)
     : null
+  const remoteDraftMode = draftConfig.mode === 'remote'
+  const reportAvailable = Boolean(evaluationStatus?.terminal)
+  const modeOperationsCopy =
+    backendConfig.mode === 'standalone'
+      ? 'Embedded SEO, GEO, AEO, and WCAG 2.1/2.2 AA rules run inside the desktop boundary.'
+      : backendConfig.mode === 'local'
+        ? 'The desktop process supervises a loopback companion while keeping configuration and results inside Tauri.'
+        : 'The desktop shell brokers remote HTTPS requests while preserving desktop-side validation and caching.'
   const requestValidationErrors = validateEvaluationRequest(
     request,
     capabilitiesLoadState === 'ready' ? capabilities : null,
@@ -1006,13 +1108,24 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">OpenAPI-first desktop client</p>
-          <div className="title-row">
-            <h1>Stealth Lightbeacon</h1>
-            <span className="status-pill status-live">
-              {desktopRuntime ? 'Desktop runtime' : 'Browser preview'}
-            </span>
+        <div className="topbar-brand">
+          <img
+            className="brand-mark"
+            src="/favicon.svg"
+            alt="Stealth Lightbeacon audit beacon"
+          />
+          <div>
+            <p className="eyebrow">Desktop audit operator</p>
+            <div className="title-row">
+              <h1>Stealth Lightbeacon</h1>
+              <span className="status-pill status-live">
+                {desktopRuntime ? 'Desktop runtime' : 'Browser preview'}
+              </span>
+            </div>
+            <p className="brand-summary">
+              SEO, GEO, AEO, and WCAG-guided audit orchestration across companion,
+              standalone, and remote modes.
+            </p>
           </div>
         </div>
 
@@ -1032,25 +1145,34 @@ function App() {
         <section className="main-column">
           <section className="panel hero-panel">
             <div className="hero-copy">
-              <p className="section-kicker">Phase 1</p>
-              <h2>Configure the backend, submit an evaluation, and poll its status.</h2>
+              <p className="section-kicker">Execution Modes</p>
+              <h2>Run audits through a companion service, embedded engine, or remote API.</h2>
               <p className="hero-text">
-                The Tauri layer now acts as a secure API boundary. It stores the
-                selected backend profile, calls `/health`, `/capabilities`, and
-                `/evaluations`, then relays status back to the React shell.
+                The Tauri layer stores connection state, coordinates evaluation
+                lifecycle, and now ships an embedded ruleset for SEO, GEO, AEO,
+                and WCAG 2.1/2.2 AA coverage when you need a standalone run.
               </p>
             </div>
 
             <div className="hero-metrics">
               <article className="metric-card">
-                <span className="metric-label">Desktop boundary</span>
-                <strong>{desktopRuntime ? 'Rust HTTP bridge' : 'Preview only'}</strong>
-                <p>Tauri stores backend config and normalizes transport errors.</p>
+                <span className="metric-label">Execution path</span>
+                <strong>{formatBackendMode(backendConfig.mode)}</strong>
+                <p>{modeOperationsCopy}</p>
               </article>
               <article className="metric-card">
-                <span className="metric-label">API target</span>
-                <strong>{backendConfig.baseUrl}</strong>
-                <p>Local companion by default, remote override supported from the start.</p>
+                <span className="metric-label">Connection target</span>
+                <strong>{backendConfig.mode === 'standalone' ? 'Embedded ruleset' : backendConfig.baseUrl}</strong>
+                <p>
+                  {backendConfig.mode === 'remote'
+                    ? `Remote HTTPS endpoint on port ${backendConfig.port}.`
+                    : `Loopback default port ${backendConfig.port} is configurable.`}
+                </p>
+              </article>
+              <article className="metric-card">
+                <span className="metric-label">Audit coverage</span>
+                <strong>SEO / GEO / AEO / WCAG AA</strong>
+                <p>Embedded capability profiles keep accessibility checks aligned with search-facing analysis.</p>
               </article>
               <article className="metric-card">
                 <span className="metric-label">Active evaluation</span>
@@ -1081,31 +1203,46 @@ function App() {
                 <select
                   aria-label="Backend mode"
                   value={draftConfig.mode}
-                  onChange={(event) =>
-                    setDraftConfig((current) => ({
-                      ...current,
-                      mode: event.target.value as BackendMode,
-                    }))
-                  }
+                  onChange={(event) => updateDraftMode(event.target.value as BackendMode)}
                 >
                   <option value="local">Local companion</option>
+                  <option value="standalone">Standalone engine</option>
                   <option value="remote">Remote API</option>
                 </select>
               </label>
 
-              <label className="field field-wide">
-                <span>Backend base URL</span>
+              <label className="field">
+                <span>Port</span>
                 <input
-                  aria-label="Backend base URL"
+                  aria-label="Port"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  step={1}
+                  value={draftConfig.port}
+                  onChange={(event) => updateDraftPort(event.target.value)}
+                />
+                <small className="field-hint">
+                  {remoteDraftMode
+                    ? 'Overrides the remote endpoint port while preserving the current hostname.'
+                    : 'Used for companion startup and preserved when switching execution modes.'}
+                </small>
+              </label>
+
+              <label className="field field-wide">
+                <span>{remoteDraftMode ? 'Backend base URL' : 'Loopback base URL'}</span>
+                <input
+                  aria-label={remoteDraftMode ? 'Backend base URL' : 'Loopback base URL'}
                   type="text"
                   value={draftConfig.baseUrl}
-                  onChange={(event) =>
-                    setDraftConfig((current) => ({
-                      ...current,
-                      baseUrl: event.target.value,
-                    }))
-                  }
+                  readOnly={!remoteDraftMode}
+                  onChange={(event) => updateDraftBaseUrl(event.target.value)}
                 />
+                <small className="field-hint">
+                  {remoteDraftMode
+                    ? 'Use an absolute HTTPS endpoint for a managed companion service.'
+                    : 'Standalone and local companion modes bind to loopback automatically.'}
+                </small>
               </label>
 
               <label className="field">
@@ -1334,10 +1471,21 @@ function App() {
                 <p className="section-kicker">Recent activity</p>
                 <h2>Desktop Adapter Trace</h2>
               </div>
-              <span className="status-pill status-muted">Last four events</span>
+              <div className="heading-actions">
+                <span className="status-pill status-muted">Last four events</span>
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  aria-expanded={traceExpanded}
+                  aria-controls="trace-panel"
+                  onClick={() => setTraceExpanded((current) => !current)}
+                >
+                  {traceExpanded ? 'Collapse trace' : 'Expand trace'}
+                </button>
+              </div>
             </div>
 
-            <div className="run-list">
+            <div id="trace-panel" className="run-list" hidden={!traceExpanded}>
               {activity.map((item) => (
                 <article key={item.id} className="run-card">
                   <div>
@@ -1418,8 +1566,37 @@ function App() {
               </div>
             ) : null}
 
-            {evaluationStatus?.terminal ? (
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Reporting</p>
+                <h3>Terminal Report and Artifacts</h3>
+              </div>
+              <button
+                type="button"
+                className="collapse-toggle"
+                aria-expanded={reportExpanded}
+                aria-controls="reporting-panel"
+                disabled={!reportAvailable}
+                onClick={() => setReportExpanded((current) => !current)}
+              >
+                {reportExpanded ? 'Collapse reporting' : 'Expand reporting'}
+              </button>
+            </div>
+
+            {!reportAvailable ? (
               <div className="validation-list">
+                <article className="validation-card">
+                  <div className="validation-header">
+                    <span>Reporting</span>
+                    <strong className="tone-idle">Waiting</strong>
+                  </div>
+                  <p>Terminal reports and artifact descriptors appear once the active audit reaches a terminal state.</p>
+                </article>
+              </div>
+            ) : null}
+
+            {evaluationStatus?.terminal ? (
+              <div id="reporting-panel" className="validation-list" hidden={!reportExpanded}>
                 <article className="validation-card">
                   <div className="validation-header">
                     <span>Terminal report</span>
@@ -1501,11 +1678,6 @@ function App() {
                     {finding.description ? <p>{finding.description}</p> : null}
                   </article>
                 ))}
-              </div>
-            ) : null}
-
-            {evaluationStatus?.terminal ? (
-              <div className="validation-list">
                 <article className="validation-card">
                   <div className="validation-header">
                     <span>Artifacts</span>

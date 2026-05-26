@@ -109,7 +109,7 @@ The remaining desktop-completion work is tracked in `backlog.md`.
 
 ## Post-Completion Follow-Up
 
-The remaining work is tracked in `backlog.md` under phases `R1` to `R3`:
+The remaining work is tracked in `backlog.md` under phases `R1` to `R4`:
 
 - repo-truth and codemap refresh
 - package-grade release validation

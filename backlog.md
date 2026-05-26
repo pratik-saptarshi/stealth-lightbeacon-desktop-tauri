@@ -29,51 +29,88 @@ Status was revalidated against the desktop repo and the backend worktree
 | 4. Recon advisory API alignment | Partial | Backend recon route and desktop transport support exist, but React UI wiring is still missing. |
 | 5. Release hardening and contract-sync automation | Partial | Cross-repo validation exists; publication automation, package verification, and repo-truth docs still need attention. |
 
-## Adversarial Review Findings
+## Feature Map
 
-| ID | Severity | Bucket | Summary | Action |
-| --- | --- | --- | --- | --- |
-| R3-F01 | HIGH | Validation gap | Repo truth docs and codemaps still describe completed phases as missing or blocked. | Rewrite the completion ledger, repo maps, and architecture docs to match verified code. |
-| R3-F02 | HIGH | Capability gap | Release validation stopped at the frontend bundle and did not exercise the Tauri package boundary. | Add `npm run tauri:build` to the release lane and validate the macOS `.app` bundle path. |
-| R3-F03 | HIGH | Capability gap | This checkout has no Git remote configured, so GitHub publication is not possible from current state. | Create or attach `origin`, push `main`, and publish a documented GitHub release. |
-| R3-F04 | MEDIUM | Feature gap | Governance docs for contribution, security reporting, and bill of materials were missing. | Add the missing docs and link them from the root README. |
-| R3-F05 | MEDIUM | Validation gap | AGENTS and codemap guidance were stale and would misdirect future agents. | Refresh root and folder codemaps plus `AGENTS.md`. |
-| R3-F06 | MEDIUM | Feature gap | Recon transport exists, but the operator workflow is absent from `src/App.tsx`. | Add React recon workflow and integration coverage. |
-| R3-F07 | MEDIUM | Feature gap | Remote auth and compatibility handling are mostly transport-level and not yet surfaced as explicit operator UX. | Add operator-visible unauthorized and version-mismatch messaging plus tests. |
+| Feature area | Owning phase | Status | Remaining work |
+| --- | --- | --- | --- |
+| Repo truth, atlas, and governance docs | R1 | Partial | Refresh the docs, codemaps, and phase ledger so they match the verified code. |
+| Recon operator workflow | R2 | Partial | Wire recon into the React shell and preserve the desktop adapter boundary. |
+| Remote policy UX | R2 | Partial | Surface unauthorized and compatibility mismatch handling to the operator. |
+| Frontend verification | R2 | Partial | Add Vitest coverage, browser smoke, and accessibility checks that keep the 80 percent gate visible. |
+| Release packaging and validation | R3 | Partial | Keep the Tauri bundle in the release lane and stabilize readiness and loopback checks. |
+| GitHub publication | R4 | Partial | Attach `origin`, push the release line, and publish documented release notes. |
 
 ## Merged Remaining Backlog
 
-### Phase R1: Repo Truth And Guidance
+### Phase R1: Repo Truth, Atlas, and Governance
 
-- R1-F1: Refresh `README.md`, `architecture.md`, `backlog.md`,
-  `implementation-roadmap.md`, `plan-review-traceability.md`, `AGENTS.md`, and
-  codemap files to reflect the verified implementation state.
-- R1-F2: Add `contributing.md`, `security-policy.md`, and
-  `bill-of-materials.md`.
-- R1-T1: Re-run contract, UI, and Rust validation after the doc refresh.
+- R1-F1: Refresh `README.md`, `readme.md`, `architecture.md`, `backlog.md`,
+  `implementation-roadmap.md`, `readme-CLI.md`, `changelog.md`,
+  `contributing.md`, `security-policy.md`, and `bill-of-materials.md` so the
+  repo docs match the verified implementation state.
+- R1-F2: Refresh the root `codemap.md` and the folder codemaps under `src/`,
+  `src/lib/`, `src-tauri/`, and `src-tauri/src/` so the atlas matches the
+  code.
+- R1-T1: Re-run doc link checks and review the completion ledger for stale
+  claims before promoting the release branch.
+
+Validation gate:
+- `README.md` and `readme.md` agree on the repo purpose and current phase
+  status.
+- `backlog.md` and `implementation-roadmap.md` agree on the partial-vs-complete
+  ledger.
+- `codemap.md` entries point to the correct folder maps.
 
 ### Phase R2: Recon And Remote Policy UX
 
-- R2-F1: Add operator-facing recon workflow in `src/App.tsx`.
-- R2-F2: Add explicit unauthorized and compatibility-mismatch UX in `src/App.tsx`.
-- R2-T1: Add Vitest coverage for recon and remote policy UX.
+- R2-F1: Add the operator-facing recon workflow in `src/App.tsx`.
+- R2-F2: Add explicit unauthorized and compatibility-mismatch UX in
+  `src/App.tsx`.
+- R2-F3: Add Vitest coverage for recon and remote-policy UX with an enforced
+  frontend coverage gate.
+- R2-F4: Add a browser-level smoke check for the built shell so the recon and
+  policy states are exercised outside unit tests.
+
+Validation gate:
+- `npm run test` passes.
+- Frontend coverage is measurable and stays at or above 80 percent for the
+  relevant shell surface.
+- The built shell still renders through the adapter boundary.
 
 ### Phase R3: Package-Grade Release Validation
 
 - R3-C1: Keep Tauri bundling active in `src-tauri/tauri.conf.json`.
-- R3-C2: Make `scripts/release_validate.py` run the Tauri package build.
-- R3-T1: Re-run `npm run validate:release`.
+- R3-C2: Make `scripts/release_validate.py` run the Tauri package build and
+  record the `.app` artifact evidence.
+- R3-C3: Stabilize backend readiness and loopback health checks in the release
+  lane so the validation path is deterministic.
+- R3-T1: Re-run `npm run validate:release` after the packaging lane is fixed.
+
+Validation gate:
+- `npm run validate:release` completes end to end.
+- The release lane exercises the Tauri package boundary, not only the web
+  bundle.
+- Readiness failures are treated as a test or environment issue only after
+  evidence proves that assumption.
 
 ### Phase R4: GitHub Publication
 
 - R4-C1: Create or attach an `origin` remote for this checkout.
-- R4-C2: Push `main` and any release tag.
+- R4-C2: Push `main` and the release tag.
 - R4-F1: Publish a documented GitHub release with operator notes, validation
   evidence, and backend companion dependency notes.
+
+Validation gate:
+- `git remote -v` shows a live `origin`.
+- The release commit and tag are visible on GitHub.
+- The release notes capture the validation matrix and the runtime dependency
+  boundary.
 
 ## Current Remaining Risk
 
 - Recon UI and remote-policy UX still need implementation work in the React
   shell.
+- Frontend coverage is not yet measurable in this checkout because the
+  coverage reporter is still missing from the test toolchain.
 - GitHub publication remains blocked until a remote repository exists or is
   attached to this checkout.

@@ -17,9 +17,9 @@
   boundary instead of stopping at the web bundle, using the macOS `.app`
   artifact path instead of a failing DMG-only path.
 - Activated Tauri bundling in `src-tauri/tauri.conf.json`.
-- Refreshed `README.md`, `architecture.md`, `readme-CLI.md`, `backlog.md`,
-  `implementation-roadmap.md`, `plan-review-traceability.md`, `AGENTS.md`, and
-  codemap files to reflect current runtime behavior.
+- Refreshed `README.md`, `readme.md`, `architecture.md`, `readme-CLI.md`,
+  `backlog.md`, `implementation-roadmap.md`, `plan-review-traceability.md`,
+  and codemap files to reflect current runtime behavior.
 
 ### Governance Docs
 

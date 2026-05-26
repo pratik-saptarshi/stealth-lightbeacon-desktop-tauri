@@ -12,7 +12,7 @@ and turns those commands into HTTP calls against the Stealth Lightbeacon API.
 - `main.rs` is only a bootstrap shim. It immediately calls `app_lib::run()`.
 - `lib.rs` is the real backend module today. It holds the command contracts,
   config model, validation rules, local companion lifecycle, HTTP adapter, app
-  setup, and tests in one file.
+  setup, recon proxy, and tests in one file.
 - The backend is intentionally thin. It does not perform evaluation work
   itself; it validates requests, remembers which backend to talk to, enforces
   transport policy, and proxies operations to the API.
@@ -62,5 +62,5 @@ and turns those commands into HTTP calls against the Stealth Lightbeacon API.
     `max_depth` in `1..=8`, and `max_urls` in `1..=5000`
 - Test integration: `lib.rs` includes unit and async tests that cover config
   round-tripping, invalid input rejection, local companion lifecycle, real
-  backend integration, result and artifact retrieval, recon, and snapshot
-  persistence.
+  backend integration, result and artifact retrieval, recon, snapshot
+  persistence, and release-time readiness assumptions.

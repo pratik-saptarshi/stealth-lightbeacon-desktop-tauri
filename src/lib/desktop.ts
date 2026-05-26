@@ -6,11 +6,18 @@ export type BackendConfig = {
   timeoutMs: number
 }
 
+export type CompatibilityResponse = {
+  minimumDesktopVersion: string
+  recommendedDesktopVersion: string
+}
+
 export type HealthResponse = {
   status: string
   service: string
   apiVersion: string
   appVersion?: string | null
+  authRequired: boolean
+  compatibility: CompatibilityResponse
 }
 
 export type ApiModeResponse = {

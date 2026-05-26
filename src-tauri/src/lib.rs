@@ -15,6 +15,16 @@ const BACKEND_CONFIG_FILE: &str = "backend-config.json";
 const LAST_OPENED_SNAPSHOT_FILE: &str = "snapshots/last-opened-terminal-snapshot.json";
 const DEFAULT_LOCAL_BASE_URL: &str = "http://127.0.0.1:8000";
 const DEFAULT_TIMEOUT_MS: u64 = 15_000;
+const DESKTOP_APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+const DESKTOP_VERSION_HEADER: &str = "X-Stealth-Lightbeacon-Desktop-Version";
+const REMOTE_AUTH_TOKEN_ENV: &str = "STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct CompatibilityResponse {
+    minimum_desktop_version: String,
+    recommended_desktop_version: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -48,6 +58,8 @@ struct HealthResponse {
     service: String,
     api_version: String,
     app_version: Option<String>,
+    auth_required: bool,
+    compatibility: CompatibilityResponse,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -604,12 +616,23 @@ fn validate_backend_config(config: &BackendConfig) -> Result<(), ApiError> {
     })?;
 
     match url.scheme() {
-        "http" | "https" => Ok(()),
-        _ => Err(ApiError::new(
+        "http" | "https" => {}
+        _ => {
+            return Err(ApiError::new(
             "invalid_config",
             "Backend base URL must use http or https.",
-        )),
+            ))
+        }
     }
+
+    if config.mode == BackendMode::Remote && url.scheme() != "https" {
+        return Err(ApiError::new(
+            "invalid_config",
+            "Remote backends must use https.",
+        ));
+    }
+
+    Ok(())
 }
 
 fn validate_evaluation_request(request: &CreateEvaluationRequest) -> Result<(), ApiError> {
@@ -857,7 +880,17 @@ where
             )
         })?;
 
-    let request = client.request(method, endpoint.clone());
+    let request = client
+        .request(method, endpoint.clone())
+        .header(DESKTOP_VERSION_HEADER, DESKTOP_APP_VERSION);
+    let request = if config.mode == BackendMode::Remote {
+        match env::var(REMOTE_AUTH_TOKEN_ENV) {
+            Ok(token) if !token.trim().is_empty() => request.bearer_auth(token.trim()),
+            _ => request,
+        }
+    } else {
+        request
+    };
     let request = if let Some(payload) = body {
         request.json(payload)
     } else {
@@ -1110,7 +1143,7 @@ mod tests {
 
     fn sample_config(base_url: String) -> BackendConfig {
         BackendConfig {
-            mode: BackendMode::Remote,
+            mode: BackendMode::Local,
             base_url,
             timeout_ms: 5_000,
         }
@@ -1361,6 +1394,19 @@ mod tests {
     }
 
     #[test]
+    fn backend_config_validation_rejects_remote_plaintext_urls() {
+        let config = BackendConfig {
+            mode: BackendMode::Remote,
+            base_url: "http://api.example.test".into(),
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        };
+
+        let error = validate_backend_config(&config).expect_err("invalid remote config");
+        assert_eq!(error.code, "invalid_config");
+        assert_eq!(error.message, "Remote backends must use https.");
+    }
+
+    #[test]
     fn evaluation_request_validation_rejects_empty_payloads() {
         let request = CreateEvaluationRequest {
             target: String::new(),
@@ -1407,7 +1453,7 @@ mod tests {
                 expected_prefix: "GET /health HTTP/1.1",
                 expected_body: None,
                 status_line: "200 OK",
-                response_body: r#"{"status":"ok","service":"stealth-lightbeacon-api","apiVersion":"0.1.0","appVersion":"2026.05.26"}"#,
+                response_body: r#"{"status":"ok","service":"stealth-lightbeacon-api","apiVersion":"0.1.0","appVersion":"2026.05.26","authRequired":false,"compatibility":{"minimumDesktopVersion":"0.1.0","recommendedDesktopVersion":"0.1.0"}}"#,
             },
             StubExchange {
                 expected_prefix: "GET /capabilities HTTP/1.1",
@@ -1484,6 +1530,64 @@ mod tests {
                 message: "Profile is not supported.".into(),
                 status: Some(422),
                 details: Some("baseline is disabled".into()),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn http_adapter_preserves_remote_auth_required_errors() {
+        let (base_url, _) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "GET /capabilities HTTP/1.1",
+            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.0"#),
+            status_line: "401 Unauthorized",
+            response_body: r#"{"code":"unauthorized","message":"Remote API auth required.","details":"SLB_API_AUTH_TOKEN"}"#,
+        }]);
+
+        let config = BackendConfig {
+            mode: BackendMode::Local,
+            base_url,
+            timeout_ms: 5_000,
+        };
+        let error = get_capabilities_impl(&config)
+            .await
+            .expect_err("auth required");
+
+        assert_eq!(
+            error,
+            ApiError {
+                code: "unauthorized".into(),
+                message: "Remote API auth required.".into(),
+                status: Some(401),
+                details: Some("SLB_API_AUTH_TOKEN".into()),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn http_adapter_preserves_incompatible_client_errors() {
+        let (base_url, _) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "GET /capabilities HTTP/1.1",
+            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.0"#),
+            status_line: "409 Conflict",
+            response_body: r#"{"code":"incompatible_client","message":"Desktop version is not supported by this backend.","details":"0.0.1"}"#,
+        }]);
+
+        let config = BackendConfig {
+            mode: BackendMode::Local,
+            base_url,
+            timeout_ms: 5_000,
+        };
+        let error = get_capabilities_impl(&config)
+            .await
+            .expect_err("incompatible client");
+
+        assert_eq!(
+            error,
+            ApiError {
+                code: "incompatible_client".into(),
+                message: "Desktop version is not supported by this backend.".into(),
+                status: Some(409),
+                details: Some("0.0.1".into()),
             }
         );
     }
@@ -1663,7 +1767,7 @@ mod tests {
     async fn http_adapter_result_retrieval_reports_timeouts() {
         let base_url = spawn_timeout_server();
         let config = BackendConfig {
-            mode: BackendMode::Remote,
+            mode: BackendMode::Local,
             base_url,
             timeout_ms: 1_000,
         };

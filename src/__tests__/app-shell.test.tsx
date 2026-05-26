@@ -45,6 +45,11 @@ const health: desktop.HealthResponse = {
   service: 'stealth-lightbeacon-api',
   apiVersion: '0.1.0',
   appVersion: '2026.05.26',
+  authRequired: false,
+  compatibility: {
+    minimumDesktopVersion: '0.1.0',
+    recommendedDesktopVersion: '0.1.0',
+  },
 }
 
 const capabilities: desktop.CapabilitiesResponse = {
@@ -253,6 +258,44 @@ describe('App shell', () => {
       screen.getByText('Reload backend capabilities before submitting an evaluation.'),
     ).toBeInTheDocument()
     expect(desktopApi.createEvaluation).not.toHaveBeenCalled()
+  })
+
+  it('surfaces remote auth requirements when protected capabilities fail', async () => {
+    desktopApi.getCapabilities.mockRejectedValueOnce({
+      code: 'unauthorized',
+      message: 'Remote API auth required.',
+      status: 401,
+      details: 'SLB_API_AUTH_TOKEN',
+    })
+
+    render(<App />)
+
+    expect(
+      (
+        await screen.findAllByText(
+          'Capabilities unavailable. Remote API auth required.',
+        )
+      ).length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('surfaces incompatible desktop versions when protected capabilities fail', async () => {
+    desktopApi.getCapabilities.mockRejectedValueOnce({
+      code: 'incompatible_client',
+      message: 'Desktop version is not supported by this backend.',
+      status: 409,
+      details: '0.0.1',
+    })
+
+    render(<App />)
+
+    expect(
+      (
+        await screen.findAllByText(
+          'Capabilities unavailable. Desktop version is not supported by this backend.',
+        )
+      ).length,
+    ).toBeGreaterThan(0)
   })
 
   it('starts result fetch only after the evaluation reaches a terminal status', async () => {

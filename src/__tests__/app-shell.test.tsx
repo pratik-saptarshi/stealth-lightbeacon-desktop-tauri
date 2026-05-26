@@ -13,6 +13,9 @@ vi.mock('../lib/desktop', () => ({
   createEvaluation: vi.fn(),
   getEvaluationStatus: vi.fn(),
   getEvaluationResult: vi.fn(),
+  getEvaluationArtifacts: vi.fn(),
+  getLastOpenedSnapshot: vi.fn(),
+  setLastOpenedSnapshot: vi.fn(),
   formatCommandError: vi.fn((error: unknown) => {
     if (typeof error === 'string') {
       return error
@@ -123,6 +126,43 @@ const budgetBreachResult = {
   completedAt: '2026-01-15T12:00:03Z',
 }
 
+const artifacts = [
+  {
+    name: 'normalized-report',
+    kind: 'normalized_report',
+    mediaType: 'application/json',
+    downloadUrl: 'https://downloads.example.test/eval-123/report.json',
+  },
+  {
+    name: 'html-report',
+    kind: 'html',
+    mediaType: 'text/html',
+    downloadUrl: 'https://downloads.example.test/eval-123/report.html',
+  },
+]
+
+const lastOpenedSnapshot = {
+  evaluation: {
+    evaluationId: 'eval-cached',
+    status: 'success',
+    acceptedAt: '2026-05-25T08:00:00Z',
+  },
+  evaluationStatus: {
+    evaluationId: 'eval-cached',
+    status: 'success',
+    stage: 'completed',
+    progressPercent: 100,
+    message: 'Cached terminal result.',
+    exitState: 'success',
+    terminal: true,
+  },
+  evaluationResult: {
+    ...successResult,
+    evaluationId: 'eval-cached',
+  },
+  artifacts,
+}
+
 describe('App shell', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -133,6 +173,9 @@ describe('App shell', () => {
     desktopApi.apiHealthCheck.mockResolvedValue(health)
     desktopApi.getCapabilities.mockResolvedValue(capabilities)
     desktopApi.getEvaluationResult.mockResolvedValue(successResult)
+    desktopApi.getEvaluationArtifacts.mockResolvedValue(artifacts)
+    desktopApi.getLastOpenedSnapshot.mockResolvedValue(null)
+    desktopApi.setLastOpenedSnapshot.mockImplementation(async (snapshot) => snapshot)
   })
 
   afterEach(() => {
@@ -325,6 +368,54 @@ describe('App shell', () => {
     expect(await screen.findByText('Budget threshold reached')).toBeInTheDocument()
     expect(await screen.findByText('high 1')).toBeInTheDocument()
     expect(await screen.findByText('Failed 1')).toBeInTheDocument()
+  })
+
+  it('renders artifact metadata and actions after terminal completion', async () => {
+    const user = userEvent.setup()
+    desktopApi.createEvaluation.mockResolvedValue({
+      evaluationId: 'eval-123',
+      status: 'accepted',
+      acceptedAt: '2026-05-26T12:00:00Z',
+    })
+    desktopApi.getEvaluationStatus.mockResolvedValue({
+      evaluationId: 'eval-123',
+      status: 'success',
+      stage: 'completed',
+      progressPercent: 100,
+      message: 'Evaluation complete.',
+      exitState: 'success',
+      terminal: true,
+    })
+
+    render(<App />)
+
+    await screen.findByRole('button', { name: 'Submit Evaluation' })
+    await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
+
+    await waitFor(() =>
+      expect(desktopApi.getEvaluationArtifacts).toHaveBeenCalledWith('eval-123'),
+    )
+    expect(await screen.findByText('html-report')).toBeInTheDocument()
+    expect(await screen.findByText('text/html')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Open html-report' }),
+    ).toHaveAttribute(
+      'href',
+      'https://downloads.example.test/eval-123/report.html',
+    )
+  })
+
+  it('restores the last-opened terminal snapshot during bootstrap', async () => {
+    desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
+
+    render(<App />)
+
+    expect(
+      await screen.findByText('Accepted at 2026-05-25T08:00:00Z'),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('Score 92')).toBeInTheDocument()
+    expect(await screen.findByText('normalized-report')).toBeInTheDocument()
+    expect(desktopApi.getEvaluationStatus).not.toHaveBeenCalled()
   })
 
   it('retries polling failures and allows manual recovery after repeated errors', async () => {

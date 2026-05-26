@@ -9,6 +9,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tauri::{path::BaseDirectory, AppHandle, Manager, State};
 
 const BACKEND_CONFIG_FILE: &str = "backend-config.json";
+const LAST_OPENED_SNAPSHOT_FILE: &str = "snapshots/last-opened-terminal-snapshot.json";
 const DEFAULT_LOCAL_BASE_URL: &str = "http://127.0.0.1:8000";
 const DEFAULT_TIMEOUT_MS: u64 = 15_000;
 
@@ -107,6 +108,24 @@ struct EvaluationResultResponse {
     summary: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct ArtifactDescriptor {
+    name: String,
+    kind: String,
+    media_type: String,
+    download_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct LastOpenedSnapshot {
+    evaluation: CreateEvaluationResponse,
+    evaluation_status: EvaluationStatusResponse,
+    evaluation_result: EvaluationResultResponse,
+    artifacts: Vec<ArtifactDescriptor>,
+}
+
 fn deserialize_summary_object<'de, D>(deserializer: D) -> Result<serde_json::Value, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -115,9 +134,7 @@ where
     if summary.is_object() {
         Ok(summary)
     } else {
-        Err(serde::de::Error::custom(
-            "summary must be a JSON object",
-        ))
+        Err(serde::de::Error::custom("summary must be a JSON object"))
     }
 }
 
@@ -204,6 +221,18 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, ApiError> {
         })
 }
 
+fn snapshot_path(app: &AppHandle) -> Result<PathBuf, ApiError> {
+    app.path()
+        .resolve(LAST_OPENED_SNAPSHOT_FILE, BaseDirectory::AppConfig)
+        .map_err(|err| {
+            ApiError::with_details(
+                "snapshot_path_error",
+                "Unable to resolve the last-opened snapshot path.",
+                err.to_string(),
+            )
+        })
+}
+
 fn load_backend_config_from(path: &Path) -> Result<BackendConfig, ApiError> {
     if !path.exists() {
         return Ok(BackendConfig::default());
@@ -266,6 +295,112 @@ fn load_backend_config(app: &AppHandle) -> Result<BackendConfig, ApiError> {
 
 fn save_backend_config(app: &AppHandle, config: &BackendConfig) -> Result<(), ApiError> {
     save_backend_config_to(&config_path(app)?, config)
+}
+
+fn validate_last_opened_snapshot(snapshot: &LastOpenedSnapshot) -> Result<(), ApiError> {
+    validate_evaluation_id(&snapshot.evaluation.evaluation_id)?;
+    validate_evaluation_id(&snapshot.evaluation_status.evaluation_id)?;
+    validate_evaluation_id(&snapshot.evaluation_result.evaluation_id)?;
+
+    if !snapshot.evaluation_status.terminal {
+        return Err(ApiError::new(
+            "invalid_snapshot",
+            "Last-opened snapshot requires a terminal evaluation status.",
+        ));
+    }
+
+    if snapshot.evaluation.evaluation_id != snapshot.evaluation_status.evaluation_id
+        || snapshot.evaluation.evaluation_id != snapshot.evaluation_result.evaluation_id
+    {
+        return Err(ApiError::new(
+            "invalid_snapshot",
+            "Last-opened snapshot evaluation ids must match.",
+        ));
+    }
+
+    for artifact in &snapshot.artifacts {
+        if artifact.name.trim().is_empty()
+            || artifact.kind.trim().is_empty()
+            || artifact.media_type.trim().is_empty()
+        {
+            return Err(ApiError::new(
+                "invalid_snapshot",
+                "Last-opened snapshot artifacts require name, kind, and media type.",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn load_last_opened_snapshot_from(path: &Path) -> Result<Option<LastOpenedSnapshot>, ApiError> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let raw = fs::read_to_string(path).map_err(|err| {
+        ApiError::with_details(
+            "snapshot_read_error",
+            "Unable to read the last-opened snapshot file.",
+            err.to_string(),
+        )
+    })?;
+
+    let snapshot = serde_json::from_str::<LastOpenedSnapshot>(&raw).map_err(|err| {
+        ApiError::with_details(
+            "snapshot_parse_error",
+            "Unable to parse the last-opened snapshot file.",
+            err.to_string(),
+        )
+    })?;
+
+    validate_last_opened_snapshot(&snapshot)?;
+
+    Ok(Some(snapshot))
+}
+
+fn save_last_opened_snapshot_to(
+    path: &Path,
+    snapshot: &LastOpenedSnapshot,
+) -> Result<(), ApiError> {
+    validate_last_opened_snapshot(snapshot)?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            ApiError::with_details(
+                "snapshot_write_error",
+                "Unable to create the last-opened snapshot directory.",
+                err.to_string(),
+            )
+        })?;
+    }
+
+    let serialized = serde_json::to_string_pretty(snapshot).map_err(|err| {
+        ApiError::with_details(
+            "snapshot_serialize_error",
+            "Unable to serialize the last-opened snapshot.",
+            err.to_string(),
+        )
+    })?;
+
+    fs::write(path, serialized).map_err(|err| {
+        ApiError::with_details(
+            "snapshot_write_error",
+            "Unable to persist the last-opened snapshot.",
+            err.to_string(),
+        )
+    })
+}
+
+fn load_last_opened_snapshot(app: &AppHandle) -> Result<Option<LastOpenedSnapshot>, ApiError> {
+    load_last_opened_snapshot_from(&snapshot_path(app)?)
+}
+
+fn save_last_opened_snapshot(
+    app: &AppHandle,
+    snapshot: &LastOpenedSnapshot,
+) -> Result<(), ApiError> {
+    save_last_opened_snapshot_to(&snapshot_path(app)?, snapshot)
 }
 
 fn validate_backend_config(config: &BackendConfig) -> Result<(), ApiError> {
@@ -382,10 +517,9 @@ fn replace_backend_config_in_app_state(
     config: BackendConfig,
 ) -> Result<BackendConfig, ApiError> {
     {
-        let mut guard = state
-            .backend_config
-            .lock()
-            .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?;
+        let mut guard = state.backend_config.lock().map_err(|_| {
+            ApiError::new("state_error", "The backend config state is unavailable.")
+        })?;
         *guard = config.clone();
     }
 
@@ -566,6 +700,21 @@ async fn get_evaluation_result_impl(
     .await
 }
 
+async fn get_evaluation_artifacts_impl(
+    config: &BackendConfig,
+    evaluation_id: &str,
+) -> Result<Vec<ArtifactDescriptor>, ApiError> {
+    validate_evaluation_id(evaluation_id)?;
+
+    send_json_request::<(), Vec<ArtifactDescriptor>>(
+        config,
+        reqwest::Method::GET,
+        &["evaluations", evaluation_id, "artifacts"],
+        None,
+    )
+    .await
+}
+
 #[tauri::command]
 fn get_backend_config(state: State<'_, AppState>) -> Result<BackendConfig, ApiError> {
     current_backend_config(&state)
@@ -622,6 +771,29 @@ async fn get_evaluation_result(
     get_evaluation_result_impl(&config, &evaluation_id).await
 }
 
+#[tauri::command]
+async fn get_evaluation_artifacts(
+    state: State<'_, AppState>,
+    evaluation_id: String,
+) -> Result<Vec<ArtifactDescriptor>, ApiError> {
+    let config = current_backend_config(&state)?;
+    get_evaluation_artifacts_impl(&config, &evaluation_id).await
+}
+
+#[tauri::command]
+fn get_last_opened_snapshot(app: AppHandle) -> Result<Option<LastOpenedSnapshot>, ApiError> {
+    load_last_opened_snapshot(&app)
+}
+
+#[tauri::command]
+fn set_last_opened_snapshot(
+    app: AppHandle,
+    snapshot: LastOpenedSnapshot,
+) -> Result<LastOpenedSnapshot, ApiError> {
+    save_last_opened_snapshot(&app, &snapshot)?;
+    Ok(snapshot)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -637,7 +809,10 @@ pub fn run() {
             get_capabilities,
             create_evaluation,
             get_evaluation_status,
-            get_evaluation_result
+            get_evaluation_result,
+            get_evaluation_artifacts,
+            get_last_opened_snapshot,
+            set_last_opened_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -667,6 +842,15 @@ mod tests {
         path
     }
 
+    fn temp_snapshot_path(name: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "slb-desktop-snapshot-{name}-{}.json",
+            std::process::id()
+        ));
+        path
+    }
+
     fn sample_config(base_url: String) -> BackendConfig {
         BackendConfig {
             mode: BackendMode::Remote,
@@ -684,6 +868,37 @@ mod tests {
             max_urls: 250,
             fail_on_critical: true,
             budget_gate: false,
+        }
+    }
+
+    fn sample_terminal_status() -> EvaluationStatusResponse {
+        EvaluationStatusResponse {
+            evaluation_id: "eval-terminal".into(),
+            status: "success".into(),
+            stage: Some("completed".into()),
+            progress_percent: Some(100),
+            message: Some("Evaluation complete.".into()),
+            exit_state: Some("success".into()),
+            terminal: true,
+        }
+    }
+
+    fn sample_result() -> EvaluationResultResponse {
+        EvaluationResultResponse {
+            evaluation_id: "eval-terminal".into(),
+            status: "success".into(),
+            summary: serde_json::json!({
+                "score": 92,
+                "severity_counts": {
+                    "critical": 0,
+                    "high": 0,
+                    "medium": 1,
+                    "low": 2,
+                    "info": 3
+                },
+                "started_at": "2026-05-26T12:00:00Z",
+                "completed_at": "2026-05-26T12:00:03Z"
+            }),
         }
     }
 
@@ -931,9 +1146,18 @@ mod tests {
         assert_eq!(result.evaluation_id, "eval/with space?and#hash");
         assert_eq!(result.status, "success");
         assert_eq!(result.summary["score"], serde_json::json!(92));
-        assert_eq!(result.summary["severity_counts"]["medium"], serde_json::json!(1));
-        assert_eq!(result.summary["findings"][0]["rule_id"], serde_json::json!("tls-version"));
-        assert_eq!(result.summary["artifacts"][1]["kind"], serde_json::json!("html"));
+        assert_eq!(
+            result.summary["severity_counts"]["medium"],
+            serde_json::json!(1)
+        );
+        assert_eq!(
+            result.summary["findings"][0]["rule_id"],
+            serde_json::json!("tls-version")
+        );
+        assert_eq!(
+            result.summary["artifacts"][1]["kind"],
+            serde_json::json!("html")
+        );
         assert_eq!(
             result.summary["started_at"],
             serde_json::json!("2026-01-15T10:00:00Z")
@@ -943,6 +1167,94 @@ mod tests {
             serde_json::json!("2026-01-15T10:00:03Z")
         );
         assert_eq!(recorded_requests.lock().expect("recorded").len(), 1);
+    }
+
+    #[tokio::test]
+    async fn http_adapter_gets_evaluation_artifacts() {
+        let (base_url, recorded_requests) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "GET /evaluations/eval%2Fwith%20space%3Fand%23hash/artifacts HTTP/1.1",
+            expected_body: None,
+            status_line: "200 OK",
+            response_body: r#"[{"name":"normalized-report","kind":"normalized_report","mediaType":"application/json"},{"name":"html-report","kind":"html","mediaType":"text/html","downloadUrl":"https://api.example.test/artifacts/report.html"}]"#,
+        }]);
+
+        let config = sample_config(base_url);
+        let artifacts = get_evaluation_artifacts_impl(&config, "eval/with space?and#hash")
+            .await
+            .expect("artifacts");
+
+        assert_eq!(artifacts.len(), 2);
+        assert_eq!(artifacts[0].name, "normalized-report");
+        assert_eq!(artifacts[0].media_type, "application/json");
+        assert_eq!(artifacts[1].kind, "html");
+        assert_eq!(
+            artifacts[1].download_url.as_deref(),
+            Some("https://api.example.test/artifacts/report.html")
+        );
+        assert_eq!(recorded_requests.lock().expect("recorded").len(), 1);
+    }
+
+    #[test]
+    fn last_opened_snapshot_round_trips_on_disk() {
+        let path = temp_snapshot_path("roundtrip");
+        let snapshot = LastOpenedSnapshot {
+            evaluation: CreateEvaluationResponse {
+                evaluation_id: "eval-terminal".into(),
+                status: "accepted".into(),
+                accepted_at: Some("2026-05-26T12:00:00Z".into()),
+            },
+            evaluation_status: sample_terminal_status(),
+            evaluation_result: sample_result(),
+            artifacts: vec![
+                ArtifactDescriptor {
+                    name: "normalized-report".into(),
+                    kind: "normalized_report".into(),
+                    media_type: "application/json".into(),
+                    download_url: None,
+                },
+                ArtifactDescriptor {
+                    name: "html-report".into(),
+                    kind: "html".into(),
+                    media_type: "text/html".into(),
+                    download_url: Some("https://api.example.test/artifacts/report.html".into()),
+                },
+            ],
+        };
+
+        save_last_opened_snapshot_to(&path, &snapshot).expect("save snapshot");
+        let loaded = load_last_opened_snapshot_from(&path)
+            .expect("load snapshot")
+            .expect("snapshot exists");
+
+        assert_eq!(loaded, snapshot);
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn last_opened_snapshot_rejects_non_terminal_status() {
+        let path = temp_snapshot_path("non-terminal");
+        let snapshot = LastOpenedSnapshot {
+            evaluation: CreateEvaluationResponse {
+                evaluation_id: "eval-terminal".into(),
+                status: "accepted".into(),
+                accepted_at: Some("2026-05-26T12:00:00Z".into()),
+            },
+            evaluation_status: EvaluationStatusResponse {
+                terminal: false,
+                ..sample_terminal_status()
+            },
+            evaluation_result: sample_result(),
+            artifacts: vec![],
+        };
+
+        let error = save_last_opened_snapshot_to(&path, &snapshot).expect_err("non-terminal");
+        assert_eq!(error.code, "invalid_snapshot");
+        assert_eq!(
+            error.message,
+            "Last-opened snapshot requires a terminal evaluation status."
+        );
+        assert!(!path.exists());
     }
 
     #[tokio::test]
@@ -985,13 +1297,11 @@ mod tests {
 
         assert_eq!(error.code, "timeout");
         assert_eq!(error.message, "The backend request timed out.");
-        assert!(
-            error
-                .details
-                .as_deref()
-                .expect("timeout details")
-                .ends_with("/evaluations/eval-timeout/result")
-        );
+        assert!(error
+            .details
+            .as_deref()
+            .expect("timeout details")
+            .ends_with("/evaluations/eval-timeout/result"));
     }
 
     #[tokio::test]
@@ -1009,9 +1319,6 @@ mod tests {
             .expect_err("decode failure");
 
         assert_eq!(error.code, "decode_error");
-        assert_eq!(
-            error.message,
-            "The backend response could not be decoded."
-        );
+        assert_eq!(error.message, "The backend response could not be decoded.");
     }
 }

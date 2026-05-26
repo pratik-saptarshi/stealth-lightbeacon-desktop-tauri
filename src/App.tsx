@@ -13,10 +13,14 @@ import {
   formatCommandError,
   getBackendConfig,
   getCapabilities,
+  getEvaluationArtifacts,
   getEvaluationResult,
   getEvaluationStatus,
+  getLastOpenedSnapshot,
   isDesktopRuntime,
+  setLastOpenedSnapshot,
   setBackendConfig,
+  type ArtifactDescriptor,
   type BackendConfig,
   type BackendMode,
   type CapabilitiesResponse,
@@ -266,12 +270,19 @@ function App() {
     useState<EvaluationStatusResponse | null>(null)
   const [evaluationResult, setEvaluationResult] =
     useState<EvaluationResultResponse | null>(null)
+  const [artifacts, setArtifacts] = useState<ArtifactDescriptor[]>([])
   const [resultLoadState, setResultLoadState] = useState<ResultLoadState>('idle')
   const [resultError, setResultError] = useState<string | null>(null)
+  const [artifactsLoadState, setArtifactsLoadState] =
+    useState<ResultLoadState>('idle')
+  const [artifactsError, setArtifactsError] = useState<string | null>(null)
   const [pollingPaused, setPollingPaused] = useState(false)
   const [pollFailureCount, setPollFailureCount] = useState(0)
   const [pollError, setPollError] = useState<string | null>(null)
   const [pollRestartToken, setPollRestartToken] = useState(0)
+  const [shouldPollActiveEvaluation, setShouldPollActiveEvaluation] = useState(false)
+  const [snapshotPersistedForEvaluationId, setSnapshotPersistedForEvaluationId] =
+    useState<string | null>(null)
   const [notice, setNotice] = useState(
     'Load backend settings, confirm health, then submit an evaluation job.',
   )
@@ -465,15 +476,38 @@ function App() {
           return
         }
 
+        const snapshot = await getLastOpenedSnapshot()
+        if (cancelled) {
+          return
+        }
+
         startTransition(() => {
           setBackendConfigState(storedConfig)
           setDraftConfig(storedConfig)
           setStatusLine(`${formatBackendMode(storedConfig.mode)} configured`)
+          if (snapshot) {
+            setActiveEvaluation(snapshot.evaluation)
+            setEvaluationStatus(snapshot.evaluationStatus)
+            setEvaluationResult(snapshot.evaluationResult)
+            setArtifacts(snapshot.artifacts)
+            setResultLoadState('ready')
+            setArtifactsLoadState('ready')
+            setResultError(null)
+            setArtifactsError(null)
+            setShouldPollActiveEvaluation(false)
+            setSnapshotPersistedForEvaluationId(snapshot.evaluation.evaluationId)
+          }
         })
         recordActivity(
           'Backend config loaded',
           `${formatBackendMode(storedConfig.mode)} target ${storedConfig.baseUrl}.`,
         )
+        if (snapshot) {
+          recordActivity(
+            'Last-opened snapshot restored',
+            `${snapshot.evaluation.evaluationId} restored from the terminal snapshot cache.`,
+          )
+        }
 
         await refreshConnectionState(storedConfig.mode)
       } catch (error) {
@@ -503,7 +537,12 @@ function App() {
   }, [clearPollTimer, desktopRuntime, recordActivity, refreshConnectionState])
 
   useEffect(() => {
-    if (!activeEvaluation?.evaluationId || !desktopRuntime || pollingPaused) {
+    if (
+      !activeEvaluation?.evaluationId ||
+      !desktopRuntime ||
+      pollingPaused ||
+      !shouldPollActiveEvaluation
+    ) {
       return
     }
 
@@ -609,6 +648,7 @@ function App() {
     pollRestartToken,
     pollingPaused,
     recordActivity,
+    shouldPollActiveEvaluation,
   ])
 
   useEffect(() => {
@@ -672,6 +712,127 @@ function App() {
     evaluationStatus?.terminal,
     recordActivity,
     resultLoadState,
+  ])
+
+  useEffect(() => {
+    if (
+      !desktopRuntime ||
+      !activeEvaluation?.evaluationId ||
+      !evaluationStatus?.terminal ||
+      artifactsLoadState !== 'idle'
+    ) {
+      return
+    }
+
+    const evaluationId = activeEvaluation.evaluationId
+    let cancelled = false
+
+    startTransition(() => {
+      setArtifactsLoadState('loading')
+      setArtifactsError(null)
+    })
+
+    async function loadArtifacts() {
+      try {
+        const nextArtifacts = await getEvaluationArtifacts(evaluationId)
+        if (cancelled) {
+          return
+        }
+
+        startTransition(() => {
+          setArtifacts(nextArtifacts)
+          setArtifactsLoadState('ready')
+          setArtifactsError(null)
+        })
+        recordActivity(
+          'Evaluation artifacts loaded',
+          `${evaluationId} returned ${nextArtifacts.length} artifact descriptors.`,
+        )
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        const message = formatCommandError(error)
+        startTransition(() => {
+          setArtifactsLoadState('failed')
+          setArtifactsError(message)
+        })
+        recordActivity('Evaluation artifacts failed', `${evaluationId}: ${message}`)
+      }
+    }
+
+    void loadArtifacts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeEvaluation?.evaluationId,
+    artifactsLoadState,
+    desktopRuntime,
+    evaluationStatus?.terminal,
+    recordActivity,
+  ])
+
+  useEffect(() => {
+    if (
+      !desktopRuntime ||
+      !activeEvaluation ||
+      !evaluationStatus?.terminal ||
+      !evaluationResult ||
+      artifactsLoadState !== 'ready' ||
+      snapshotPersistedForEvaluationId === activeEvaluation.evaluationId
+    ) {
+      return
+    }
+
+    let cancelled = false
+    const snapshot = {
+      evaluation: activeEvaluation,
+      evaluationStatus,
+      evaluationResult,
+      artifacts,
+    }
+
+    async function persistSnapshot() {
+      try {
+        const savedSnapshot = await setLastOpenedSnapshot(snapshot)
+        if (cancelled || !savedSnapshot) {
+          return
+        }
+
+        startTransition(() => {
+          setSnapshotPersistedForEvaluationId(savedSnapshot.evaluation.evaluationId)
+        })
+        recordActivity(
+          'Last-opened snapshot saved',
+          `${savedSnapshot.evaluation.evaluationId} cached for the next desktop bootstrap.`,
+        )
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        const message = formatCommandError(error)
+        recordActivity('Last-opened snapshot failed', message)
+      }
+    }
+
+    void persistSnapshot()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeEvaluation,
+    artifacts,
+    artifactsLoadState,
+    desktopRuntime,
+    evaluationResult,
+    evaluationStatus,
+    recordActivity,
+    snapshotPersistedForEvaluationId,
   ])
 
   async function handleSaveConnection() {
@@ -754,9 +915,14 @@ function App() {
         setPollingPaused(false)
         setPollFailureCount(0)
         setPollError(null)
+        setShouldPollActiveEvaluation(true)
         setEvaluationResult(null)
+        setArtifacts([])
         setResultLoadState('idle')
         setResultError(null)
+        setArtifactsLoadState('idle')
+        setArtifactsError(null)
+        setSnapshotPersistedForEvaluationId(null)
         setEvaluationStatus({
           evaluationId: accepted.evaluationId,
           status: accepted.status,
@@ -1333,6 +1499,45 @@ function App() {
                     </div>
                     {finding.meta ? <p>{finding.meta}</p> : null}
                     {finding.description ? <p>{finding.description}</p> : null}
+                  </article>
+                ))}
+              </div>
+            ) : null}
+
+            {evaluationStatus?.terminal ? (
+              <div className="validation-list">
+                <article className="validation-card">
+                  <div className="validation-header">
+                    <span>Artifacts</span>
+                    <strong className="tone-idle">
+                      {artifactsLoadState === 'loading'
+                        ? 'Loading'
+                        : artifactsLoadState === 'failed'
+                          ? 'Unavailable'
+                          : `${artifacts.length} loaded`}
+                    </strong>
+                  </div>
+                  <p>
+                    {artifactsLoadState === 'failed'
+                      ? `Artifact retrieval failed. ${artifactsError ?? 'Unknown desktop command error.'}`
+                      : 'Artifact descriptors come from GET /evaluations/{evaluation_id}/artifacts.'}
+                  </p>
+                </article>
+
+                {artifacts.map((artifact) => (
+                  <article key={`${artifact.kind}-${artifact.name}`} className="validation-card">
+                    <div className="validation-header">
+                      <span>{artifact.kind}</span>
+                      <strong className="tone-idle">{artifact.name}</strong>
+                    </div>
+                    <p>{artifact.mediaType}</p>
+                    {artifact.downloadUrl ? (
+                      <p>
+                        <a href={artifact.downloadUrl} target="_blank" rel="noreferrer">
+                          {`Open ${artifact.name}`}
+                        </a>
+                      </p>
+                    ) : null}
                   </article>
                 ))}
               </div>

@@ -29,6 +29,39 @@ describe('desktop adapter', () => {
       failOnCritical: true,
       budgetGate: false,
     }
+    const snapshot: desktop.LastOpenedSnapshot = {
+      evaluation: {
+        evaluationId: 'eval/123',
+        status: 'success',
+        acceptedAt: '2026-05-26T12:00:00Z',
+      },
+      evaluationStatus: {
+        evaluationId: 'eval/123',
+        status: 'success',
+        stage: 'completed',
+        progressPercent: 100,
+        message: 'Evaluation complete.',
+        exitState: 'success',
+        terminal: true,
+      },
+      evaluationResult: {
+        evaluationId: 'eval/123',
+        status: 'success',
+        summary: { score: 92 },
+        severityCounts: { medium: 1 },
+        findings: [],
+        startedAt: '2026-01-15T10:00:00Z',
+        completedAt: '2026-01-15T10:00:03Z',
+      },
+      artifacts: [
+        {
+          name: 'html-report',
+          kind: 'html',
+          mediaType: 'text/html',
+          downloadUrl: 'https://downloads.example.test/eval-123/report.html',
+        },
+      ],
+    }
 
     await desktop.getBackendConfig()
     await desktop.setBackendConfig(config)
@@ -37,6 +70,9 @@ describe('desktop adapter', () => {
     await desktop.createEvaluation(request)
     await desktop.getEvaluationStatus('eval/123')
     await desktop.getEvaluationResult('eval/123')
+    await desktop.getEvaluationArtifacts('eval/123')
+    await desktop.getLastOpenedSnapshot()
+    await desktop.setLastOpenedSnapshot(snapshot)
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'get_backend_config', undefined)
     expect(invoke).toHaveBeenNthCalledWith(2, 'set_backend_config', { config })
@@ -48,6 +84,13 @@ describe('desktop adapter', () => {
     })
     expect(invoke).toHaveBeenNthCalledWith(7, 'get_evaluation_result', {
       evaluationId: 'eval/123',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(8, 'get_evaluation_artifacts', {
+      evaluationId: 'eval/123',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(9, 'get_last_opened_snapshot', undefined)
+    expect(invoke).toHaveBeenNthCalledWith(10, 'set_last_opened_snapshot', {
+      snapshot,
     })
   })
 

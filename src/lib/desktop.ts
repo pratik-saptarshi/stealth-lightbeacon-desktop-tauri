@@ -73,6 +73,20 @@ export type EvaluationResultResponse = {
   completedAt?: string | null
 }
 
+export type ArtifactDescriptor = {
+  name: string
+  kind: string
+  mediaType: string
+  downloadUrl?: string | null
+}
+
+export type LastOpenedSnapshot = {
+  evaluation: CreateEvaluationResponse
+  evaluationStatus: EvaluationStatusResponse
+  evaluationResult: EvaluationResultResponse
+  artifacts: ArtifactDescriptor[]
+}
+
 export type CommandError = {
   code?: string
   message: string
@@ -199,6 +213,113 @@ export async function getEvaluationResult(evaluationId: string) {
   })
 
   return normalizeEvaluationResultResponse(result)
+}
+
+function normalizeArtifactDescriptor(value: unknown): ArtifactDescriptor | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const name = readString(value.name)
+  const kind = readString(value.kind)
+  const mediaType = readString(value.mediaType ?? value.media_type)
+
+  if (!name || !kind || !mediaType) {
+    return null
+  }
+
+  return {
+    name,
+    kind,
+    mediaType,
+    downloadUrl: readString(value.downloadUrl ?? value.download_url),
+  }
+}
+
+function normalizeArtifacts(value: unknown): ArtifactDescriptor[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.flatMap((item) => {
+    const artifact = normalizeArtifactDescriptor(item)
+    return artifact ? [artifact] : []
+  })
+}
+
+export async function getEvaluationArtifacts(evaluationId: string) {
+  const artifacts = await invokeCommand<unknown>('get_evaluation_artifacts', {
+    evaluationId,
+  })
+
+  return normalizeArtifacts(artifacts)
+}
+
+function normalizeLastOpenedSnapshot(value: unknown): LastOpenedSnapshot | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const evaluationRecord = isRecord(value.evaluation) ? value.evaluation : null
+  const statusRecord = isRecord(value.evaluationStatus ?? value.evaluation_status)
+    ? ((value.evaluationStatus ?? value.evaluation_status) as Record<string, unknown>)
+    : null
+  const resultRecord = value.evaluationResult ?? value.evaluation_result
+
+  if (!evaluationRecord || !statusRecord || !resultRecord) {
+    return null
+  }
+
+  const evaluationId = readString(
+    evaluationRecord.evaluationId ?? evaluationRecord.evaluation_id,
+  )
+  const status = readString(evaluationRecord.status)
+
+  if (!evaluationId || !status) {
+    return null
+  }
+
+  return {
+    evaluation: {
+      evaluationId,
+      status,
+      acceptedAt: readString(
+        evaluationRecord.acceptedAt ?? evaluationRecord.accepted_at,
+      ),
+    },
+    evaluationStatus: {
+      evaluationId:
+        readString(statusRecord.evaluationId ?? statusRecord.evaluation_id) ??
+        evaluationId,
+      status: readString(statusRecord.status) ?? status,
+      stage: readString(statusRecord.stage),
+      progressPercent:
+        typeof statusRecord.progressPercent === 'number'
+          ? statusRecord.progressPercent
+          : typeof statusRecord.progress_percent === 'number'
+            ? statusRecord.progress_percent
+            : null,
+      message: readString(statusRecord.message),
+      exitState: readString(statusRecord.exitState ?? statusRecord.exit_state),
+      terminal:
+        typeof statusRecord.terminal === 'boolean' ? statusRecord.terminal : false,
+    },
+    evaluationResult: normalizeEvaluationResultResponse(resultRecord),
+    artifacts: normalizeArtifacts(value.artifacts),
+  }
+}
+
+export async function getLastOpenedSnapshot() {
+  const snapshot = await invokeCommand<unknown | undefined>('get_last_opened_snapshot')
+  return normalizeLastOpenedSnapshot(snapshot)
+}
+
+export async function setLastOpenedSnapshot(snapshot: LastOpenedSnapshot) {
+  const savedSnapshot = await invokeCommand<unknown>('set_last_opened_snapshot', {
+    snapshot,
+  })
+
+  return normalizeLastOpenedSnapshot(savedSnapshot)
 }
 
 function formatCommandErrorValue(value: unknown): string {

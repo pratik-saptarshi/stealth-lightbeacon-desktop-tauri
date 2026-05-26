@@ -1,14 +1,13 @@
 # Stealth Lightbeacon Desktop Client
 
 This repository is the Tauri desktop client for Stealth Lightbeacon. The audit
-engine and intended canonical backend API live in
+engine and canonical backend API live in
 `/Volumes/dev/Git-SCM/stealth-lightbeacon`. This repo is the thin desktop
 boundary: it stores local connection settings, calls the backend over HTTP, and
 renders operator workflow for evaluation submission and polling.
 
-The important current constraint is that the sibling backend repo is still a CLI
-audit engine, not yet the HTTP/OpenAPI companion this desktop repo expects. The
-desktop code is ahead of the cross-repo integration substrate.
+The backend companion contract is now produced from the sibling repo, and the
+desktop repo validates its pinned snapshot against that producer before release.
 
 ## What Works Today
 
@@ -23,20 +22,22 @@ desktop code is ahead of the cross-repo integration substrate.
   `GET /evaluations/{evaluation_id}/result`.
 - Retrieve artifact descriptors through
   `GET /evaluations/{evaluation_id}/artifacts`.
+- Run advisory recon through `POST /recon`.
+- Auto-start and stop a managed local companion in desktop local mode.
+- Enforce remote HTTPS-only transport, desktop compatibility headers, and remote
+  auth via Rust-only environment lookup.
 - Persist and restore the last-opened terminal snapshot.
-- Validate the pinned contract fixture with Python tests and the transport
-  adapter with Rust tests.
+- Validate contract sync, frontend adapter behavior, and Rust transport through
+  scripted release validation.
 
 ## Current Completion Status
 
-- Phase 0: complete, with contract-scope drift in the pinned snapshot.
-- Phase 1: complete for connectivity and evaluation lifecycle.
-- Phase 2: complete in desktop code, but not yet validated against a real
-  sibling backend producer.
-- Phase 3: not implemented cross-repo.
-- Phase 4: blocked cross-repo; mode selection exists, but companion lifecycle,
-  auth, and version checks do not.
-- Phase 5: not implemented beyond narrow config persistence.
+- Phase 0: complete.
+- Phase 1: complete.
+- Phase 2: complete.
+- Phase 3: complete.
+- Phase 4: complete.
+- Phase 5: complete.
 
 See [backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/backlog.md)
 for the validated phase audit and merged remediation backlog.
@@ -58,26 +59,27 @@ for the transport and trust-boundary model.
 
 ## Contract
 
-- Intended upstream source of truth: backend repo serves `/openapi.json`.
+- Upstream source of truth: sibling backend repo serves `/openapi.json` and
+  exports `contracts/backend-api.openapi.json`.
 - Pinned local snapshot:
   [contracts/backend-api.openapi.json](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/contracts/backend-api.openapi.json)
-- The current snapshot already includes later routes, and the sibling backend
-  repo does not yet produce it. It should therefore be treated as a
-  forward-looking compatibility fixture until the backend repo becomes the
-  producer of record.
+- Contract drift gate: `npm run check:contract-sync`
 
-## Out Of Scope
+## Release Boundary
 
-- Python sidecar orchestration from Tauri.
-- MCP, agent-card, or AI-framed desktop UX.
-- Local semantic search, embeddings, or LadyBugDB features.
-- Desktop-authoritative historical run storage.
+- Local mode is supported through a sibling backend checkout or compatible
+  companion runtime discovered from the workspace.
+- Remote mode requires `https://` and reads the bearer token from
+  `STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN` in Rust, not persisted frontend
+  config.
+- The desktop package does not yet embed a Python runtime; the companion remains
+  a separately versioned backend deliverable.
 
 ## Local Defaults
 
 - Default local backend target: `http://127.0.0.1:8000`
 - Frontend dev server: `http://localhost:1420`
-- Desktop bundling: currently disabled pending later-phase release hardening
+- Release validation: `npm run validate:release`
 
 ## Developer Docs
 

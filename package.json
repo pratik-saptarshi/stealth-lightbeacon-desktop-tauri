@@ -1,11 +1,12 @@
 {
   "name": "stealth-lightbeacon-desktop-tauri",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:contract-sync": "python3 scripts/check_contract_sync.py",
     "check": "npm run lint && npm run test && npm run test:python && npm run test:rust",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -13,7 +14,8 @@
     "tauri:dev": "tauri dev",
     "test": "vitest run",
     "test:python": "python3 -m unittest discover -s tests/contracts -p 'test_*.py'",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "validate:release": "python3 scripts/release_validate.py"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

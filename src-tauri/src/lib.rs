@@ -98,6 +98,29 @@ struct EvaluationStatusResponse {
     terminal: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct EvaluationResultResponse {
+    evaluation_id: String,
+    status: String,
+    #[serde(deserialize_with = "deserialize_summary_object")]
+    summary: serde_json::Value,
+}
+
+fn deserialize_summary_object<'de, D>(deserializer: D) -> Result<serde_json::Value, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let summary = serde_json::Value::deserialize(deserializer)?;
+    if summary.is_object() {
+        Ok(summary)
+    } else {
+        Err(serde::de::Error::custom(
+            "summary must be a JSON object",
+        ))
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 struct ApiError {
@@ -317,6 +340,17 @@ fn validate_evaluation_request(request: &CreateEvaluationRequest) -> Result<(), 
     Ok(())
 }
 
+fn validate_evaluation_id(evaluation_id: &str) -> Result<(), ApiError> {
+    if evaluation_id.trim().is_empty() {
+        return Err(ApiError::new(
+            "invalid_request",
+            "Evaluation id is required.",
+        ));
+    }
+
+    Ok(())
+}
+
 fn current_backend_config(state: &State<'_, AppState>) -> Result<BackendConfig, ApiError> {
     current_backend_config_from_app_state(state.inner())
 }
@@ -506,17 +540,27 @@ async fn get_evaluation_status_impl(
     config: &BackendConfig,
     evaluation_id: &str,
 ) -> Result<EvaluationStatusResponse, ApiError> {
-    if evaluation_id.trim().is_empty() {
-        return Err(ApiError::new(
-            "invalid_request",
-            "Evaluation id is required.",
-        ));
-    }
+    validate_evaluation_id(evaluation_id)?;
 
     send_json_request::<(), EvaluationStatusResponse>(
         config,
         reqwest::Method::GET,
         &["evaluations", evaluation_id],
+        None,
+    )
+    .await
+}
+
+async fn get_evaluation_result_impl(
+    config: &BackendConfig,
+    evaluation_id: &str,
+) -> Result<EvaluationResultResponse, ApiError> {
+    validate_evaluation_id(evaluation_id)?;
+
+    send_json_request::<(), EvaluationResultResponse>(
+        config,
+        reqwest::Method::GET,
+        &["evaluations", evaluation_id, "result"],
         None,
     )
     .await
@@ -569,6 +613,15 @@ async fn get_evaluation_status(
     get_evaluation_status_impl(&config, &evaluation_id).await
 }
 
+#[tauri::command]
+async fn get_evaluation_result(
+    state: State<'_, AppState>,
+    evaluation_id: String,
+) -> Result<EvaluationResultResponse, ApiError> {
+    let config = current_backend_config(&state)?;
+    get_evaluation_result_impl(&config, &evaluation_id).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -583,7 +636,8 @@ pub fn run() {
             api_health_check,
             get_capabilities,
             create_evaluation,
-            get_evaluation_status
+            get_evaluation_status,
+            get_evaluation_result
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -673,6 +727,20 @@ mod tests {
         });
 
         (address, requests)
+    }
+
+    fn spawn_timeout_server() -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let address = format!("http://{}", listener.local_addr().expect("addr"));
+
+        thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept");
+            let mut buffer = [0_u8; 4096];
+            let _ = stream.read(&mut buffer).expect("read");
+            thread::sleep(Duration::from_millis(1_250));
+        });
+
+        address
     }
 
     #[test]
@@ -844,5 +912,106 @@ mod tests {
 
         assert_eq!(status.evaluation_id, "eval/with space?and#hash");
         assert_eq!(recorded_requests.lock().expect("recorded").len(), 1);
+    }
+
+    #[tokio::test]
+    async fn http_adapter_gets_terminal_evaluation_result() {
+        let (base_url, recorded_requests) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "GET /evaluations/eval%2Fwith%20space%3Fand%23hash/result HTTP/1.1",
+            expected_body: None,
+            status_line: "200 OK",
+            response_body: r#"{"evaluationId":"eval/with space?and#hash","status":"success","summary":{"score":92,"passed":8,"warnings":1,"failed":0,"severity_counts":{"critical":0,"high":0,"medium":1,"low":2,"info":3},"findings":[{"rule_id":"tls-version","title":"TLS version review","severity":"medium","description":"Server still negotiates a legacy TLS fallback."}],"artifacts":[{"name":"normalized-report","kind":"normalized_report","path":"__REPORT_PATH__"},{"name":"html-report","kind":"html","path":"__ARTIFACT_DIR__/report.html"}],"started_at":"2026-01-15T10:00:00Z","completed_at":"2026-01-15T10:00:03Z"}}"#,
+        }]);
+
+        let config = sample_config(base_url);
+        let result = get_evaluation_result_impl(&config, "eval/with space?and#hash")
+            .await
+            .expect("result");
+
+        assert_eq!(result.evaluation_id, "eval/with space?and#hash");
+        assert_eq!(result.status, "success");
+        assert_eq!(result.summary["score"], serde_json::json!(92));
+        assert_eq!(result.summary["severity_counts"]["medium"], serde_json::json!(1));
+        assert_eq!(result.summary["findings"][0]["rule_id"], serde_json::json!("tls-version"));
+        assert_eq!(result.summary["artifacts"][1]["kind"], serde_json::json!("html"));
+        assert_eq!(
+            result.summary["started_at"],
+            serde_json::json!("2026-01-15T10:00:00Z")
+        );
+        assert_eq!(
+            result.summary["completed_at"],
+            serde_json::json!("2026-01-15T10:00:03Z")
+        );
+        assert_eq!(recorded_requests.lock().expect("recorded").len(), 1);
+    }
+
+    #[tokio::test]
+    async fn http_adapter_result_retrieval_preserves_structured_api_errors() {
+        let (base_url, _) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "GET /evaluations/eval-404/result HTTP/1.1",
+            expected_body: None,
+            status_line: "404 Not Found",
+            response_body: r#"{"code":"not_found","message":"Evaluation result was not found.","details":"eval-404"}"#,
+        }]);
+
+        let config = sample_config(base_url);
+        let error = get_evaluation_result_impl(&config, "eval-404")
+            .await
+            .expect_err("structured api error");
+
+        assert_eq!(
+            error,
+            ApiError {
+                code: "not_found".into(),
+                message: "Evaluation result was not found.".into(),
+                status: Some(404),
+                details: Some("eval-404".into()),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn http_adapter_result_retrieval_reports_timeouts() {
+        let base_url = spawn_timeout_server();
+        let config = BackendConfig {
+            mode: BackendMode::Remote,
+            base_url,
+            timeout_ms: 1_000,
+        };
+
+        let error = get_evaluation_result_impl(&config, "eval-timeout")
+            .await
+            .expect_err("timeout");
+
+        assert_eq!(error.code, "timeout");
+        assert_eq!(error.message, "The backend request timed out.");
+        assert!(
+            error
+                .details
+                .as_deref()
+                .expect("timeout details")
+                .ends_with("/evaluations/eval-timeout/result")
+        );
+    }
+
+    #[tokio::test]
+    async fn http_adapter_result_retrieval_reports_decode_failures() {
+        let (base_url, _) = spawn_stub_server(vec![StubExchange {
+            expected_prefix: "GET /evaluations/eval-decode/result HTTP/1.1",
+            expected_body: None,
+            status_line: "200 OK",
+            response_body: r#"{"evaluationId":"eval-decode","status":"success","summary":"not-an-object"}"#,
+        }]);
+
+        let config = sample_config(base_url);
+        let error = get_evaluation_result_impl(&config, "eval-decode")
+            .await
+            .expect_err("decode failure");
+
+        assert_eq!(error.code, "decode_error");
+        assert_eq!(
+            error.message,
+            "The backend response could not be decoded."
+        );
     }
 }

@@ -55,6 +55,24 @@ export type EvaluationStatusResponse = {
   terminal: boolean
 }
 
+export type EvaluationFinding = {
+  ruleId?: string | null
+  title?: string | null
+  severity?: string | null
+  status?: string | null
+  description?: string | null
+}
+
+export type EvaluationResultResponse = {
+  evaluationId: string
+  status: string
+  summary: Record<string, unknown>
+  severityCounts?: Record<string, number> | null
+  findings?: EvaluationFinding[] | null
+  startedAt?: string | null
+  completedAt?: string | null
+}
+
 export type CommandError = {
   code?: string
   message: string
@@ -97,6 +115,90 @@ export async function getEvaluationStatus(evaluationId: string) {
   return invokeCommand<EvaluationStatusResponse>('get_evaluation_status', {
     evaluationId,
   })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function readString(value: unknown) {
+  return typeof value === 'string' ? value : null
+}
+
+function normalizeSeverityCounts(value: unknown) {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, number] =>
+      typeof entry[1] === 'number' && Number.isFinite(entry[1]),
+  )
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
+function normalizeFindings(value: unknown): EvaluationFinding[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const findings = value.flatMap((item, index) => {
+    if (!isRecord(item)) {
+      return []
+    }
+
+    const finding: EvaluationFinding = {
+      ruleId: readString(item.ruleId ?? item.rule_id),
+      title: readString(item.title),
+      severity: readString(item.severity),
+      status: readString(item.status),
+      description: readString(item.description),
+    }
+
+    const hasRenderableField = Object.values(finding).some((field) => field != null)
+    return hasRenderableField ? [{ ...finding, ruleId: finding.ruleId ?? `finding-${index}` }] : []
+  })
+
+  return findings.length > 0 ? findings : undefined
+}
+
+function normalizeEvaluationResultResponse(result: unknown): EvaluationResultResponse {
+  const candidate = isRecord(result) ? result : {}
+  const summary = isRecord(candidate.summary) ? candidate.summary : {}
+
+  return {
+    evaluationId: readString(candidate.evaluationId ?? candidate.evaluation_id) ?? '',
+    status: readString(candidate.status) ?? '',
+    summary,
+    severityCounts: normalizeSeverityCounts(
+      candidate.severityCounts ??
+        candidate.severity_counts ??
+        summary.severityCounts ??
+        summary.severity_counts,
+    ),
+    findings: normalizeFindings(candidate.findings ?? summary.findings),
+    startedAt: readString(
+      candidate.startedAt ??
+        candidate.started_at ??
+        summary.startedAt ??
+        summary.started_at,
+    ),
+    completedAt: readString(
+      candidate.completedAt ??
+        candidate.completed_at ??
+        summary.completedAt ??
+        summary.completed_at,
+    ),
+  }
+}
+
+export async function getEvaluationResult(evaluationId: string) {
+  const result = await invokeCommand<unknown | undefined>('get_evaluation_result', {
+    evaluationId,
+  })
+
+  return normalizeEvaluationResultResponse(result)
 }
 
 function formatCommandErrorValue(value: unknown): string {

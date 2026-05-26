@@ -13,6 +13,7 @@ import {
   formatCommandError,
   getBackendConfig,
   getCapabilities,
+  getEvaluationResult,
   getEvaluationStatus,
   isDesktopRuntime,
   setBackendConfig,
@@ -21,6 +22,7 @@ import {
   type CapabilitiesResponse,
   type CreateEvaluationRequest,
   type CreateEvaluationResponse,
+  type EvaluationResultResponse,
   type EvaluationStatusResponse,
   type HealthResponse,
 } from './lib/desktop'
@@ -32,6 +34,27 @@ type ActivityItem = {
 }
 
 type CapabilitiesLoadState = 'idle' | 'loading' | 'ready' | 'failed'
+type ResultLoadState = 'idle' | 'loading' | 'ready' | 'failed'
+
+type EvaluationResultMetric = {
+  label: string
+  value: string
+}
+
+type EvaluationResultFindingView = {
+  key: string
+  title: string
+  meta: string | null
+  description: string | null
+}
+
+type EvaluationResultView = {
+  statusLabel: string
+  summaryMetrics: EvaluationResultMetric[]
+  severityItems: string[]
+  timelineMetrics: EvaluationResultMetric[]
+  findings: EvaluationResultFindingView[]
+}
 
 const defaultBackendConfig: BackendConfig = {
   mode: 'local',
@@ -55,6 +78,7 @@ const maxDepthBounds = { min: 1, max: 8 }
 const maxUrlsBounds = { min: 1, max: 5000 }
 const pollDelayMs = 1500
 const maxAutomaticPollRetries = 2
+const severityOrder = ['critical', 'high', 'medium', 'low', 'info'] as const
 
 function formatBackendMode(mode: BackendMode | string) {
   return mode === 'local' ? 'Local companion' : 'Remote API'
@@ -127,6 +151,97 @@ function validateEvaluationRequest(
   return issues
 }
 
+function readFiniteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function formatResultStatus(status: string) {
+  return status.replaceAll('_', ' ')
+}
+
+function buildResultSummaryMetrics(summary: Record<string, unknown>) {
+  const metrics: EvaluationResultMetric[] = []
+  const score = readFiniteNumber(summary.score)
+  const passed = readFiniteNumber(summary.passed)
+  const warnings = readFiniteNumber(summary.warnings)
+  const failed = readFiniteNumber(summary.failed)
+
+  if (score !== null) {
+    metrics.push({ label: 'Score', value: String(score) })
+  }
+
+  if (passed !== null) {
+    metrics.push({ label: 'Passed', value: String(passed) })
+  }
+
+  if (warnings !== null) {
+    metrics.push({ label: 'Warnings', value: String(warnings) })
+  }
+
+  if (failed !== null) {
+    metrics.push({ label: 'Failed', value: String(failed) })
+  }
+
+  return metrics
+}
+
+function buildResultSeverityItems(severityCounts?: Record<string, number> | null) {
+  if (!severityCounts) {
+    return []
+  }
+
+  const orderedItems = severityOrder.flatMap((severity) =>
+    typeof severityCounts[severity] === 'number'
+      ? [`${severity} ${severityCounts[severity]}`]
+      : [],
+  )
+  const unorderedItems = Object.entries(severityCounts).flatMap(([severity, count]) =>
+    severityOrder.includes(severity as (typeof severityOrder)[number]) ||
+    typeof count !== 'number'
+      ? []
+      : [`${severity} ${count}`],
+  )
+
+  return [...orderedItems, ...unorderedItems]
+}
+
+function buildResultTimelineMetrics(result: EvaluationResultResponse) {
+  const metrics: EvaluationResultMetric[] = []
+
+  if (result.startedAt) {
+    metrics.push({ label: 'Started', value: result.startedAt })
+  }
+
+  if (result.completedAt) {
+    metrics.push({ label: 'Completed', value: result.completedAt })
+  }
+
+  return metrics
+}
+
+function buildResultFindings(result: EvaluationResultResponse) {
+  return (result.findings ?? []).map((finding, index) => ({
+    key: finding.ruleId ?? `finding-${index}`,
+    title: finding.title?.trim() || finding.ruleId?.trim() || `Finding ${index + 1}`,
+    meta: [finding.severity, finding.status].filter(Boolean).join(' / ') || null,
+    description: finding.description?.trim() || null,
+  }))
+}
+
+function buildEvaluationResultView(result: EvaluationResultResponse): EvaluationResultView {
+  return {
+    statusLabel: formatResultStatus(result.status),
+    summaryMetrics: buildResultSummaryMetrics(result.summary),
+    severityItems: buildResultSeverityItems(result.severityCounts),
+    timelineMetrics: buildResultTimelineMetrics(result),
+    findings: buildResultFindings(result),
+  }
+}
+
+function resultToneClass(status: string) {
+  return status === 'success' ? 'tone-good' : 'tone-idle'
+}
+
 function App() {
   const desktopRuntime = isDesktopRuntime()
   const pollTimerRef = useRef<number | null>(null)
@@ -149,6 +264,10 @@ function App() {
     useState<CreateEvaluationResponse | null>(null)
   const [evaluationStatus, setEvaluationStatus] =
     useState<EvaluationStatusResponse | null>(null)
+  const [evaluationResult, setEvaluationResult] =
+    useState<EvaluationResultResponse | null>(null)
+  const [resultLoadState, setResultLoadState] = useState<ResultLoadState>('idle')
+  const [resultError, setResultError] = useState<string | null>(null)
   const [pollingPaused, setPollingPaused] = useState(false)
   const [pollFailureCount, setPollFailureCount] = useState(0)
   const [pollError, setPollError] = useState<string | null>(null)
@@ -492,6 +611,69 @@ function App() {
     recordActivity,
   ])
 
+  useEffect(() => {
+    if (
+      !desktopRuntime ||
+      !activeEvaluation?.evaluationId ||
+      !evaluationStatus?.terminal ||
+      resultLoadState !== 'idle'
+    ) {
+      return
+    }
+
+    const evaluationId = activeEvaluation.evaluationId
+    let cancelled = false
+
+    startTransition(() => {
+      setResultLoadState('loading')
+      setResultError(null)
+    })
+
+    async function loadResult() {
+      try {
+        const nextResult = await getEvaluationResult(evaluationId)
+        if (cancelled) {
+          return
+        }
+
+        startTransition(() => {
+          setEvaluationResult(nextResult)
+          setResultLoadState('ready')
+          setResultError(null)
+        })
+        recordActivity(
+          'Evaluation result loaded',
+          `${evaluationId} result retrieved with ${nextResult.status}.`,
+        )
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        const message = formatCommandError(error)
+        startTransition(() => {
+          setResultLoadState('failed')
+          setResultError(message)
+          setNotice(message)
+          setStatusLine(`Evaluation ${evaluationId} result unavailable`)
+        })
+        recordActivity('Evaluation result failed', `${evaluationId}: ${message}`)
+      }
+    }
+
+    void loadResult()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeEvaluation?.evaluationId,
+    desktopRuntime,
+    evaluationStatus?.terminal,
+    recordActivity,
+    resultLoadState,
+  ])
+
   async function handleSaveConnection() {
     if (!desktopRuntime) {
       setNotice(
@@ -572,6 +754,9 @@ function App() {
         setPollingPaused(false)
         setPollFailureCount(0)
         setPollError(null)
+        setEvaluationResult(null)
+        setResultLoadState('idle')
+        setResultError(null)
         setEvaluationStatus({
           evaluationId: accepted.evaluationId,
           status: accepted.status,
@@ -628,6 +813,9 @@ function App() {
       ? capabilities.outputFormats
       : fallbackFormats
   const progressValue = evaluationStatus?.progressPercent ?? 0
+  const terminalResultView = evaluationResult
+    ? buildEvaluationResultView(evaluationResult)
+    : null
   const requestValidationErrors = validateEvaluationRequest(
     request,
     capabilitiesLoadState === 'ready' ? capabilities : null,
@@ -1061,6 +1249,92 @@ function App() {
                 <p>
                   Last polling error ({pollFailureCount}): {pollError}
                 </p>
+              </div>
+            ) : null}
+
+            {evaluationStatus?.terminal ? (
+              <div className="validation-list">
+                <article className="validation-card">
+                  <div className="validation-header">
+                    <span>Terminal report</span>
+                    <strong
+                      className={
+                        evaluationResult
+                          ? resultToneClass(evaluationResult.status)
+                          : 'tone-idle'
+                      }
+                    >
+                      {terminalResultView?.statusLabel ??
+                        (resultLoadState === 'failed' ? 'Unavailable' : 'Loading')}
+                    </strong>
+                  </div>
+                  <p>
+                    {resultLoadState === 'loading'
+                      ? 'Fetching terminal result from GET /evaluations/{evaluation_id}/result.'
+                      : resultLoadState === 'failed'
+                        ? `Result retrieval failed. ${resultError ?? 'Unknown desktop command error.'}`
+                        : 'Terminal result retrieved through the desktop adapter.'}
+                  </p>
+                </article>
+
+                {terminalResultView?.summaryMetrics.length ? (
+                  <article className="validation-card">
+                    <div className="validation-header">
+                      <span>Summary</span>
+                      <strong className={resultToneClass(evaluationResult?.status ?? '')}>
+                        {terminalResultView.summaryMetrics[0]?.label}{' '}
+                        {terminalResultView.summaryMetrics[0]?.value}
+                      </strong>
+                    </div>
+                    {terminalResultView.summaryMetrics.slice(1).map((metric) => (
+                      <p key={metric.label}>
+                        {metric.label} {metric.value}
+                      </p>
+                    ))}
+                  </article>
+                ) : null}
+
+                {terminalResultView?.severityItems.length ? (
+                  <article className="validation-card">
+                    <div className="validation-header">
+                      <span>Severity counts</span>
+                      <strong className={resultToneClass(evaluationResult?.status ?? '')}>
+                        {terminalResultView.severityItems[0]}
+                      </strong>
+                    </div>
+                    {terminalResultView.severityItems.slice(1).map((item) => (
+                      <p key={item}>{item}</p>
+                    ))}
+                  </article>
+                ) : null}
+
+                {terminalResultView?.timelineMetrics.length ? (
+                  <article className="validation-card">
+                    <div className="validation-header">
+                      <span>Run timing</span>
+                      <strong className="tone-idle">
+                        {terminalResultView.timelineMetrics[0]?.label}{' '}
+                        {terminalResultView.timelineMetrics[0]?.value}
+                      </strong>
+                    </div>
+                    {terminalResultView.timelineMetrics.slice(1).map((metric) => (
+                      <p key={metric.label}>
+                        {metric.label} {metric.value}
+                      </p>
+                    ))}
+                  </article>
+                ) : null}
+
+                {terminalResultView?.findings.map((finding) => (
+                  <article key={finding.key} className="validation-card">
+                    <div className="validation-header">
+                      <span>Finding</span>
+                      <strong className="tone-idle">{finding.title}</strong>
+                    </div>
+                    {finding.meta ? <p>{finding.meta}</p> : null}
+                    {finding.description ? <p>{finding.description}</p> : null}
+                  </article>
+                ))}
               </div>
             ) : null}
           </section>

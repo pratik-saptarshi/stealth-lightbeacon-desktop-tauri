@@ -36,6 +36,7 @@ describe('desktop adapter', () => {
     await desktop.getCapabilities()
     await desktop.createEvaluation(request)
     await desktop.getEvaluationStatus('eval/123')
+    await desktop.getEvaluationResult('eval/123')
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'get_backend_config', undefined)
     expect(invoke).toHaveBeenNthCalledWith(2, 'set_backend_config', { config })
@@ -43,6 +44,9 @@ describe('desktop adapter', () => {
     expect(invoke).toHaveBeenNthCalledWith(4, 'get_capabilities', undefined)
     expect(invoke).toHaveBeenNthCalledWith(5, 'create_evaluation', { request })
     expect(invoke).toHaveBeenNthCalledWith(6, 'get_evaluation_status', {
+      evaluationId: 'eval/123',
+    })
+    expect(invoke).toHaveBeenNthCalledWith(7, 'get_evaluation_result', {
       evaluationId: 'eval/123',
     })
   })

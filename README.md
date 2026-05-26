@@ -1,19 +1,29 @@
 # Stealth Lightbeacon Desktop Client
 
 This repository is the Tauri desktop client for Stealth Lightbeacon. The audit
-engine and canonical backend API live in
+engine and intended canonical backend API live in
 `/Volumes/dev/Git-SCM/stealth-lightbeacon`. This repo is the thin desktop
 boundary: it stores local connection settings, calls the backend over HTTP, and
 renders operator workflow for evaluation submission and polling.
 
+The important current constraint is that the sibling backend repo is still a CLI
+audit engine, not yet the HTTP/OpenAPI companion this desktop repo expects. The
+desktop code is ahead of the cross-repo integration substrate.
+
 ## What Works Today
 
-- Persist backend mode, base URL, and timeout in the Tauri app config directory.
+- Persist backend mode, base URL, and timeout in the Tauri app config
+  directory.
 - Validate backend reachability through `GET /health`.
 - Load backend capabilities through `GET /capabilities`.
 - Submit evaluations through `POST /evaluations`.
 - Poll evaluation state through `GET /evaluations/{evaluation_id}` until a
   terminal state is returned.
+- Retrieve terminal results through
+  `GET /evaluations/{evaluation_id}/result`.
+- Retrieve artifact descriptors through
+  `GET /evaluations/{evaluation_id}/artifacts`.
+- Persist and restore the last-opened terminal snapshot.
 - Validate the pinned contract fixture with Python tests and the transport
   adapter with Rust tests.
 
@@ -21,14 +31,18 @@ renders operator workflow for evaluation submission and polling.
 
 - Phase 0: complete, with contract-scope drift in the pinned snapshot.
 - Phase 1: complete for connectivity and evaluation lifecycle.
-- Phase 2: not implemented in the desktop runtime beyond contract placeholders.
-- Phase 3: not implemented.
-- Phase 4: partial; mode selection exists, but companion lifecycle, auth, and
-  version checks do not.
+- Phase 2: complete in desktop code, but not yet validated against a real
+  sibling backend producer.
+- Phase 3: not implemented cross-repo.
+- Phase 4: blocked cross-repo; mode selection exists, but companion lifecycle,
+  auth, and version checks do not.
 - Phase 5: not implemented beyond narrow config persistence.
 
 See [backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/backlog.md)
 for the validated phase audit and merged remediation backlog.
+See
+[desktop-backend-contract.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/desktop-backend-contract.md)
+for the verified backend contract delta.
 
 ## Architecture
 
@@ -44,12 +58,13 @@ for the transport and trust-boundary model.
 
 ## Contract
 
-- Upstream source of truth: backend repo serves `/openapi.json`.
+- Intended upstream source of truth: backend repo serves `/openapi.json`.
 - Pinned local snapshot:
   [contracts/backend-api.openapi.json](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/contracts/backend-api.openapi.json)
-- The current snapshot is broader than the implemented desktop runtime. It
-  already includes Phase 2 and Phase 3 routes, so it should be treated as a
-  forward-looking compatibility fixture, not a strict Phase 1-only snapshot.
+- The current snapshot already includes later routes, and the sibling backend
+  repo does not yet produce it. It should therefore be treated as a
+  forward-looking compatibility fixture until the backend repo becomes the
+  producer of record.
 
 ## Out Of Scope
 

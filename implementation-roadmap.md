@@ -1,433 +1,453 @@
 # Implementation Roadmap
 
-This document is the execution plan for finishing the desktop client. It
-integrates the phase audit, the adversarial review findings, and the remaining
-feature scope into a TDD-first delivery sequence.
+This roadmap now covers the full desktop-plus-backend program required to ship a
+working Stealth Lightbeacon desktop app.
 
-## Delivery Rules
+Verified state on 2026-05-26:
 
-Every phase uses the same loop and is not considered started until the review
-and test-first work is in place.
+- Desktop repo work through `Phase 2B` is implemented locally and validated with
+  Rust, TypeScript, and UI tests.
+- The sibling backend repo `/Volumes/dev/Git-SCM/stealth-lightbeacon` is still a
+  Typer CLI audit engine, not the HTTP/OpenAPI companion the desktop expects.
+- The critical path has therefore moved from desktop-only work to cross-repo
+  contract and lifecycle implementation.
+
+See [desktop-backend-contract.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/desktop-backend-contract.md)
+for the verified interface map and gap analysis.
+
+## Delivery Loop For Every Phase
+
+No phase is considered started until this loop begins.
 
 1. Start-of-phase review
-   - review the touched code paths against the prior phase exit criteria
-   - review the current backlog and drift notes
-   - review the pinned OpenAPI snapshot and route/schema assumptions
-   - lock scope with an explicit "not in this phase" list
+   - Review the prior phase exit criteria.
+   - Review the current code in both repos, not only the planning docs.
+   - Review the pinned OpenAPI snapshot and the backend repo's generated or
+     served OpenAPI artifact.
+   - Review open findings in
+     [plan-review-traceability.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/plan-review-traceability.md).
+   - Lock scope with an explicit "not in this phase" list.
 2. Test-first work
-   - add or tighten failing tests before implementation
-   - prefer contract tests, Rust adapter tests, IPC integration tests, then UI
-     tests
-   - include at least one non-happy-path case for every new boundary
+   - Add failing producer tests in the backend repo first.
+   - Add failing consumer tests in the desktop repo second.
+   - Add or tighten at least one integration check proving the repos still align.
+   - Include at least one non-happy-path case for every new boundary.
 3. Implementation
-   - implement the minimum change set needed to make the new failing tests pass
-   - keep React behind `src/lib/desktop.ts`
-   - keep Rust as the trusted boundary for config, transport, and policy
+   - Implement the minimum change set required to make the new tests pass.
+   - Keep the backend repo authoritative for API semantics, job state, results,
+     artifacts, recon output, and version identity.
+   - Keep the desktop repo authoritative only for local config, local snapshot
+     cache, and trusted transport behavior inside Rust.
 4. Validation gate
-   - re-run all previously green suites
-   - add one manual smoke pass for the phase's user-facing path
-   - do not advance the phase while open blockers remain in the touched scope
+   - Re-run all previously green targeted suites.
+   - Re-run the repo-wide suites touched by the phase.
+   - Run one manual smoke path for the operator-visible behavior added in the
+     phase.
+   - Do not advance while any touched-scope blocker is open.
 
-## Gap Taxonomy
+## Gap Buckets
 
-The remaining work is tracked using four gap types.
+- `Feature gap`: missing operator-visible workflow or backend route.
+- `Capability gap`: missing runtime, lifecycle, policy, or storage behavior.
+- `Validation gap`: missing schema, compatibility, or safety guardrail.
+- `Testing gap`: missing automated coverage at the contract, transport, or
+  end-to-end boundary.
 
-- `Feature gap`: missing operator-visible workflow or UI
-- `Capability gap`: missing runtime/platform behavior needed to support or ship
-  features safely
-- `Validation gap`: missing guardrails that prevent invalid or unsafe runtime
-  behavior
-- `Testing gap`: missing automated coverage for a contract, boundary, or
-  failure mode
+## Current Completion Baseline
 
-See [plan-review-traceability.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/plan-review-traceability.md)
-for the finding-by-finding mapping.
+### Desktop Repo
 
-## Phase 0
+- `Phase 1R`: complete
+- `Phase 2A`: complete
+- `Phase 2B`: complete
 
-### Why This Phase Now
+### Backend Repo
 
-The old roadmap was too short and too feature-linear. It did not account for
-the Phase 1 remediation, the contract drift already present in the pinned
-snapshot, or the need to separate feature work from capability and validation
-work.
+- CLI evaluation flow: complete for its own product line
+- Desktop companion HTTP/OpenAPI surface: not started
+- Job lifecycle and artifact API: not started
+- Companion lifecycle and remote policy surface: not started
 
-### Start-Of-Phase Review
+## Phase 0A: Contract Re-Baseline Across Repos
 
-- Reconcile `README.md`, `architecture.md`, `backlog.md`, and this roadmap.
-- Confirm that the pinned OpenAPI snapshot is broader than the implemented
-  desktop runtime.
-- Confirm the original phase audit remains preserved in `backlog.md`.
-
-### Feature Work
-
-- None. This phase is planning and execution-order correction only.
-
-### Capability Work
-
-- Define the expanded execution phases:
-  - `Phase 1R`
-  - `Phase 2A`
-  - `Phase 2B`
-  - `Phase 3`
-  - `Phase 4`
-  - `Phase 5`
-
-### Validation And Test Work
-
-- Re-run the current repo audit before opening implementation work.
-- Verify which existing tests are mocked-only and which ones touch real adapter
-  behavior.
-
-### Explicit Deferrals
-
-- No runtime code changes land in this phase.
-
-### Entry Criteria
-
-- Current roadmap and backlog have been reviewed against the review findings.
-
-### Exit Criteria
-
-- The execution order below is accepted as the source of truth for future work.
-- Phase 0 no longer treats the OpenAPI fixture as Phase-1-limited.
-
-## Phase 1R: Reliability And Contract Guardrails
-
-### Why This Phase Now
-
-The desktop already submits and polls, but the current path is not safe enough
-to treat as complete. Reliability, recovery, and boundary correctness must move
-ahead of new feature work.
+The current pinned snapshot in the desktop repo is more complete than the
+backend repo's actual public interface. This phase makes the contract honest and
+gives both repos one source of truth.
 
 ### Start-Of-Phase Review
 
-- Review `src/App.tsx`, `src/lib/desktop.ts`, and `src-tauri/src/lib.rs`.
-- Review current Rust, React, Python contract, and any IPC test coverage.
-- Review the active `P1-*` remediation findings in `backlog.md`.
+- Review
+  [contracts/backend-api.openapi.json](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/contracts/backend-api.openapi.json).
+- Review the backend repo's actual externally visible interfaces: CLI commands,
+  env contract, report outputs, and recon helper behavior.
+- Review the request and response mismatches documented in
+  [desktop-backend-contract.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/desktop-backend-contract.md).
 
-### Feature Work
+### Test-First Work
 
-- Add operator-visible bootstrap and recovery behavior for invalid persisted
-  config.
-- Add clear UI behavior for capability-unavailable and transient polling failure
-  states.
-- Decide one of:
-  - persist minimal active-session metadata and resume polling on bootstrap, or
-  - keep docs and UI explicit that only backend config is persisted
+- Add a failing backend test that proves a generated or served OpenAPI 3.1
+  artifact exists.
+- Add failing backend schema tests for `ApiError`, `HealthResponse`, and
+  `CapabilitiesResponse`.
+- Add a failing desktop contract-sync test that rejects stale or incompatible
+  snapshots.
 
-### Capability Work
+### Implementation
 
-- Preserve structured `ApiError` semantics across Rust and TypeScript.
-- Make config loading fail closed instead of silently reverting to localhost.
-- Enforce contract-valid form state before submit.
-- URL-encode `evaluation_id` path segments centrally.
-- Remove optimistic capability fallback from the active submit path.
-- Sanitize backend error details before surfacing them in the operator UI.
-- Add retry and manual recovery behavior for transient polling failures.
-- Add the minimum mode-policy floor needed to keep exposed `local` and `remote`
-  choices honest.
+- Make the backend repo the producer of the canonical OpenAPI 3.1 contract.
+- Reconcile route list, request bodies, response bodies, and error envelope with
+  the desktop's implemented expectations.
+- Decide and document whether `profile`, `outputFormats[]`, and `budgetGate`
+  remain stable API fields or are changed on both sides.
+- Rename the desktop snapshot description so it no longer claims to be a
+  "Phase 1" snapshot once the broader route set is intentional.
 
-### Validation And Test Work
+### Validation Gate
 
-- Add failing Rust tests for:
-  - corrupted persisted config
-  - encoded path parameters
-  - structured `ApiError` propagation
-  - polling retry/recovery behavior
-- Add failing React tests for:
-  - invalid form state
-  - capability-failure disablement
-  - recovery messaging
-- Add a real Tauri IPC integration lane that exercises command names and payload
-  shapes instead of only mocking `src/lib/desktop.ts`.
-- Keep Python contract checks green while tightening route and schema usage
-  assertions where useful.
-
-### Explicit Deferrals
-
-- No result rendering yet
-- No artifact retrieval yet
-- No recon yet
-- No release packaging work beyond keeping the phase testable locally
-
-### Entry Criteria
-
-- Phase 0 complete
-- Current suites green or failures already understood and intentionally covered
-  by the new phase tests
+- Backend: generated OpenAPI artifact test passes.
+- Desktop: snapshot sync and schema assertions pass.
+- Both repos: contract diff reviewed with no unresolved drift.
 
 ### Exit Criteria
 
-- The create-and-poll path is recoverable, contract-valid, and accurately
-  documented.
-- The repo has at least one real desktop IPC test lane in addition to mocked UI
-  tests.
-- All new failing tests introduced for this phase are green.
+- `/openapi.json` or an equivalent generated backend artifact exists.
+- Desktop and backend repos agree on the same route set and core DTO names.
+- Contract drift becomes a CI failure instead of a doc-only note.
 
-## Phase 2A: Terminal Result Retrieval
+## Phase 0B: Extract A Backend Service Layer From The CLI
 
-### Why This Phase Now
-
-A working desktop app must render terminal evaluation data, not just accept a
-job and poll status.
+The backend repo already has an audit engine, but it is wired as a synchronous
+Typer workflow. It needs a hostable service layer before an HTTP companion can
+exist safely.
 
 ### Start-Of-Phase Review
 
-- Review the `/result` contract shape and the terminal-state UI.
-- Review how terminal states are currently represented in Rust, TS, and React.
-- Review which Phase 1R tests can be extended rather than duplicated.
+- Review the orchestration path around `run_evaluation(...)`, report rendering,
+  recon inspection, and artifact emission in the backend repo.
+- Review the backend repo's current BEADS plan to avoid regressing its own CLI
+  guarantees.
 
-### Feature Work
+### Test-First Work
 
-- Render terminal report data in the desktop app.
-- Show score summary, findings summary, and terminal-state specific report
-  content.
+- Add failing backend service-layer tests that preserve current CLI behavior.
+- Add failing tests for a reusable evaluation service abstraction that returns
+  structured result, artifact, and failure objects instead of only process exit
+  codes and files.
 
-### Capability Work
+### Implementation
 
-- Add Rust command support for `GET /evaluations/{evaluation_id}/result`.
-- Add TypeScript binding support for result retrieval.
-- Normalize terminal result mapping so UI rendering does not parse raw backend
-  transport state ad hoc.
+- Split the backend CLI into thin adapter plus reusable service layer.
+- Introduce explicit backend-domain types for:
+  - evaluation request
+  - evaluation status
+  - terminal result
+  - artifact descriptor
+  - recon response
+- Preserve the CLI surface as an adapter over the new service layer.
 
-### Validation And Test Work
+### Validation Gate
 
-- Add failing Rust stub-server tests for result retrieval:
-  - success
-  - non-2xx
-  - timeout
-  - decode failure
-- Add failing adapter/UI tests proving result fetch starts only after terminal
-  status.
-- Add UI tests for successful and unsuccessful terminal result rendering.
-
-### Explicit Deferrals
-
-- No artifact retrieval in this subphase
-- No local snapshot beyond what is strictly required to keep terminal rendering
-  coherent in-memory
-
-### Entry Criteria
-
-- Phase 1R exit criteria met
-- The `/result` snapshot contract is stable enough to bind
+- Existing backend CLI tests remain green.
+- New service-layer tests pass without route work yet.
 
 ### Exit Criteria
 
-- An operator can connect, submit, poll to terminal, and inspect final result
-  data in the desktop app.
-- All result retrieval tests and prior suites are green.
+- The audit engine is callable without going through `typer`.
+- Report generation and artifact discovery are reusable by an HTTP server.
 
-## Phase 2B: Artifact Retrieval And Last-Opened Snapshot
+## Phase 1A: Backend HTTP Skeleton, Health, Capabilities, And Error Envelope
 
-### Why This Phase Now
-
-Artifacts complete the terminal workflow and are the first legitimate place to
-introduce the thin local cache promised by the architecture.
+This phase creates the first real desktop-consumable backend surface.
 
 ### Start-Of-Phase Review
 
-- Review the `/artifacts` contract shape and the intended artifact UX.
-- Review the thin-cache boundaries defined in `architecture.md`.
+- Review the desktop's existing `apiHealthCheck()` and `getCapabilities()`
+  expectations.
+- Review local and remote mode assumptions in
+  [src/App.tsx](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/src/App.tsx)
+  and
+  [src-tauri/src/lib.rs](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/src-tauri/src/lib.rs).
 
-### Feature Work
+### Test-First Work
 
-- Render artifact metadata and operator actions.
-- Restore only the last-opened terminal snapshot metadata needed for a fast
-  reopen flow.
+- Add failing backend route tests for `GET /health` and `GET /capabilities`.
+- Add failing backend tests for structured `ApiError` envelopes.
+- Add failing desktop integration tests against a real backend test server, not
+  only stubs.
 
-### Capability Work
+### Implementation
 
-- Add Rust command support for `GET /evaluations/{evaluation_id}/artifacts`.
-- Add TypeScript binding support for artifact retrieval.
-- Persist the smallest acceptable last-opened result metadata snapshot without
-  turning the desktop into the source of truth for history.
+- Add an HTTP server adapter in the backend repo.
+- Implement `GET /health` with `status`, `service`, `apiVersion`, and
+  `appVersion`.
+- Implement `GET /capabilities` with `apiMode`, `evaluationProfiles`,
+  `outputFormats`, `supportsRecon`, and `supportsArtifacts`.
+- Decide the initial truth for `apiMode.supportsRemote`.
 
-### Validation And Test Work
+### Validation Gate
 
-- Add failing Rust and adapter tests for artifact retrieval.
-- Add UI tests for artifact metadata/actions.
-- Add restart/reload tests proving only the intended thin-cache metadata is
-  restored.
-
-### Explicit Deferrals
-
-- No broad history view
-- No recon
-- No release packaging work beyond keeping artifact behavior locally testable
-
-### Entry Criteria
-
-- Phase 2A exit criteria met
+- Backend route tests pass.
+- Desktop health and capabilities checks pass against the real backend server.
+- The same `ApiError` envelope is emitted by backend, preserved by Rust, and
+  surfaced by TypeScript.
 
 ### Exit Criteria
 
-- The desktop app supports end-to-end result and artifact retrieval.
-- Thin-cache behavior is explicit, minimal, and covered by tests.
+- The desktop can point at the backend repo's HTTP process and complete
+  bootstrap honestly.
 
-## Phase 3: Hybrid Desktop Operability
+## Phase 1B: Evaluation Submission And Polling Job Model
 
-### Why This Phase Now
-
-`local` and `remote` already exist in the app surface. They need to become real
-operational modes with honest policy and failure behavior before the product can
-be treated as a dependable desktop client.
+This phase closes the largest structural gap: the backend must expose accepted
+jobs and status polling instead of a synchronous CLI-only run.
 
 ### Start-Of-Phase Review
 
-- Review local/remote mode handling in Rust and React.
-- Review what behavior is merely label-level today.
-- Confirm whether the product definition of a "working desktop app" requires a
-  desktop-managed local companion backend.
+- Review the desktop request shape and the backend CLI argument model.
+- Review which fields require translation, removal, or backend-native adoption.
 
-### Feature Work
+### Test-First Work
 
-- Add honest local/remote mode UX.
-- Surface startup, reachability, degraded, recovery, and version-mismatch
-  states.
-- Surface companion status when local mode manages a backend lifecycle.
+- Add failing backend route tests for `POST /evaluations` and
+  `GET /evaluations/{evaluation_id}`.
+- Add failing backend tests for terminal, non-terminal, validation-failure, and
+  not-found states.
+- Add failing desktop end-to-end tests proving the current poller works against
+  the real backend responses.
 
-### Capability Work
+### Implementation
 
-- Implement local companion lifecycle management in Rust.
-- Make `BackendMode` enforce real policy rather than act as a label.
-- Add backend API version compatibility checks.
-- Define safe remote auth configuration references and storage boundaries.
-- Add mode-specific reachability and policy handling.
+- Introduce backend-owned evaluation IDs and run-state storage.
+- Map desktop request fields onto backend service-layer inputs.
+- Define status transitions, `terminal`, `exitState`, `progressPercent`, and
+  operator-facing `message`.
+- Keep report and artifact generation bound to the evaluation ID lifecycle.
 
-### Validation And Test Work
+### Validation Gate
 
-- Add failing Rust tests for:
-  - local startup probe
-  - retry window
-  - shutdown behavior
-  - loopback/local policy
-  - remote version mismatch
-  - remote auth/unauthorized behavior
-- Add failing UI tests for:
-  - local startup and degraded states
-  - recovery states
-  - auth-required and version-mismatch states
-
-### Explicit Deferrals
-
-- No recon in this phase
-- No broad history view
-- No final release-signing automation
-
-### Entry Criteria
-
-- Phase 2B exit criteria met
-- Local versus remote product intent is explicit enough to implement real policy
+- Backend route tests and job-state tests pass.
+- Desktop create-and-poll flow passes against the backend test server.
+- Invalid requests fail as `ApiError`, not as CLI-like exit codes.
 
 ### Exit Criteria
 
-- If a mode is visible in the UI, its policy and failure behavior are actually
-  implemented.
-- Unsafe or incompatible remote targets are blocked before submission.
+- The backend is now a real producer for the desktop's base workflow.
+- The desktop's already-implemented `Phase 1R` behavior is validated against the
+  real backend, not only stubs.
 
-## Phase 4: Recon Advisory Flow
+## Phase 2A: Terminal Result Contract Alignment
 
-### Why This Phase Now
-
-Recon is additive. It should land only after the base desktop workflow and mode
-behavior are reliable.
+The desktop already renders terminal results. This phase makes the backend emit
+that result shape.
 
 ### Start-Of-Phase Review
 
-- Review `/recon` contract shape and capability semantics.
-- Review copy and UX language to keep recon backend-defined and non-AI-framed.
+- Review the desktop's `EvaluationResultResponse` and rendering assumptions.
+- Review the backend's normalized report payload and issue vocabulary.
 
-### Feature Work
+### Test-First Work
 
-- Add capability-driven recon UI.
-- Keep recommendations advisory and backend-defined.
+- Add failing backend route tests for
+  `GET /evaluations/{evaluation_id}/result`.
+- Add failing backend mapping tests from internal report payload to desktop
+  result DTO.
+- Add failing desktop integration tests for successful and failing result
+  retrieval against the real backend server.
 
-### Capability Work
+### Implementation
 
-- Add recon request/response models in Rust and TypeScript.
-- Add a Tauri command and adapter binding for `POST /recon`.
+- Define the terminal result DTO in the backend repo.
+- Reconcile severity vocabulary and findings shape.
+- Either emit the desktop's current `summary/findings/severityCounts` contract
+  or update both repos together with explicit snapshot and UI changes.
 
-### Validation And Test Work
+### Validation Gate
 
-- Add or tighten contract assertions for recon route/schema usage.
-- Add failing Rust mapping tests for recon requests and responses.
-- Add failing React tests for recon capability gating and advisory copy.
-
-### Explicit Deferrals
-
-- No automatic recon chaining into evaluation submission unless the backend
-  contract makes that behavior explicit later
-
-### Entry Criteria
-
-- Phases 1R through 3 complete
-- Recon capability semantics confirmed upstream
+- Backend result mapping tests pass.
+- Desktop result retrieval and rendering pass against the backend server.
 
 ### Exit Criteria
 
-- Recon is available only when supported and is clearly additive, not
-  foundational.
+- `Phase 2A` is real end-to-end, not desktop-only.
 
-## Phase 5: History And Release Hardening
+## Phase 2B: Artifact Descriptor And Last-Opened Snapshot Alignment
 
-### Why This Phase Now
-
-Once the base workflows are complete, the remaining work is release readiness,
-thin-cache discipline, transport hardening, and packaging confidence.
+The desktop already consumes artifact descriptors and caches the last-opened
+terminal snapshot. This phase makes the backend authoritative for artifact
+discovery.
 
 ### Start-Of-Phase Review
 
-- Review all remaining hardening items in `backlog.md`.
-- Review packaging state in `src-tauri/tauri.conf.json`.
-- Review current cache scope versus intended history UX.
+- Review the desktop artifact descriptor type and snapshot cache assumptions.
+- Review current backend report file naming and output directory behavior.
 
-### Feature Work
+### Test-First Work
 
-- Add only the minimal history UX that matches the agreed thin-cache scope.
+- Add failing backend route tests for
+  `GET /evaluations/{evaluation_id}/artifacts`.
+- Add failing backend tests for descriptor generation from produced report
+  files.
+- Add failing desktop integration tests for artifact retrieval against the real
+  backend server.
 
-### Capability Work
+### Implementation
 
-- Define the compatibility matrix between desktop build version and backend API
-  version.
-- Add automated snapshot diff/sync workflow against the backend repo
-  `openapi.json`.
-- Harden retry, timeout, TLS, and plaintext remote policy.
-- Enable bundling, packaging, and release automation.
+- Expose artifact descriptors with `name`, `kind`, `mediaType`, and
+  `downloadUrl` or equivalent local fetch semantics.
+- Keep the backend authoritative for artifact presence and location.
+- Keep the desktop snapshot cache intentionally thin.
 
-### Validation And Test Work
+### Validation Gate
 
-- Add non-happy-path adapter tests for:
-  - timeouts
-  - decode failures
-  - structured backend error paths
-- Add history/cold-start tests for the final thin-cache scope.
-- Add packaging smoke checks and release verification steps.
-
-### Explicit Deferrals
-
-- No desktop-authoritative historical run store
-- No scope growth beyond the approved thin-cache model
-
-### Entry Criteria
-
-- Phases 1R through 4 complete
-- Final cache scope approved
+- Backend artifact-route tests pass.
+- Desktop artifact rendering and snapshot restore continue to pass.
 
 ### Exit Criteria
 
-- The desktop build is releasable with documented compatibility expectations and
-  reproducible packaging validation.
+- Result plus artifact flow is complete end to end.
 
-## Definition Of Done
+## Phase 3A: Local Companion Lifecycle Management
 
-The roadmap is complete when:
+Once the backend companion exists, local mode must become a real managed mode
+instead of a label.
 
-1. the desktop app can connect to a backend, submit work, recover from expected
-   failures, and render terminal results and artifacts
-2. exposed local/remote modes are real policies, not labels
-3. recon is additive and capability-gated
-4. thin-cache scope is explicit and validated
-5. the desktop build has contract, adapter, UI, IPC, and release validation
-   gates that remain green together
+### Start-Of-Phase Review
+
+- Review the desktop's local-mode assumptions and startup UX.
+- Review backend process startup, readiness, shutdown, logging, and port policy.
+
+### Test-First Work
+
+- Add failing desktop lifecycle tests for start, readiness probe, degraded
+  startup, and shutdown.
+- Add failing backend smoke tests for companion startup on the loopback target.
+
+### Implementation
+
+- Add desktop-managed local companion launch and shutdown in Rust.
+- Add backend readiness behavior that distinguishes booting, healthy, and
+  degraded states.
+- Decide packaging boundary for the local companion binary or runtime.
+
+### Validation Gate
+
+- Local companion lifecycle tests pass.
+- Manual smoke: start desktop, auto-start companion, submit evaluation, close
+  cleanly.
+
+### Exit Criteria
+
+- Local mode is a true product capability.
+
+## Phase 3B: Remote Auth, Version Compatibility, And Transport Policy
+
+Remote mode must become honest before it can remain in the UI.
+
+### Start-Of-Phase Review
+
+- Review how the backend repo currently uses `SLB_AUTH_TOKEN`.
+- Review the desktop repo's remote-mode, TLS, and version assumptions.
+
+### Test-First Work
+
+- Add failing backend tests for unauthorized responses and version mismatch
+  payloads.
+- Add failing desktop tests for remote auth-required, incompatible-version, and
+  unsafe-target states.
+
+### Implementation
+
+- Separate backend API auth from audited-target auth.
+- Add backend version compatibility semantics to `/health` or `/capabilities`.
+- Define desktop storage boundaries for remote auth references.
+- Enforce remote transport policy in Rust.
+
+### Validation Gate
+
+- Auth and version-mismatch tests pass in both repos.
+- Remote mode blocks unsafe or incompatible targets before submission.
+
+### Exit Criteria
+
+- Remote mode is a true policy-driven runtime path.
+
+## Phase 4: Recon Advisory API Alignment
+
+Recon exists in the backend repo today, but only as CLI/helper behavior. This
+phase exposes it through the shared contract.
+
+### Start-Of-Phase Review
+
+- Review current backend `ReconAdvisor` output shape.
+- Review the desktop repo's pinned `POST /recon` contract and future UI copy.
+
+### Test-First Work
+
+- Add failing backend route tests for `POST /recon`.
+- Add failing backend DTO mapping tests from internal recon model to contract
+  response.
+- Add failing desktop integration tests for capability-gated recon behavior.
+
+### Implementation
+
+- Expose recon as a backend HTTP endpoint.
+- Reconcile recon response shape across repos.
+- Keep recon advisory and backend-defined.
+
+### Validation Gate
+
+- Backend recon tests pass.
+- Desktop recon UI passes against the real backend.
+
+### Exit Criteria
+
+- Recon is additive, capability-gated, and cross-repo validated.
+
+## Phase 5: Release Hardening, Contract Sync Automation, And Final Validation
+
+Only after the full workflow is real should the release and hardening layer be
+closed.
+
+### Start-Of-Phase Review
+
+- Review all remaining hardening items in
+  [backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/backlog.md).
+- Review packaging strategy for both repos.
+
+### Test-First Work
+
+- Add failing contract-sync automation checks between backend-generated OpenAPI
+  and desktop-pinned snapshot.
+- Add failing end-to-end smoke checks for local and remote modes.
+- Add failing packaging smoke checks where automation is available.
+
+### Implementation
+
+- Automate snapshot sync and contract diff gating.
+- Finalize retry, timeout, TLS, and plaintext policy.
+- Finalize compatibility matrix and release validation steps.
+- Finalize desktop bundling and companion distribution strategy.
+
+### Validation Gate
+
+- Backend and desktop suites pass together.
+- Contract-sync automation is green.
+- Manual smoke: local companion mode and remote mode both work as documented.
+
+### Exit Criteria
+
+- The desktop app is honestly working end to end.
+- Contract drift is gated automatically.
+- Release readiness is documented and reproducible.
+
+## Completion Definition
+
+The program is complete when:
+
+1. the backend repo exposes the documented OpenAPI surface
+2. the desktop repo's implemented transport and UI flows are validated against
+   that real backend
+3. local and remote modes are real policies, not labels
+4. recon is exposed only as a capability-gated additive workflow
+5. contract, adapter, UI, IPC, integration, and release validation stay green
+   together

@@ -122,6 +122,22 @@ const workspaceSizePresets: WorkspaceSizePreset[] = [
   },
 ]
 
+function getDefaultWorkspaceSizePreset(): WorkspaceSizePreset['id'] {
+  if (typeof window === 'undefined') {
+    return 'balanced-laptop'
+  }
+
+  if (window.innerWidth >= 1680) {
+    return 'desktop'
+  }
+
+  if (window.innerWidth < 1360) {
+    return 'compact-laptop'
+  }
+
+  return 'balanced-laptop'
+}
+
 function formatBackendMode(mode: BackendMode | string) {
   switch (mode) {
     case 'local':
@@ -375,12 +391,12 @@ function App() {
   const [artifactsLoadState, setArtifactsLoadState] =
     useState<ResultLoadState>('idle')
   const [artifactsError, setArtifactsError] = useState<string | null>(null)
-  const [traceExpanded, setTraceExpanded] = useState(true)
-  const [reportExpanded, setReportExpanded] = useState(true)
+  const [traceExpanded, setTraceExpanded] = useState(false)
+  const [reportExpanded, setReportExpanded] = useState(false)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState<WorkspaceTab>('overview')
   const [workspaceSizePreset, setWorkspaceSizePreset] =
-    useState<WorkspaceSizePreset['id']>('balanced-laptop')
+    useState<WorkspaceSizePreset['id']>(getDefaultWorkspaceSizePreset)
   const [pollingPaused, setPollingPaused] = useState(false)
   const [pollFailureCount, setPollFailureCount] = useState(0)
   const [pollError, setPollError] = useState<string | null>(null)

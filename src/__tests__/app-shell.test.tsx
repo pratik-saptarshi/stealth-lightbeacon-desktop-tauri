@@ -480,6 +480,7 @@ describe('App shell', () => {
       { timeout: 4000 },
     )
 
+    await user.click(screen.getByRole('button', { name: 'Expand reporting' }))
     await waitFor(
       () => expect(screen.getByText('Terminal report')).toBeInTheDocument(),
       { timeout: 4000 },
@@ -522,6 +523,7 @@ describe('App shell', () => {
       { timeout: 4000 },
     )
 
+    await user.click(screen.getByRole('button', { name: 'Expand reporting' }))
     await waitFor(
       () => expect(screen.getByText('Terminal report')).toBeInTheDocument(),
       { timeout: 4000 },
@@ -584,6 +586,7 @@ describe('App shell', () => {
         'true',
       ),
     )
+    await user.click(screen.getByRole('button', { name: 'Expand reporting' }))
     expect(await screen.findByText('Score 92')).toBeInTheDocument()
     expect(await screen.findByText('normalized-report')).toBeInTheDocument()
     expect(desktopApi.getEvaluationStatus).not.toHaveBeenCalled()
@@ -596,6 +599,7 @@ describe('App shell', () => {
     render(<App />)
 
     expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Expand trace' }))
     await user.click(screen.getByRole('button', { name: 'Collapse trace' }))
     expect(screen.getByRole('button', { name: 'Expand trace' })).toHaveAttribute(
       'aria-expanded',
@@ -604,6 +608,7 @@ describe('App shell', () => {
     expect(document.getElementById('trace-panel')).toHaveAttribute('hidden')
 
     await user.click(await screen.findByRole('tab', { name: 'Results' }))
+    await user.click(screen.getByRole('button', { name: 'Expand reporting' }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Collapse reporting' }))
     expect(screen.getByRole('button', { name: 'Expand reporting' })).toHaveAttribute(

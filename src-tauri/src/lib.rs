@@ -952,6 +952,7 @@ mod tests {
 
         let child = Command::new(python)
             .current_dir(&backend_root)
+            .env("SLB_ALLOW_PRIVATE", "1")
             .arg("-m")
             .arg("companion.http_api")
             .arg("--host")
@@ -1031,6 +1032,67 @@ mod tests {
             let mut buffer = [0_u8; 4096];
             let _ = stream.read(&mut buffer).expect("read");
             thread::sleep(Duration::from_millis(1_250));
+        });
+
+        address
+    }
+
+    fn spawn_target_site() -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let address = format!("http://{}", listener.local_addr().expect("addr"));
+
+        thread::spawn(move || {
+            loop {
+                let (mut stream, _) = match listener.accept() {
+                    Ok(pair) => pair,
+                    Err(_) => break,
+                };
+                let mut buffer = [0_u8; 8192];
+                let read = stream.read(&mut buffer).expect("read");
+                if read == 0 {
+                    continue;
+                }
+
+                let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+                let path = request
+                    .lines()
+                    .next()
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .unwrap_or("/");
+                let method = request
+                    .lines()
+                    .next()
+                    .and_then(|line| line.split_whitespace().next())
+                    .unwrap_or("GET");
+
+                let (status_line, content_type, body) = match (method, path) {
+                    ("HEAD", "/") => ("200 OK", "text/html", String::new()),
+                    (_, "/") => (
+                        "200 OK",
+                        "text/html",
+                        "<!DOCTYPE html><html><head><title>Fixture</title><meta name=\"description\" content=\"Fixture description\"></head><body><h1>Fixture page</h1><img src=\"logo.png\" alt=\"Fixture logo\"></body></html>".to_string(),
+                    ),
+                    (_, "/robots.txt") => (
+                        "200 OK",
+                        "text/plain",
+                        "User-agent: *\nAllow: /\n".to_string(),
+                    ),
+                    (_, "/jsonapi/user/user") => (
+                        "404 Not Found",
+                        "application/json",
+                        "{\"errors\":[]}".to_string(),
+                    ),
+                    _ => ("404 Not Found", "text/plain", "missing".to_string()),
+                };
+
+                let response = format!(
+                    "HTTP/1.1 {status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                stream.write_all(response.as_bytes()).expect("write");
+                stream.flush().expect("flush");
+            }
         });
 
         address
@@ -1439,6 +1501,67 @@ mod tests {
                 message: "Route not found.".into(),
                 status: Some(404),
                 details: Some("/missing-route".into()),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn desktop_adapter_create_and_poll_against_real_backend_server() {
+        let backend = spawn_real_backend_server();
+        let target_url = spawn_target_site();
+        let config = sample_config(backend.base_url.clone());
+
+        let _ = wait_for_real_backend(&config).await;
+
+        let request = CreateEvaluationRequest {
+            target: target_url,
+            ..sample_request()
+        };
+        let accepted = create_evaluation_impl(&config, &request)
+            .await
+            .expect("create evaluation");
+        assert_eq!(accepted.status, "accepted");
+
+        let mut terminal_status = None;
+        for _ in 0..30 {
+            let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
+                .await
+                .expect("evaluation status");
+            if status.terminal {
+                terminal_status = Some(status);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let terminal_status = terminal_status.expect("terminal status");
+        assert_eq!(terminal_status.evaluation_id, accepted.evaluation_id);
+        assert!(terminal_status.terminal);
+        assert!(terminal_status.exit_state.is_some());
+    }
+
+    #[tokio::test]
+    async fn desktop_adapter_create_evaluation_preserves_real_backend_validation_errors() {
+        let backend = spawn_real_backend_server();
+        let config = sample_config(backend.base_url.clone());
+
+        let _ = wait_for_real_backend(&config).await;
+
+        let request = CreateEvaluationRequest {
+            profile: "unsupported".into(),
+            ..sample_request()
+        };
+        let error = create_evaluation_impl(&config, &request)
+            .await
+            .expect_err("validation error");
+
+        assert_eq!(
+            error,
+            ApiError {
+                code: "invalid_request".into(),
+                message: "Evaluation profile is not supported.".into(),
+                status: Some(400),
+                details: Some("unsupported".into()),
             }
         );
     }

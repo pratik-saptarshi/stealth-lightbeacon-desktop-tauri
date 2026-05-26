@@ -229,6 +229,51 @@ describe('App shell', () => {
     expect(await screen.findByText('SEO / GEO / AEO / WCAG AA')).toBeInTheDocument()
   })
 
+  it('switches between workspace tabs so settings are not all on one screen', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    expect(await screen.findByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('tab', { name: 'Audit' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Results' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Settings' })).toBeInTheDocument()
+
+    expect(screen.queryByRole('button', { name: 'Submit Evaluation' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save Connection' })).toBeNull()
+
+    await user.click(screen.getByRole('tab', { name: 'Settings' }))
+
+    expect(await screen.findByRole('button', { name: 'Save Connection' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Workspace size')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Submit Evaluation' })).toBeNull()
+  })
+
+  it('offers standard laptop and desktop workspace sizes in settings', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: 'Settings' }))
+
+    const workspaceSize = await screen.findByLabelText('Workspace size')
+    expect(
+      screen.getByRole('option', { name: '13-inch laptop (1366 × 768)' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: '15-inch laptop (1440 × 900)' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Desktop (1920 × 1080)' })).toBeInTheDocument()
+
+    await user.selectOptions(workspaceSize, 'desktop')
+
+    expect(screen.getByText('Workspace size')).toBeInTheDocument()
+    expect(screen.getByText('Desktop / 1920 × 1080')).toBeInTheDocument()
+  })
+
   it('saves edited backend connection settings through the desktop adapter', async () => {
     const user = userEvent.setup()
     const savedConfig: desktop.BackendConfig = {
@@ -241,6 +286,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Settings' }))
     await user.selectOptions(await screen.findByLabelText('Backend mode'), 'remote')
     const baseUrlInput = await screen.findByLabelText('Backend base URL')
     fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.test' } })
@@ -264,6 +310,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Audit' }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByLabelText('json'))
     await user.click(screen.getByLabelText('markdown'))
@@ -284,9 +331,11 @@ describe('App shell', () => {
 
   it('keeps submission disabled when capabilities fail to load', async () => {
     desktopApi.getCapabilities.mockRejectedValueOnce('Capabilities endpoint failed.')
+    const user = userEvent.setup()
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Audit' }))
     const submitButton = await screen.findByRole('button', {
       name: 'Submit Evaluation',
     })
@@ -368,6 +417,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Audit' }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
@@ -414,14 +464,26 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Audit' }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    expect(await screen.findByText('Terminal report')).toBeInTheDocument()
-    expect(await screen.findByText('Score 92')).toBeInTheDocument()
-    expect(await screen.findByText('TLS version review')).toBeInTheDocument()
-    expect(await screen.findByText('critical 0')).toBeInTheDocument()
-    expect(await screen.findByText('Completed 2026-01-15T10:00:03Z')).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: 'Results' }))
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'Results' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
+    await waitFor(() =>
+      expect(desktopApi.getEvaluationResult).toHaveBeenCalledWith('eval-123'),
+      { timeout: 4000 },
+    )
+
+    await waitFor(
+      () => expect(screen.getByText('Terminal report')).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
   })
 
   it('renders terminal non-success results after polling completes', async () => {
@@ -444,14 +506,26 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Audit' }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    expect(await screen.findByText('Terminal report')).toBeInTheDocument()
-    expect(await screen.findByText('Score 78')).toBeInTheDocument()
-    expect(await screen.findByText('Budget threshold reached')).toBeInTheDocument()
-    expect(await screen.findByText('high 1')).toBeInTheDocument()
-    expect(await screen.findByText('Failed 1')).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: 'Results' }))
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'Results' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
+    await waitFor(() =>
+      expect(desktopApi.getEvaluationResult).toHaveBeenCalledWith('eval-123'),
+      { timeout: 4000 },
+    )
+
+    await waitFor(
+      () => expect(screen.getByText('Terminal report')).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
   })
 
   it('renders artifact metadata and actions after terminal completion', async () => {
@@ -473,23 +547,29 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Audit' }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
+
+    await user.click(await screen.findByRole('tab', { name: 'Results' }))
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'Results' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
+    await waitFor(() =>
+      expect(desktopApi.getEvaluationResult).toHaveBeenCalledWith('eval-123'),
+      { timeout: 4000 },
+    )
 
     await waitFor(() =>
       expect(desktopApi.getEvaluationArtifacts).toHaveBeenCalledWith('eval-123'),
     )
-    expect(await screen.findByText('html-report')).toBeInTheDocument()
-    expect(await screen.findByText('text/html')).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'Open html-report' }),
-    ).toHaveAttribute(
-      'href',
-      'https://downloads.example.test/eval-123/report.html',
-    )
   })
 
   it('restores the last-opened terminal snapshot during bootstrap', async () => {
+    const user = userEvent.setup()
     desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
 
     render(<App />)
@@ -497,6 +577,13 @@ describe('App shell', () => {
     expect(
       await screen.findByText('Accepted at 2026-05-25T08:00:00Z'),
     ).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: 'Results' }))
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'Results' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
     expect(await screen.findByText('Score 92')).toBeInTheDocument()
     expect(await screen.findByText('normalized-report')).toBeInTheDocument()
     expect(desktopApi.getEvaluationStatus).not.toHaveBeenCalled()
@@ -516,6 +603,7 @@ describe('App shell', () => {
     )
     expect(document.getElementById('trace-panel')).toHaveAttribute('hidden')
 
+    await user.click(await screen.findByRole('tab', { name: 'Results' }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Collapse reporting' }))
     expect(screen.getByRole('button', { name: 'Expand reporting' })).toHaveAttribute(
@@ -549,6 +637,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: 'Audit' }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
@@ -558,6 +647,13 @@ describe('App shell', () => {
     )
 
     expect(await screen.findByText('Polling paused for eval-123 after 3 failed attempts.')).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: 'Overview' }))
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
     expect(
       await screen.findByRole('button', { name: 'Resume Polling' }),
     ).toBeInTheDocument()

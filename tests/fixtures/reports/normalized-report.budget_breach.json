@@ -1,0 +1,52 @@
+{
+  "contract_version": "0.1.0",
+  "run_id": "run_mock_budget",
+  "target": {
+    "url": "https://example.com/budget",
+    "engine": "mock-browser",
+    "profile": "full"
+  },
+  "status": "budget_breach",
+  "summary": {
+    "score": 78,
+    "passed": 5,
+    "warnings": 2,
+    "failed": 1
+  },
+  "severity_counts": {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 1,
+    "info": 2
+  },
+  "findings": [
+    {
+      "rule_id": "request-budget",
+      "title": "Budget threshold reached",
+      "severity": "high",
+      "status": "fail",
+      "description": "Run stopped after exceeding the configured request budget."
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "normalized_report",
+      "path": "__REPORT_PATH__"
+    },
+    {
+      "kind": "html",
+      "path": "__ARTIFACT_DIR__/report.html"
+    },
+    {
+      "kind": "md",
+      "path": "__ARTIFACT_DIR__/report.md"
+    },
+    {
+      "kind": "xml",
+      "path": "__ARTIFACT_DIR__/report.xml"
+    }
+  ],
+  "started_at": "2026-01-15T12:00:00Z",
+  "completed_at": "2026-01-15T12:00:03Z"
+}

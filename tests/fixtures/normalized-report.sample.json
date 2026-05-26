@@ -1,0 +1,29 @@
+{
+  "runId": "mock-123",
+  "target": "/tmp/lightbeacon-workspace",
+  "status": "success",
+  "summary": {
+    "criticalCount": 0,
+    "warningCount": 1,
+    "phaseCount": 3
+  },
+  "findings": [
+    {
+      "id": "mock-001",
+      "severity": "warning",
+      "category": "bootstrap",
+      "title": "Mock contract execution completed",
+      "location": "/tmp/lightbeacon-workspace"
+    }
+  ],
+  "artifacts": [
+    {
+      "format": "json",
+      "path": "report.json"
+    },
+    {
+      "format": "markdown",
+      "path": "report.md"
+    }
+  ]
+}

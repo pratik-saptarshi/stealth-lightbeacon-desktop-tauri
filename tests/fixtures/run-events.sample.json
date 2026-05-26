@@ -1,0 +1,26 @@
+[
+  {
+    "runId": "mock-123",
+    "stage": "queued",
+    "progress": 0,
+    "message": "Mock scan accepted.",
+    "timestampMs": 1700000000000,
+    "exitState": null
+  },
+  {
+    "runId": "mock-123",
+    "stage": "analysis",
+    "progress": 62,
+    "message": "Mock findings generated.",
+    "timestampMs": 1700000001000,
+    "exitState": null
+  },
+  {
+    "runId": "mock-123",
+    "stage": "completed",
+    "progress": 100,
+    "message": "Mock scan completed with success.",
+    "timestampMs": 1700000002000,
+    "exitState": "success"
+  }
+]

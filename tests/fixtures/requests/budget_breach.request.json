@@ -1,0 +1,22 @@
+{
+  "contract_version": "0.1.0",
+  "run_id": "run_mock_budget",
+  "target": {
+    "url": "https://example.com/budget",
+    "engine": "mock-browser",
+    "profile": "full"
+  },
+  "policy": {
+    "timeout_ms": 30000,
+    "budget_cents": 250,
+    "fail_on_severity": "critical"
+  },
+  "output": {
+    "normalized_report_path": "__TMP__/normalized-report.json",
+    "artifact_dir": "__TMP__/artifacts"
+  },
+  "simulation": {
+    "scenario": "budget_breach",
+    "base_timestamp": "2026-01-15T12:00:00Z"
+  }
+}

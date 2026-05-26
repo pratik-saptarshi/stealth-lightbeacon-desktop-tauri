@@ -1,0 +1,26 @@
+{
+  "contract_version": "0.1.0",
+  "examples": [
+    {
+      "scenario": "success",
+      "exit_code": 0,
+      "final_event_type": "run.completed",
+      "ui_status": "success",
+      "report_expected": true
+    },
+    {
+      "scenario": "engine_failure",
+      "exit_code": 1,
+      "final_event_type": "run.failed",
+      "ui_status": "failed",
+      "report_expected": false
+    },
+    {
+      "scenario": "budget_breach",
+      "exit_code": 2,
+      "final_event_type": "run.completed",
+      "ui_status": "budget_breach",
+      "report_expected": true
+    }
+  ]
+}

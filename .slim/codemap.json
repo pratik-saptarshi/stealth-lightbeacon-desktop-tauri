@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "last_run": "2026-05-26T07:09:57.987Z",
+    "root": "/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri",
+    "include_patterns": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "src-tauri/src/**/*.rs",
+      "package.json",
+      "src-tauri/Cargo.toml"
+    ],
+    "exclude_patterns": [
+      "src/**/*.test.ts",
+      "src/**/*.spec.ts",
+      "src/__tests__/**",
+      "tests/**",
+      "docs/**",
+      "**/*.md",
+      "node_modules/**",
+      "dist/**"
+    ],
+    "exceptions": []
+  },
+  "file_hashes": {
+    "package.json": "74e88156a76530fc1d6c0e222ff2edc9",
+    "src-tauri/Cargo.toml": "b9662e3221245913612c7615452379da",
+    "src-tauri/src/lib.rs": "262c424c1b1b6498fcd410d0df304904",
+    "src-tauri/src/main.rs": "fc68ca29d34230a199f6a097333d4601",
+    "src/App.tsx": "4673d9e4052438767565f120f5e3fdfe",
+    "src/lib/desktop.ts": "5d0db8aa0ed705bebc3f9f0497e4b859",
+    "src/main.tsx": "787e5a07efeb2bf6209d5937195f2f68",
+    "src/test/setup.ts": "2c271435e60d9aeb6cd3a5e1e122a5c0"
+  },
+  "folder_hashes": {
+    ".": "49d122195da968b0d048f2008d5ba9e0",
+    "src-tauri": "e8ff3a1fcf31e6444821ecd2d08af749",
+    "src-tauri/src": "705760b7d828088bcde6f1878b65f21d",
+    "src": "3c3e2a1e6605f99dd49bea9d8c3d8bc0",
+    "src/lib": "b9e9f8d85ca1bbff13a9ff6af9f1f020",
+    "src/test": "a03e7d50e87a31eb41dbef57402c3aca"
+  }
+}

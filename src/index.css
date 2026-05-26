@@ -1,0 +1,100 @@
+:root {
+  font-family: 'IBM Plex Sans', 'Avenir Next', 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #23303a;
+  background:
+    radial-gradient(circle at top left, rgba(214, 183, 145, 0.35), transparent 32%),
+    radial-gradient(circle at top right, rgba(73, 109, 106, 0.16), transparent 28%),
+    linear-gradient(180deg, #f3ede3 0%, #ece5d8 48%, #e7dfd2 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+
+  --text-strong: #1f2a30;
+  --text-muted: #5f686b;
+  --panel-bg: rgba(255, 251, 245, 0.78);
+  --panel-border: rgba(93, 78, 61, 0.14);
+  --panel-shadow:
+    0 18px 40px rgba(85, 68, 49, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --input-bg: rgba(255, 255, 255, 0.72);
+  --input-border: rgba(93, 78, 61, 0.18);
+  --button-strong: #244b4f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.4), transparent 90%);
+  pointer-events: none;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+  color: var(--text-strong);
+  letter-spacing: -0.03em;
+}
+
+h1 {
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
+  line-height: 0.98;
+}
+
+h2 {
+  font-size: clamp(1.4rem, 2.4vw, 2.2rem);
+  line-height: 1.05;
+}
+
+h3 {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+p {
+  color: var(--text-muted);
+}
+
+::selection {
+  background: rgba(36, 75, 79, 0.18);
+}

@@ -1,0 +1,15 @@
+{
+  "contract_version": "0.1.0",
+  "run_id": "run_mock_success",
+  "sequence": 2,
+  "event_type": "run.progress",
+  "timestamp": "2026-01-15T10:00:01Z",
+  "payload": {
+    "message": "Mock audit advanced to analysis.",
+    "progress": {
+      "current_step": 2,
+      "total_steps": 3,
+      "phase": "analysis"
+    }
+  }
+}

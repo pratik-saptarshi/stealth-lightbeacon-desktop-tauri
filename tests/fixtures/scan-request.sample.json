@@ -1,0 +1,15 @@
+{
+  "target": "/tmp/lightbeacon-workspace",
+  "profile": "baseline",
+  "outputFormats": ["json", "markdown"],
+  "limits": {
+    "maxDepth": 2,
+    "maxUrls": 250
+  },
+  "failOnCritical": true,
+  "budgetGate": false,
+  "mock": {
+    "exitBehavior": "success",
+    "latencyMs": 1
+  }
+}

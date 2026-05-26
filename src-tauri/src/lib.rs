@@ -1565,4 +1565,39 @@ mod tests {
             }
         );
     }
+
+    #[tokio::test]
+    async fn desktop_adapter_loads_terminal_result_from_real_backend_server() {
+        let backend = spawn_real_backend_server();
+        let target_url = spawn_target_site();
+        let config = sample_config(backend.base_url.clone());
+
+        let _ = wait_for_real_backend(&config).await;
+
+        let request = CreateEvaluationRequest {
+            target: target_url,
+            ..sample_request()
+        };
+        let accepted = create_evaluation_impl(&config, &request)
+            .await
+            .expect("create evaluation");
+
+        for _ in 0..30 {
+            let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
+                .await
+                .expect("evaluation status");
+            if status.terminal {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let result = get_evaluation_result_impl(&config, &accepted.evaluation_id)
+            .await
+            .expect("terminal result");
+
+        assert_eq!(result.evaluation_id, accepted.evaluation_id);
+        assert!(result.summary.is_object());
+        assert!(result.summary.get("score").is_some());
+    }
 }

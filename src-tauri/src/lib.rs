@@ -1600,4 +1600,38 @@ mod tests {
         assert!(result.summary.is_object());
         assert!(result.summary.get("score").is_some());
     }
+
+    #[tokio::test]
+    async fn desktop_adapter_loads_artifacts_from_real_backend_server() {
+        let backend = spawn_real_backend_server();
+        let target_url = spawn_target_site();
+        let config = sample_config(backend.base_url.clone());
+
+        let _ = wait_for_real_backend(&config).await;
+
+        let request = CreateEvaluationRequest {
+            target: target_url,
+            ..sample_request()
+        };
+        let accepted = create_evaluation_impl(&config, &request)
+            .await
+            .expect("create evaluation");
+
+        for _ in 0..30 {
+            let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
+                .await
+                .expect("evaluation status");
+            if status.terminal {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let artifacts = get_evaluation_artifacts_impl(&config, &accepted.evaluation_id)
+            .await
+            .expect("artifacts");
+
+        assert!(!artifacts.is_empty());
+        assert!(artifacts.iter().any(|artifact| artifact.kind == "normalized_report"));
+    }
 }

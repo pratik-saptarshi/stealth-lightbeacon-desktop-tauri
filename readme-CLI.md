@@ -34,6 +34,9 @@ for local development, validation, and release work.
 
 - `contracts/backend-api.openapi.json`
   Pinned backend API snapshot used by local contract tests.
+- `readme.md`
+  Lowercase companion to `README.md` for tools that expect normalized file
+  names.
 - `backlog.md`
   Verified completion tracker and merged remediation backlog.
 - `implementation-roadmap.md`

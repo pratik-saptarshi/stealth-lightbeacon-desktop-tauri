@@ -27,8 +27,8 @@ transport policy, contract-aware IPC, and packaging validation.
 2. `src/lib.rs` loads persisted backend config and initializes shared app
    state.
 3. Tauri registers the desktop command surface used by the React UI.
-4. Command handlers validate config/request payloads and proxy HTTP calls to the
-   backend API.
+4. Command handlers validate config and request payloads and proxy HTTP calls to
+   the backend API.
 5. Packaging settings in `tauri.conf.json` control how the built frontend is
    embedded and how the release bundle is produced.
 
@@ -40,4 +40,4 @@ transport policy, contract-aware IPC, and packaging validation.
 - Backend integration: all documented routes in the pinned contract are wired
   through the Rust adapter.
 - Release integration: this tree is part of the release gate through
-  `npm run tauri:build`.
+  `npm run tauri:build` and the cross-repo release validator.

@@ -4,6 +4,8 @@
 
 - Keep the desktop repo thin. New backend semantics belong in the sibling
   backend repo, not in React or Tauri glue.
+- Use an isolated worktree for larger changes so the main checkout stays
+  readable while docs, validation, and release work are in flight.
 - Preserve the trust boundary:
   - React owns operator UX.
   - `src/lib/desktop.ts` owns the frontend adapter surface.
@@ -35,3 +37,5 @@
 - Findings should focus on bugs, regressions, release risk, and missing tests.
 - Update `backlog.md` and `plan-review-traceability.md` when a review changes
   the completion ledger or remediation backlog.
+- Keep `codemap.md` and the folder codemaps aligned with any structural
+  changes so future agents can rehydrate the repo quickly.

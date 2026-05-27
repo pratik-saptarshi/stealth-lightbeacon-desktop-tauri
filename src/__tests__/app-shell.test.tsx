@@ -14,6 +14,7 @@ vi.mock('../lib/desktop', () => ({
   getEvaluationStatus: vi.fn(),
   getEvaluationResult: vi.fn(),
   getEvaluationArtifacts: vi.fn(),
+  runRecon: vi.fn(),
   getLastOpenedSnapshot: vi.fn(),
   setLastOpenedSnapshot: vi.fn(),
   formatCommandError: vi.fn((error: unknown) => {
@@ -46,6 +47,17 @@ function setViewportSize(width: number, height: number) {
     writable: true,
   })
   window.dispatchEvent(new Event('resize'))
+}
+
+function createDeferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+
+  return { promise, resolve, reject }
 }
 
 const backendConfig: desktop.BackendConfig = {
@@ -161,6 +173,17 @@ const artifacts = [
   },
 ]
 
+const reconResult = {
+  target: 'https://example.com',
+  recommendation: 'stealth',
+  posture: 'browser',
+  confidence: 0.9,
+  evidence: ['cloudflare', 'status:403'],
+  evidenceSummary: 'cloudflare, status:403',
+  signals: ['cloudflare'],
+  autoSelectAllowed: true,
+}
+
 const lastOpenedSnapshot = {
   evaluation: {
     evaluationId: 'eval-cached',
@@ -196,6 +219,7 @@ describe('App shell', () => {
     desktopApi.getCapabilities.mockResolvedValue(capabilities)
     desktopApi.getEvaluationResult.mockResolvedValue(successResult)
     desktopApi.getEvaluationArtifacts.mockResolvedValue(artifacts)
+    desktopApi.runRecon.mockResolvedValue(reconResult)
     desktopApi.getLastOpenedSnapshot.mockResolvedValue(null)
     desktopApi.setLastOpenedSnapshot.mockImplementation(async (snapshot) => snapshot)
   })
@@ -384,6 +408,10 @@ describe('App shell', () => {
   })
 
   it('surfaces remote auth requirements when protected capabilities fail', async () => {
+    desktopApi.apiHealthCheck.mockResolvedValueOnce({
+      ...health,
+      authRequired: true,
+    })
     desktopApi.getCapabilities.mockRejectedValueOnce({
       code: 'unauthorized',
       message: 'Remote API auth required.',
@@ -395,12 +423,11 @@ describe('App shell', () => {
 
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
     expect(
-      (
-        await screen.findAllByText(
-          'Capabilities unavailable. Remote API auth required.',
-        )
-      ).length,
+      (await screen.findAllByText(
+        'Remote auth required. Set the backend auth token before loading protected capabilities.',
+      )).length,
     ).toBeGreaterThan(0)
+    expect(await screen.findByText('Required')).toBeInTheDocument()
   })
 
   it('surfaces incompatible desktop versions when protected capabilities fail', async () => {
@@ -415,12 +442,134 @@ describe('App shell', () => {
 
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
     expect(
-      (
-        await screen.findAllByText(
-          'Capabilities unavailable. Desktop version is not supported by this backend.',
-        )
-      ).length,
+      (await screen.findAllByText(
+        /Desktop version is not supported by this backend\./,
+      )).length,
     ).toBeGreaterThan(0)
+    expect(await screen.findByText('0.1.0+')).toBeInTheDocument()
+  })
+
+  it('runs recon when the backend advertises support for the target', async () => {
+    const user = userEvent.setup()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+    expect(await screen.findByText('Recon completed for https://example.com.')).toBeInTheDocument()
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+    expect(await screen.findByText('browser')).toBeInTheDocument()
+    expect(await screen.findByText('Confidence 90% · Auto-select Allowed')).toBeInTheDocument()
+  })
+
+  it('clears recon output when the target changes', async () => {
+    const user = userEvent.setup()
+    const pendingRecon = createDeferredPromise<desktop.ReconResponse>()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+    desktopApi.runRecon.mockReturnValueOnce(pendingRecon.promise)
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+
+    await user.clear(screen.getByLabelText('Target URL'))
+    await user.type(screen.getByLabelText('Target URL'), 'https://new.example')
+
+    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
+
+    pendingRecon.resolve(reconResult)
+
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('clears stale recon output when capabilities refresh', async () => {
+    const user = userEvent.setup()
+    const pendingRecon = createDeferredPromise<desktop.ReconResponse>()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+    desktopApi.runRecon.mockReturnValueOnce(pendingRecon.promise)
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('button', { name: 'Check Health' }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
+
+    pendingRecon.resolve(reconResult)
+
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('clears stale recon output before a rejected rerun reports failure', async () => {
+    const user = userEvent.setup()
+    const failedRerun = createDeferredPromise<desktop.ReconResponse>()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+    desktopApi.runRecon
+      .mockResolvedValueOnce(reconResult)
+      .mockReturnValueOnce(failedRerun.promise)
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
+
+    failedRerun.reject('Recon failed.')
+
+    expect((await screen.findAllByText('Recon failed.')).length).toBeGreaterThan(0)
   })
 
   it('starts result fetch only after the evaluation reaches a terminal status', async () => {

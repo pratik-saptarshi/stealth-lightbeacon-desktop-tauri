@@ -40,8 +40,9 @@
   artifact path instead of a failing DMG-only path.
 - Activated Tauri bundling in `src-tauri/tauri.conf.json`.
 - Refreshed `README.md`, `readme.md`, `architecture.md`, `readme-CLI.md`,
-  `backlog.md`, `implementation-roadmap.md`, `plan-review-traceability.md`,
-  and codemap files to reflect current runtime behavior.
+  `docs/roadmap/backlog.md`, `docs/roadmap/implementation-roadmap.md`,
+  `docs/roadmap/plan-review-traceability.md`, and codemap files to reflect
+  current runtime behavior.
 
 ### Governance Docs
 

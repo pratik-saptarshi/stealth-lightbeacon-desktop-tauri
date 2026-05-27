@@ -43,7 +43,8 @@
 ## Review Expectations
 
 - Findings should focus on bugs, regressions, release risk, and missing tests.
-- Update `backlog.md` and `plan-review-traceability.md` when a review changes
-  the completion ledger or remediation backlog.
+- Update `docs/roadmap/backlog.md` and
+  `docs/roadmap/plan-review-traceability.md` when a review changes the
+  completion ledger or remediation backlog.
 - Keep `codemap.md` and the folder codemaps aligned with any structural
   changes so future agents can rehydrate the repo quickly.

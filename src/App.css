@@ -185,6 +185,10 @@
   gap: 16px;
 }
 
+.workspace-panel[hidden] {
+  display: none;
+}
+
 .hero-panel--tabbed {
   margin-top: 0;
 }
@@ -658,8 +662,13 @@
   border-radius: 22px;
 }
 
+.app-shell--compact .brand-summary {
+  display: none;
+}
+
 .app-shell--compact .topbar-meta {
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .app-shell--compact .workspace-tabs {
@@ -682,6 +691,35 @@
 .app-shell--compact .checkbox-grid,
 .app-shell--compact .toggle-grid {
   gap: 10px;
+}
+
+.app-shell--compact .hero-panel {
+  grid-template-columns: 1fr;
+}
+
+.app-shell--compact .hero-copy h2 {
+  margin-bottom: 8px;
+}
+
+.app-shell--compact .hero-text {
+  display: none;
+}
+
+.app-shell--compact .hero-metrics {
+  display: none;
+}
+
+.app-shell--compact .notice-bar {
+  padding: 12px 14px;
+  gap: 10px;
+}
+
+.app-shell--compact .notice-bar p {
+  margin: 4px 0 0;
+}
+
+.app-shell--compact .meta-block {
+  padding: 10px 12px;
 }
 
 .app-shell--compact .metric-card,

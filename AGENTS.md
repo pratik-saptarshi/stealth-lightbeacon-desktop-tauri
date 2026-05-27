@@ -5,7 +5,7 @@
 - Use the folder codemaps under `src/`, `src-tauri/`, and `src-tauri/src/`
   before structural edits.
 - Treat
-  [backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/backlog.md)
+  [backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/docs/roadmap/backlog.md)
   as the source of truth for completion tracking and remaining remediation.
 - This repo is an API-first desktop client. It is not the audit engine.
 - React stays behind `src/lib/desktop.ts`.

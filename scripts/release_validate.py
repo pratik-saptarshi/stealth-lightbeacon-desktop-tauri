@@ -31,6 +31,7 @@ def main() -> None:
         ["npm", "run", "test", "--", "--run", "src/lib/desktop.test.ts", "src/__tests__/app-shell.test.tsx"],
         cwd=ROOT,
     )
+    run(["npm", "run", "test:e2e"], cwd=ROOT)
     run(["cargo", "test", "--manifest-path", "src-tauri/Cargo.toml"], cwd=ROOT)
     run(["npm", "run", "build"], cwd=ROOT)
     run(["npm", "run", "tauri:build"], cwd=ROOT)

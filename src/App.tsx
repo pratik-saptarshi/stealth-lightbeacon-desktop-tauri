@@ -19,6 +19,7 @@ import {
   getEvaluationStatus,
   getLastOpenedSnapshot,
   isDesktopRuntime,
+  runRecon,
   setLastOpenedSnapshot,
   setBackendConfig,
   type ArtifactDescriptor,
@@ -30,6 +31,7 @@ import {
   type EvaluationResultResponse,
   type EvaluationStatusResponse,
   type HealthResponse,
+  type ReconResponse,
 } from './lib/desktop'
 
 type ActivityItem = {
@@ -40,6 +42,8 @@ type ActivityItem = {
 
 type CapabilitiesLoadState = 'idle' | 'loading' | 'ready' | 'failed'
 type ResultLoadState = 'idle' | 'loading' | 'ready' | 'failed'
+type ReconLoadState = 'idle' | 'loading' | 'ready' | 'failed'
+type ConnectionFailureCode = 'unauthorized' | 'incompatible_client' | 'other' | null
 
 type EvaluationResultMetric = {
   label: string
@@ -59,6 +63,16 @@ type EvaluationResultView = {
   severityItems: string[]
   timelineMetrics: EvaluationResultMetric[]
   findings: EvaluationResultFindingView[]
+}
+
+type ReconResultView = {
+  recommendation: string
+  posture: string
+  confidenceLabel: string
+  evidenceSummary: string
+  evidence: string[]
+  signals: string[]
+  autoSelectAllowed: string
 }
 
 type UiThemeKey =
@@ -90,9 +104,21 @@ type ViewportState = {
   density: ViewportDensity
 }
 
+type WorkspaceSizeKey = 'auto' | 'laptop13' | 'laptop15' | 'desktop' | 'wideDesktop'
+
+type WorkspaceSizeOption = {
+  key: WorkspaceSizeKey
+  label: string
+  description: string
+  width?: number
+  height?: number
+  density: ViewportDensity
+}
+
 type UiSettings = {
   theme: Record<UiThemeKey, string>
   sections: Record<UiSectionKey, boolean>
+  workspaceSize: WorkspaceSizeKey
 }
 
 const defaultPort = 8000
@@ -136,7 +162,48 @@ const defaultUiSettings: UiSettings = {
     terminalReport: true,
     backendSurface: true,
   },
+  workspaceSize: 'auto',
 }
+const workspaceSizeOptions: WorkspaceSizeOption[] = [
+  {
+    key: 'auto',
+    label: 'Auto detect',
+    description: 'Follow the current screen size and tune the shell automatically.',
+    density: 'compact',
+  },
+  {
+    key: 'laptop13',
+    label: '13-inch laptop',
+    description: 'Compact shell density for smaller notebook screens.',
+    width: 1280,
+    height: 800,
+    density: 'compact',
+  },
+  {
+    key: 'laptop15',
+    label: '15-inch laptop',
+    description: 'Balanced shell density for standard laptop panels.',
+    width: 1440,
+    height: 900,
+    density: 'balanced',
+  },
+  {
+    key: 'desktop',
+    label: 'Desktop',
+    description: 'Balanced shell density for common office desktops.',
+    width: 1600,
+    height: 1000,
+    density: 'balanced',
+  },
+  {
+    key: 'wideDesktop',
+    label: 'Wide desktop',
+    description: 'Wide shell density for large monitors and external displays.',
+    width: 1920,
+    height: 1080,
+    density: 'wide',
+  },
+]
 const uiThemeFields: Array<{
   key: UiThemeKey
   label: string
@@ -267,7 +334,11 @@ function loadUiSettings() {
       uiSectionFields.map(({ key }) => [key, parsed?.sections?.[key] ?? defaultUiSettings.sections[key]]),
     ) as Record<UiSectionKey, boolean>
 
-    return { theme, sections }
+    const workspaceSize = workspaceSizeOptions.some(({ key }) => key === parsed?.workspaceSize)
+      ? (parsed?.workspaceSize ?? defaultUiSettings.workspaceSize)
+      : defaultUiSettings.workspaceSize
+
+    return { theme, sections, workspaceSize }
   } catch {
     return defaultUiSettings
   }
@@ -281,6 +352,13 @@ function buildUiShellStyle(uiSettings: UiSettings): CSSProperties {
     '--surface-accent': uiSettings.theme.accent,
     '--surface-button': uiSettings.theme.button,
   } as CSSProperties
+}
+
+function getWorkspaceSizeOption(workspaceSize: WorkspaceSizeKey) {
+  return (
+    workspaceSizeOptions.find((option) => option.key === workspaceSize) ??
+    workspaceSizeOptions[0]
+  )
 }
 
 function classifyViewport(width: number, height: number): ViewportDensity {
@@ -311,6 +389,42 @@ function readViewportState(): ViewportState {
     width,
     height,
     density: classifyViewport(width, height),
+  }
+}
+
+function resolveWorkspaceLayout(
+  uiSettings: UiSettings,
+  viewport: ViewportState,
+): {
+  key: WorkspaceSizeKey
+  label: string
+  width: number
+  height: number
+  density: ViewportDensity
+} {
+  const workspaceSizeOption = getWorkspaceSizeOption(uiSettings.workspaceSize)
+
+  if (workspaceSizeOption.key === 'auto') {
+    return {
+      key: workspaceSizeOption.key,
+      label:
+        viewport.density === 'compact'
+          ? 'Compact laptop'
+          : viewport.density === 'balanced'
+            ? 'Balanced desktop'
+            : 'Wide desktop',
+      width: viewport.width,
+      height: viewport.height,
+      density: viewport.density,
+    }
+  }
+
+  return {
+    key: workspaceSizeOption.key,
+    label: workspaceSizeOption.label,
+    width: workspaceSizeOption.width ?? viewport.width,
+    height: workspaceSizeOption.height ?? viewport.height,
+    density: viewport.density === 'compact' ? 'compact' : workspaceSizeOption.density,
   }
 }
 
@@ -384,7 +498,64 @@ function summarizeHealth(health: HealthResponse | null) {
     return 'Unavailable'
   }
 
+  if (health.authRequired) {
+    return `${health.status.toUpperCase()} / Auth required / API ${health.apiVersion}`
+  }
+
   return `${health.status.toUpperCase()} / API ${health.apiVersion}`
+}
+
+function readCommandErrorCode(error: unknown) {
+  if (!error || typeof error !== 'object' || Array.isArray(error)) {
+    return null
+  }
+
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' && code.trim() ? code.trim() : null
+}
+
+function readCommandErrorStatus(error: unknown) {
+  if (!error || typeof error !== 'object' || Array.isArray(error)) {
+    return null
+  }
+
+  const status = (error as { status?: unknown }).status
+  return typeof status === 'number' && Number.isFinite(status) ? status : null
+}
+
+function classifyConnectionFailure(error: unknown): ConnectionFailureCode {
+  const code = readCommandErrorCode(error)?.toLowerCase() ?? null
+  if (code === 'unauthorized' || code === 'incompatible_client') {
+    return code
+  }
+
+  const status = readCommandErrorStatus(error)
+  if (status === 401) {
+    return 'unauthorized'
+  }
+
+  if (status === 409) {
+    return 'incompatible_client'
+  }
+
+  return code ? 'other' : null
+}
+
+function formatConfidence(value: number) {
+  const percentage = value <= 1 ? value * 100 : value
+  return `${Math.round(percentage)}%`
+}
+
+function buildReconResultView(result: ReconResponse): ReconResultView {
+  return {
+    recommendation: result.recommendation,
+    posture: result.posture,
+    confidenceLabel: formatConfidence(result.confidence),
+    evidenceSummary: result.evidenceSummary,
+    evidence: result.evidence,
+    signals: result.signals,
+    autoSelectAllowed: result.autoSelectAllowed ? 'Allowed' : 'Manual only',
+  }
 }
 
 function isIntegerWithinRange(value: number, minimum: number, maximum: number) {
@@ -540,6 +711,7 @@ function resultToneClass(status: string) {
 function App() {
   const desktopRuntime = isDesktopRuntime()
   const pollTimerRef = useRef<number | null>(null)
+  const reconRequestIdRef = useRef(0)
   const nextActivityIdRef = useRef(1)
   const initialViewport = readViewportState()
 
@@ -555,6 +727,8 @@ function App() {
     useState<CapabilitiesResponse | null>(null)
   const [capabilitiesLoadState, setCapabilitiesLoadState] =
     useState<CapabilitiesLoadState>('idle')
+  const [connectionFailureCode, setConnectionFailureCode] =
+    useState<ConnectionFailureCode>(null)
   const [request, setRequest] = useState<CreateEvaluationRequest>(defaultRequest)
   const [activeEvaluation, setActiveEvaluation] =
     useState<CreateEvaluationResponse | null>(null)
@@ -568,6 +742,10 @@ function App() {
   const [artifactsLoadState, setArtifactsLoadState] =
     useState<ResultLoadState>('idle')
   const [artifactsError, setArtifactsError] = useState<string | null>(null)
+  const [reconResult, setReconResult] = useState<ReconResponse | null>(null)
+  const [reconLoadState, setReconLoadState] =
+    useState<ReconLoadState>('idle')
+  const [reconError, setReconError] = useState<string | null>(null)
   const [viewport, setViewport] = useState<ViewportState>(initialViewport)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState<WorkspaceTabKey>('overview')
@@ -663,6 +841,13 @@ function App() {
     }))
   }, [])
 
+  const updateWorkspaceSize = useCallback((workspaceSize: WorkspaceSizeKey) => {
+    setUiSettings((current) => ({
+      ...current,
+      workspaceSize,
+    }))
+  }, [])
+
   const resetUiSettings = useCallback(() => {
     setUiSettings(defaultUiSettings)
   }, [])
@@ -732,7 +917,34 @@ function App() {
     })
   }, [])
 
+  const invalidateReconState = useCallback(
+    (loadState: ReconLoadState = 'idle', error: string | null = null) => {
+      reconRequestIdRef.current += 1
+      startTransition(() => {
+        setReconResult(null)
+        setReconError(error)
+        setReconLoadState(loadState)
+      })
+    },
+    [],
+  )
+
+  const beginReconRequest = useCallback(() => {
+    reconRequestIdRef.current += 1
+    const requestId = reconRequestIdRef.current
+
+    startTransition(() => {
+      setReconResult(null)
+      setReconError(null)
+      setReconLoadState('loading')
+    })
+
+    return requestId
+  }, [])
+
   const refreshConnectionState = useCallback(async (mode: BackendMode) => {
+    invalidateReconState()
+
     if (!desktopRuntime) {
       startTransition(() => {
         setHealth(null)
@@ -762,11 +974,16 @@ function App() {
           setHealth(nextHealthResult.value)
           setCapabilities(nextCapabilitiesResult.value)
           setCapabilitiesLoadState('ready')
+          setConnectionFailureCode(null)
           setNotice(
-            `${nextHealthResult.value.service} is reachable. Create an evaluation to begin polling backend job state.`,
+            nextHealthResult.value.authRequired
+              ? `${nextHealthResult.value.service} is reachable, but remote auth is required before protected capabilities can load.`
+              : `${nextHealthResult.value.service} is reachable. Create an evaluation to begin polling backend job state.`,
           )
           setStatusLine(
-            `${formatBackendMode(mode)} / ${nextHealthResult.value.apiVersion}`,
+            nextHealthResult.value.authRequired
+              ? `${formatBackendMode(mode)} / auth required`
+              : `${formatBackendMode(mode)} / ${nextHealthResult.value.apiVersion}`,
           )
         })
         syncProfilesFromCapabilities(nextCapabilitiesResult.value)
@@ -785,12 +1002,27 @@ function App() {
         nextCapabilitiesResult.status === 'rejected'
           ? formatCommandError(nextCapabilitiesResult.reason)
           : null
-      const nextNotice = capabilitiesMessage
-        ? `Capabilities unavailable. ${capabilitiesMessage}`
-        : healthMessage ?? 'Backend unavailable.'
+      const nextFailureCode =
+        nextCapabilitiesResult.status === 'rejected'
+          ? classifyConnectionFailure(nextCapabilitiesResult.reason)
+          : null
+      const nextNotice =
+        nextFailureCode === 'unauthorized'
+          ? 'Remote auth required. Set the backend auth token before loading protected capabilities.'
+          : nextFailureCode === 'incompatible_client'
+            ? `Desktop version is not supported by this backend. ${nextHealthResult.status === 'fulfilled' && nextHealthResult.value.compatibility
+                ? `Minimum ${nextHealthResult.value.compatibility.minimumDesktopVersion}, recommended ${nextHealthResult.value.compatibility.recommendedDesktopVersion}.`
+                : 'Update the desktop client before loading protected capabilities.'}`
+            : capabilitiesMessage
+              ? `Capabilities unavailable. ${capabilitiesMessage}`
+              : healthMessage ?? 'Backend unavailable.'
       const nextStatusLine =
         nextHealthResult.status === 'fulfilled'
-          ? capabilitiesMessage
+          ? nextFailureCode === 'unauthorized'
+            ? `${formatBackendMode(mode)} / auth required`
+            : nextFailureCode === 'incompatible_client'
+              ? `${formatBackendMode(mode)} / compatibility mismatch`
+              : capabilitiesMessage
             ? `${formatBackendMode(mode)} / ${nextHealthResult.value.apiVersion} / capabilities unavailable`
             : `${formatBackendMode(mode)} / ${nextHealthResult.value.apiVersion}`
           : 'Backend unavailable'
@@ -807,6 +1039,7 @@ function App() {
         setCapabilitiesLoadState(
           nextCapabilitiesResult.status === 'fulfilled' ? 'ready' : 'failed',
         )
+        setConnectionFailureCode(nextFailureCode)
         setNotice(nextNotice)
         setStatusLine(nextStatusLine)
       })
@@ -824,10 +1057,12 @@ function App() {
       )
     } catch (error) {
       const message = formatCommandError(error)
+      const failureCode = classifyConnectionFailure(error)
       startTransition(() => {
         setHealth(null)
         setCapabilities(null)
         setCapabilitiesLoadState('failed')
+        setConnectionFailureCode(failureCode)
         setNotice(message)
         setStatusLine('Backend unavailable')
       })
@@ -835,7 +1070,7 @@ function App() {
     } finally {
       setRefreshingConnection(false)
     }
-  }, [desktopRuntime, recordActivity, syncProfilesFromCapabilities])
+  }, [desktopRuntime, invalidateReconState, recordActivity, syncProfilesFromCapabilities])
 
   useEffect(() => {
     let cancelled = false
@@ -1329,6 +1564,76 @@ function App() {
     }
   }
 
+  async function handleRunRecon() {
+    if (!desktopRuntime) {
+      setNotice(
+        'Desktop commands are unavailable in browser preview. Launch `npm run tauri:dev` to run recon.',
+      )
+      setStatusLine('Preview mode')
+      return
+    }
+
+    const reconValidationErrors: string[] = []
+
+    if (!request.target.trim()) {
+      reconValidationErrors.push('Enter a target URL before running recon.')
+    }
+
+    if (!health) {
+      reconValidationErrors.push('Restore backend connectivity before running recon.')
+    }
+
+    if (capabilitiesLoadState !== 'ready') {
+      reconValidationErrors.push('Load backend capabilities before running recon.')
+    }
+
+    if (capabilitiesLoadState === 'ready' && !capabilities?.supportsRecon) {
+      reconValidationErrors.push('Load a backend that supports recon before running recon.')
+    }
+
+    if (reconValidationErrors.length > 0) {
+      const message = reconValidationErrors[0]
+      invalidateReconState('failed', message)
+      startTransition(() => {
+        setNotice(message)
+        setStatusLine('Recon blocked')
+      })
+      recordActivity('Recon blocked', message)
+      return
+    }
+
+    const reconRequestId = beginReconRequest()
+
+    try {
+      const nextRecon = await runRecon({ target: request.target.trim() })
+      if (reconRequestId !== reconRequestIdRef.current) {
+        return
+      }
+      startTransition(() => {
+        setReconResult(nextRecon)
+        setReconLoadState('ready')
+        setReconError(null)
+        setNotice(`Recon completed for ${nextRecon.target}.`)
+        setStatusLine(`Recon ready for ${nextRecon.target}`)
+      })
+      recordActivity(
+        'Recon completed',
+        `${nextRecon.target} returned ${nextRecon.posture} posture at ${formatConfidence(nextRecon.confidence)} confidence.`,
+      )
+    } catch (error) {
+      if (reconRequestId !== reconRequestIdRef.current) {
+        return
+      }
+      const message = formatCommandError(error)
+      invalidateReconState('failed', message)
+      startTransition(() => {
+        setNotice(message)
+        setStatusLine('Recon unavailable')
+      })
+      recordActivity('Recon failed', message)
+    }
+  }
+
   function handleResumePolling() {
     if (!activeEvaluation?.evaluationId) {
       return
@@ -1360,9 +1665,11 @@ function App() {
   const terminalResultView = evaluationResult
     ? buildEvaluationResultView(evaluationResult)
     : null
+  const reconResultView = reconResult ? buildReconResultView(reconResult) : null
   const remoteDraftMode = draftConfig.mode === 'remote'
   const reportAvailable = Boolean(evaluationStatus?.terminal)
   const shellStyle = buildUiShellStyle(uiSettings)
+  const workspaceLayout = resolveWorkspaceLayout(uiSettings, viewport)
   const showRecentActivity = uiSettings.sections.recentActivity
   const showCurrentEvaluation = uiSettings.sections.currentEvaluation
   const showTerminalReport = uiSettings.sections.terminalReport
@@ -1373,13 +1680,8 @@ function App() {
       : backendConfig.mode === 'local'
         ? 'The desktop process supervises a loopback companion while keeping configuration and results inside Tauri.'
         : 'The desktop shell brokers remote HTTPS requests while preserving desktop-side validation and caching.'
-  const workspaceDensityLabel =
-    viewport.density === 'compact'
-      ? 'Compact laptop'
-      : viewport.density === 'balanced'
-        ? 'Balanced desktop'
-        : 'Wide desktop'
-  const workspaceSizeLabel = `${viewport.width} x ${viewport.height}`
+  const workspaceDensityLabel = workspaceLayout.label
+  const workspaceSizeLabel = `${workspaceLayout.width} x ${workspaceLayout.height}`
   const requestValidationErrors = validateEvaluationRequest(
     request,
     capabilitiesLoadState === 'ready' ? capabilities : null,
@@ -1400,12 +1702,20 @@ function App() {
     health !== null &&
     capabilitiesLoadState === 'ready' &&
     requestValidationErrors.length === 0
+  const reconCanRun =
+    desktopRuntime &&
+    reconLoadState !== 'loading' &&
+    request.target.trim().length > 0 &&
+    health !== null &&
+    capabilitiesLoadState === 'ready' &&
+    capabilities?.supportsRecon === true
 
   return (
     <div
-      className={`app-shell app-shell--${viewport.density}`}
+      className={`app-shell app-shell--${workspaceLayout.density}`}
       style={shellStyle}
       data-viewport-density={viewport.density}
+      data-workspace-size={workspaceLayout.key}
     >
       <header className="topbar">
         <div className="topbar-brand">
@@ -1482,9 +1792,9 @@ function App() {
               <h2>Run audits through a companion service, embedded engine, or remote API.</h2>
             </div>
             <span className="status-pill status-live">
-              {viewport.density === 'compact'
+              {workspaceLayout.density === 'compact'
                 ? 'Dense shell'
-                : viewport.density === 'balanced'
+                : workspaceLayout.density === 'balanced'
                   ? 'Balanced shell'
                   : 'Wide shell'}
             </span>
@@ -1659,7 +1969,7 @@ function App() {
           </div>
 
           {showBackendSurface ? (
-            <div className="validation-list">
+          <div className="validation-list">
               <article className="validation-card">
                 <div className="validation-header">
                   <span>Service</span>
@@ -1686,6 +1996,51 @@ function App() {
                   </strong>
                 </div>
                 <p>Phase 2 consumes artifact routes without moving persistence into the client.</p>
+              </article>
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Recon</span>
+                  <strong className={capabilities?.supportsRecon ? 'tone-good' : 'tone-warn'}>
+                    {capabilities?.supportsRecon ? 'Available' : 'Unavailable'}
+                  </strong>
+                </div>
+                <p>
+                  {capabilities?.supportsRecon
+                    ? 'Recon runs from the Audit tab against the active target.'
+                    : 'Load a backend that exposes the recon route before using this workflow.'}
+                </p>
+              </article>
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Auth</span>
+                  <strong className={health?.authRequired ? 'tone-warn' : 'tone-good'}>
+                    {health?.authRequired ? 'Required' : 'Not required'}
+                  </strong>
+                </div>
+                <p>
+                  {health?.authRequired
+                    ? 'Protected capabilities require the backend auth token before they can load.'
+                    : 'Backend capabilities load without an auth token in this mode.'}
+                </p>
+              </article>
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Compatibility</span>
+                  <strong className={connectionFailureCode === 'incompatible_client' ? 'tone-warn' : 'tone-good'}>
+                    {health?.compatibility?.minimumDesktopVersion
+                      ? `${health.compatibility.minimumDesktopVersion}+`
+                      : 'Unavailable'}
+                  </strong>
+                </div>
+                <p>
+                  {health?.compatibility
+                    ? `Recommended ${health.compatibility.recommendedDesktopVersion}. ${
+                        connectionFailureCode === 'incompatible_client'
+                          ? 'The backend rejected this desktop version.'
+                          : 'Match the backend minimum before loading protected capabilities.'
+                      }`
+                    : 'Compatibility guidance appears after health loads.'}
+                </p>
               </article>
             </div>
           ) : (
@@ -1729,12 +2084,14 @@ function App() {
                 aria-label="Target URL"
                 type="text"
                 value={request.target}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextTarget = event.target.value
+                  invalidateReconState()
                   setRequest((current) => ({
                     ...current,
-                    target: event.target.value,
+                    target: nextTarget,
                   }))
-                }
+                }}
               />
             </label>
 
@@ -1865,6 +2222,108 @@ function App() {
               {submissionIssues.map((issue) => (
                 <p key={issue}>{issue}</p>
               ))}
+            </div>
+          ) : null}
+
+          <div className="subsection-heading">
+            <div>
+              <p className="section-kicker">Recon advisory</p>
+              <h3>Target posture and transport hints</h3>
+            </div>
+            <button
+              type="button"
+              className="secondary-action"
+              disabled={!reconCanRun}
+              onClick={() => void handleRunRecon()}
+            >
+              {reconLoadState === 'loading' ? 'Running Recon' : 'Run Recon'}
+            </button>
+          </div>
+
+          <div className="validation-list">
+            <article className="validation-card">
+              <div className="validation-header">
+                <span>Recon target</span>
+                <strong className="tone-idle">{request.target.trim() || 'Unset'}</strong>
+              </div>
+              <p>
+                {reconCanRun
+                  ? 'Run recon to derive an operator posture recommendation for the active target.'
+                  : 'Reconnect capabilities and choose a target before running recon.'}
+              </p>
+            </article>
+
+            <article className="validation-card">
+              <div className="validation-header">
+                <span>Recon state</span>
+                <strong
+                  className={
+                    reconLoadState === 'ready'
+                      ? 'tone-good'
+                      : reconLoadState === 'failed'
+                        ? 'tone-warn'
+                        : 'tone-idle'
+                  }
+                >
+                  {reconLoadState === 'loading'
+                    ? 'Loading'
+                    : reconLoadState === 'ready'
+                      ? 'Ready'
+                      : reconLoadState === 'failed'
+                        ? 'Blocked'
+                        : 'Idle'}
+                </strong>
+              </div>
+              <p>
+                {reconError
+                  ? reconError
+                  : reconLoadState === 'ready'
+                    ? 'Recon output is ready below.'
+                    : 'Recon output appears after the backend returns a recommendation.'}
+              </p>
+            </article>
+          </div>
+
+          {reconResultView ? (
+            <div className="validation-list">
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Recommendation</span>
+                  <strong className="tone-good">{reconResultView.recommendation}</strong>
+                </div>
+                <p>{reconResultView.evidenceSummary}</p>
+              </article>
+
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Posture</span>
+                  <strong className="tone-idle">{reconResultView.posture}</strong>
+                </div>
+                <p>
+                  Confidence {reconResultView.confidenceLabel} · Auto-select{' '}
+                  {reconResultView.autoSelectAllowed}
+                </p>
+              </article>
+
+              {reconResultView.signals.length ? (
+                <article className="validation-card">
+                  <div className="validation-header">
+                    <span>Signals</span>
+                    <strong className="tone-idle">{reconResultView.signals.length}</strong>
+                  </div>
+                  <p>{reconResultView.signals.join(', ')}</p>
+                </article>
+              ) : null}
+
+              {reconResultView.evidence.length ? (
+                <article className="validation-card">
+                  <div className="validation-header">
+                    <span>Evidence</span>
+                    <strong className="tone-idle">{reconResultView.evidence.length}</strong>
+                  </div>
+                  <p>{reconResultView.evidence.join(', ')}</p>
+                </article>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -2188,6 +2647,40 @@ function App() {
             </div>
             <span className="status-pill status-muted">Persisted locally</span>
           </div>
+
+          <section className="settings-section">
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Screen size</p>
+                <h3>Workspace presets</h3>
+              </div>
+            </div>
+            <div className="toggle-grid settings-toggle-grid">
+              {workspaceSizeOptions.map((option) => (
+                <label key={option.key} className="toggle-card">
+                  <input
+                    type="radio"
+                    name="workspace-size"
+                    aria-label={option.label}
+                    aria-describedby={`workspace-size-${option.key}-description`}
+                    checked={uiSettings.workspaceSize === option.key}
+                    onChange={() => updateWorkspaceSize(option.key)}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small id={`workspace-size-${option.key}-description`}>
+                      {option.description}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="field-hint">
+              {workspaceLayout.key === 'auto'
+                ? 'Auto detect follows the current screen size and keeps the shell compressed for the visible viewport.'
+                : `${workspaceLayout.label} layout defaults keep the shell compact for ${workspaceLayout.width} x ${workspaceLayout.height}.`}
+            </p>
+          </section>
 
           <section className="settings-section">
             <div className="subsection-heading">

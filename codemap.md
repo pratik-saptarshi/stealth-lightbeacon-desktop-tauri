@@ -12,10 +12,17 @@ artifacts, recon output, and the canonical OpenAPI contract.
 
 - `README.md`: canonical GitHub landing page for the desktop client.
 - `readme.md`: lowercase mirror for tooling and handoff consistency.
-- `codemap.md`: repository atlas and current architecture map.
-- `backlog.md`: authoritative completion tracker and merged remediation plan.
-- `implementation-roadmap.md`: historical phase ledger and completion record.
+- `docs/roadmap/README.md`: roadmap index and future-state document hub.
+- `docs/roadmap/backlog.md`: authoritative completion tracker and merged
+  remediation plan.
+- `docs/roadmap/implementation-roadmap.md`: historical phase ledger and
+  completion record.
+- `docs/roadmap/plan-review-traceability.md`: review findings and roadmap
+  mapping.
+- `docs/roadmap/playwright-test-suite.md`: browser validation guide and test
+  surface.
 - `changelog.md`: release notes and documentation history.
+- `shared-axioms.md`: cross-repo boundary ownership and validation axioms.
 - `scripts/check_contract_sync.py`: pinned contract drift gate.
 - `scripts/release_validate.py`: cross-repo release validation gate.
 - `.github/workflows/release.yml`: tag-push GitHub Actions release publisher.
@@ -30,7 +37,8 @@ artifacts, recon output, and the canonical OpenAPI contract.
 
 | Directory | Responsibility Summary | Detailed Map |
 | --- | --- | --- |
-| `./` | Repo truth docs, release gates, contract snapshot, and backlog tracking | [codemap.md](codemap.md) |
+| `./` | Repo truth docs, release gates, contract snapshot, and atlas tracking | [codemap.md](codemap.md) |
+| `docs/roadmap/` | Future-state planning, review, and execution records | roadmap index and phase ledger |
 | `src/` | React operator shell and workflow UI | [src/codemap.md](src/codemap.md) |
 | `src/lib/` | Frontend adapter seam to Tauri commands | [src/lib/codemap.md](src/lib/codemap.md) |
 | `src-tauri/` | Packaged Tauri app, build metadata, and packaging config | [src-tauri/codemap.md](src-tauri/codemap.md) |
@@ -56,21 +64,16 @@ artifacts, recon output, and the canonical OpenAPI contract.
 7. Submission flows through `POST /evaluations`, polling through
    `GET /evaluations/{evaluation_id}`, and terminal retrieval through result
    and artifact routes.
-8. Recon transport exists in the adapter/runtime, but the operator workflow is
-   still backlog work in `src/App.tsx`.
+8. Recon transport exists in the adapter/runtime, and the React shell wires an
+   operator workflow around it.
 9. Release validation checks contract sync, backend tests, desktop tests, Rust
-   tests, frontend build, and Tauri package build.
+   tests, frontend build, Playwright smoke, and Tauri package build.
 
 ## Current Completion Status
 
-- Phases `0`, `1`, and `2`: complete and validated.
-- Phase `3`: partial, because recon transport exists but the React operator
-  workflow is not yet wired.
-- Phase `4`: partial, because local and remote runtime substrate exists but the
-  operator-facing auth and compatibility UX is still thin.
-- Phase `5`: partially complete, because contract sync and release validation
-  exist and the release publication workflow is documented and exercised
-  through the tag-push GitHub Actions path.
+- Phases `0`, `1`, `2`, `3`, and `4`: complete and validated.
+- Phase `5`: partial, because contract sync and release validation exist, but
+  final release packaging validation still needs a stable rerun.
 
 ## Integration
 
@@ -82,5 +85,9 @@ artifacts, recon output, and the canonical OpenAPI contract.
   - `README.md`
   - `readme.md`
   - `architecture.md`
-  - `backlog.md`
+  - `docs/roadmap/backlog.md`
+  - `docs/roadmap/implementation-roadmap.md`
+  - `docs/roadmap/plan-review-traceability.md`
+  - `docs/roadmap/README.md`
+  - `docs/roadmap/playwright-test-suite.md`
   - `readme-CLI.md`

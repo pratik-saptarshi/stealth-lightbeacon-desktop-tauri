@@ -6,6 +6,8 @@
   backend repo, not in React or Tauri glue.
 - Use an isolated worktree for larger changes so the main checkout stays
   readable while docs, validation, and release work are in flight.
+- Keep the public docs set current when shell behavior, runtime flow, or
+  release packaging changes.
 - Preserve the trust boundary:
   - React owns operator UX.
   - `src/lib/desktop.ts` owns the frontend adapter surface.
@@ -23,6 +25,11 @@
 3. Run `npm run test:python`.
 4. Run `npm run test:rust`.
 5. Run `npm run validate:release` for release-boundary work.
+6. Refresh `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
+   `security-policy.md`, `bill-of-materials.md`, and the relevant codemaps
+   before tagging a public release.
+7. Push the release tag to `origin` so the GitHub Actions workflow can publish
+   the GitHub release.
 
 ## Cross-Repo Changes
 
@@ -31,6 +38,7 @@
   artifact.
 - Keep the desktop repo honest about companion packaging: this repo does not
   embed the backend runtime.
+- Tag and publish releases only after the release validation lane passes.
 
 ## Review Expectations
 

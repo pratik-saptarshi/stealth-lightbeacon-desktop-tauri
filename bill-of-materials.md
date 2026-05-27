@@ -7,6 +7,8 @@
 - `react` `^19.2.6`
 - `react-dom` `^19.2.6`
 - `@tauri-apps/api` `^2.11.0`
+- Tabbed operator shell with viewport-density classification and `800 x 600`
+  first-launch defaults in `src/App.tsx` and `src-tauri/tauri.conf.json`.
 
 ### Desktop Runtime
 
@@ -45,3 +47,8 @@ Validated worktree used for this integration:
   `src-tauri/tauri.conf.json`
 - release validation script:
   `scripts/release_validate.py`
+- GitHub release workflow:
+  `.github/workflows/release.yml`
+- public documentation set:
+  `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
+  `contributing.md`, `security-policy.md`, `bill-of-materials.md`

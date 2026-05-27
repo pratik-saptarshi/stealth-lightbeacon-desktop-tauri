@@ -7,12 +7,17 @@ contract. The desktop client is a thin but trusted UX and transport layer.
 
 ## Runtime Topology
 
-1. React renders connection setup, evaluation submission, polling, terminal
-   result, artifacts, recon, and snapshot restore.
-2. The frontend calls Tauri commands through `src/lib/desktop.ts`.
-3. Rust validates local input, persists local settings, manages the optional
+1. Tauri starts the desktop window at `800 x 600` by default so the shell
+   opens in a compact workspace.
+2. React renders connection setup, evaluation submission, polling, terminal
+   result, artifacts, recon, snapshot restore, and a horizontal tab bar below
+   the header.
+3. The frontend classifies viewport density before rendering and keeps only
+   the active panel visible.
+4. The frontend calls Tauri commands through `src/lib/desktop.ts`.
+5. Rust validates local input, persists local settings, manages the optional
    local companion process, and performs HTTP requests to the backend API.
-4. The backend API owns evaluation lifecycle state and contract semantics.
+6. The backend API owns evaluation lifecycle state and contract semantics.
 
 ## Cross-Repo Reality
 
@@ -44,9 +49,11 @@ but some operator-facing completion work remains in this repo.
 
 1. Tauri starts and loads persisted `backend-config.json` from the app config
    directory.
-2. React requests the saved config and any terminal snapshot from Rust.
-3. React checks backend reachability and capability data.
-4. In local mode, Rust can discover and start the sibling backend companion and
+2. React reads the viewport and derives the initial density class before the
+   tabbed shell mounts.
+3. React requests the saved config and any terminal snapshot from Rust.
+4. React checks backend reachability and capability data.
+5. In local mode, Rust can discover and start the sibling backend companion and
    wait for an `ok` health state before continuing.
 
 ### Evaluation Lifecycle
@@ -77,6 +84,8 @@ against the backend producer with `npm run check:contract-sync`.
 - evaluation create and status polling
 - terminal result retrieval and rendering
 - artifact retrieval and rendering
+- viewport detection and density-aware shell sizing
+- horizontal tabbed workspace navigation with hidden inactive panels
 - recon transport support in the desktop adapter and Rust runtime
 - local companion startup, readiness, degraded-state, and shutdown handling
 - remote HTTPS enforcement, version header injection, and Rust-only auth-token
@@ -89,8 +98,8 @@ against the backend producer with `npm run check:contract-sync`.
 - Recon is not yet wired into `src/App.tsx`.
 - Remote auth-required and compatibility-mismatch handling exists at the
   transport layer, but operator-facing UX is still thin.
-- GitHub publication is not yet configured in this local checkout because no
-  `origin` remote exists.
+- GitHub release publication is handled through the documented tag-push
+  workflow and GitHub Actions, not an in-app publishing service.
 - The desktop package still depends on a separately versioned backend runtime;
   it does not embed Python or the audit engine.
 - Long-term Rust decomposition is still desirable because `src-tauri/src/lib.rs`

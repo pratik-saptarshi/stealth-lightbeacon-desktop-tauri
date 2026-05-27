@@ -1,7 +1,5 @@
 # Stealth Lightbeacon Desktop Client
 
-![Stealth Lightbeacon desktop client](./src/assets/hero.png)
-
 Canonical landing page for the desktop client. Some handoff instructions refer
 to a lowercase `readme.md`; this worktree is case-insensitive, so the same file
 path serves both references here.
@@ -38,7 +36,6 @@ path serves both references here.
 - [codemap.md](codemap.md)
 - [backlog.md](backlog.md)
 - [implementation-roadmap.md](implementation-roadmap.md)
-- [shared-axioms.md](shared-axioms.md)
 - [architecture.md](architecture.md)
 - [readme-CLI.md](readme-CLI.md)
 - [changelog.md](changelog.md)

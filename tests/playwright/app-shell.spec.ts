@@ -57,6 +57,7 @@ test.describe('Stealth Lightbeacon shell', () => {
       'data-workspace-size',
       'desktop',
     )
+    await expect(page.locator('.app-shell')).toHaveClass(/app-shell--compact/)
     await expect(
       settingsPanel.getByText(/Desktop layout defaults keep the shell compact/i),
     ).toBeVisible()

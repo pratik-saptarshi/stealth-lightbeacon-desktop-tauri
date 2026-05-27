@@ -474,10 +474,12 @@ describe('App shell', () => {
 
   it('clears recon output when the target changes', async () => {
     const user = userEvent.setup()
+    const pendingRecon = createDeferredPromise<desktop.ReconResponse>()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
     })
+    desktopApi.runRecon.mockReturnValueOnce(pendingRecon.promise)
 
     render(<App />)
 
@@ -489,20 +491,27 @@ describe('App shell', () => {
         target: 'https://example.com',
       }),
     )
-    expect(await screen.findByText('stealth')).toBeInTheDocument()
 
     await user.clear(screen.getByLabelText('Target URL'))
     await user.type(screen.getByLabelText('Target URL'), 'https://new.example')
 
     expect(screen.queryByText('stealth')).not.toBeInTheDocument()
+
+    pendingRecon.resolve(reconResult)
+
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
   })
 
   it('clears stale recon output when capabilities refresh', async () => {
     const user = userEvent.setup()
+    const pendingRecon = createDeferredPromise<desktop.ReconResponse>()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
     })
+    desktopApi.runRecon.mockReturnValueOnce(pendingRecon.promise)
 
     render(<App />)
 
@@ -514,10 +523,15 @@ describe('App shell', () => {
         target: 'https://example.com',
       }),
     )
-    expect(await screen.findByText('stealth')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: /^Connection/i }))
     await user.click(screen.getByRole('button', { name: 'Check Health' }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
+
+    pendingRecon.resolve(reconResult)
 
     await waitFor(() =>
       expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
@@ -526,7 +540,7 @@ describe('App shell', () => {
 
   it('clears stale recon output before a rejected rerun reports failure', async () => {
     const user = userEvent.setup()
-    const failedRerun = createDeferredPromise<void>()
+    const failedRerun = createDeferredPromise<desktop.ReconResponse>()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,

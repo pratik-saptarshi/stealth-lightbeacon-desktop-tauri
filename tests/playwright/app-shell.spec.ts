@@ -61,6 +61,16 @@ test.describe('Stealth Lightbeacon shell', () => {
     await expect(
       settingsPanel.getByText(/Desktop layout defaults keep the shell compact/i),
     ).toBeVisible()
+
+    await page.getByRole('tab', { name: /^Overview/i }).click()
+    const adaptedMetrics = await page.evaluate(() => ({
+      bodyScrollHeight: document.body.scrollHeight,
+      docScrollHeight: document.documentElement.scrollHeight,
+      innerHeight: window.innerHeight,
+    }))
+    expect(
+      Math.max(adaptedMetrics.bodyScrollHeight, adaptedMetrics.docScrollHeight),
+    ).toBeLessThanOrEqual(adaptedMetrics.innerHeight)
   })
 
   test('stays within the 800 x 600 baseline without vertical scrolling', async ({

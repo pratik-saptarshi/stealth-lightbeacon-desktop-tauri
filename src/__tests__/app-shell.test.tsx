@@ -461,6 +461,59 @@ describe('App shell', () => {
     expect(await screen.findByText('Confidence 90% · Auto-select Allowed')).toBeInTheDocument()
   })
 
+  it('clears recon output when the target changes', async () => {
+    const user = userEvent.setup()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Target URL'))
+    await user.type(screen.getByLabelText('Target URL'), 'https://new.example')
+
+    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
+  })
+
+  it('clears stale recon output after a failed rerun', async () => {
+    const user = userEvent.setup()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+    desktopApi.runRecon
+      .mockResolvedValueOnce(reconResult)
+      .mockRejectedValueOnce('Recon failed.')
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    expect((await screen.findAllByText('Recon failed.')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
+  })
+
   it('starts result fetch only after the evaluation reaches a terminal status', async () => {
     const user = userEvent.setup()
     desktopApi.createEvaluation.mockResolvedValue({

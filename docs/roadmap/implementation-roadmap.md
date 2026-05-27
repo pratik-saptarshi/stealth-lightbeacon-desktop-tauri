@@ -4,12 +4,13 @@ This roadmap is now historical and completion-oriented rather than forward
 planning. It records the phase model that was executed to make the desktop app
 work end to end with the sibling backend companion.
 
-Verified state on 2026-05-26:
+Verified state on 2026-05-27:
 
-- Desktop runtime features through release hardening are implemented locally.
+- Desktop runtime features through recon, remote policy, and release hardening
+  are implemented locally.
 - Backend companion work required by the original desktop plan is implemented in
   `/private/tmp/stealth-lightbeacon-phase-0a-0b`.
-- The remaining work in this repo is operator-facing completion work plus
+- The remaining work in this repo is frontend verification follow-up plus
   release-operability cleanup.
 
 See
@@ -51,9 +52,9 @@ for the current remediation backlog.
 | 2A | Complete | Terminal result route and desktop retrieval alignment |
 | 2B | Complete | Artifact descriptor route and desktop artifact retrieval alignment |
 | 3A | Complete | Managed local companion lifecycle |
-| 3B | Partial | Remote auth, compatibility, and transport substrate exists, but operator-facing UX is incomplete |
-| 4 | Partial | Recon route and transport exist, but React workflow wiring is incomplete |
-| 5 | Partial | Contract sync and local validation exist, but publication plumbing is incomplete |
+| 3B | Complete | Remote auth, compatibility, and transport substrate with surfaced UX |
+| 4 | Complete | Recon route, transport, and React workflow wiring |
+| 5 | Partial | Contract sync and local validation exist, but package-grade release validation remains incomplete |
 
 ## Phase Summary
 
@@ -82,19 +83,18 @@ for the current remediation backlog.
 
 - Local mode became a managed companion runtime.
 - Remote mode became policy-driven with HTTPS enforcement, compatibility
-  metadata, and Rust-only auth-token lookup, but the React shell still lacks
-  explicit unauthorized and incompatibility UX.
+  metadata, Rust-only auth-token lookup, and surfaced operator UX.
 
 ### Phase 4
 
-- Recon became a capability-gated backend route with desktop transport support.
-- The remaining gap is operator workflow wiring in `src/App.tsx`.
+- Recon became a capability-gated backend route with desktop transport support
+  and React workflow wiring.
 
 ### Phase 5
 
 - Contract sync and cross-repo validation became part of the release boundary.
-- Tauri package validation is now part of the release lane, but publication
-  plumbing remains outstanding.
+- Tauri package validation remains part of the release lane, but deterministic
+  readiness still needs hardening.
 
 ## Completion Definition
 
@@ -109,8 +109,7 @@ The remaining desktop-completion work is tracked in `./backlog.md`.
 
 ## Post-Completion Follow-Up
 
-The remaining work is tracked in `./backlog.md` under phases `R1` to `R4`:
+The remaining work is tracked in `./backlog.md` under the open phases:
 
-- repo-truth and codemap refresh
+- frontend verification follow-up
 - package-grade release validation
-- GitHub publication plumbing

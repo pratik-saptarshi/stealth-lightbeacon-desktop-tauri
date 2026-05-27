@@ -23,14 +23,11 @@ path serves both references here.
   and only the selected panel visible at a time.
 - The first desktop launch opens at `800 x 600`, which keeps the default
   workspace compact and scroll-light.
-- Phases `0`, `1`, and `2` are complete and validated.
-- Phase `3` is partial because recon transport exists, but the React workflow
-  is not yet wired.
-- Phase `4` is partial because the local/remote runtime substrate exists, but
-  operator-facing auth and compatibility UX is still thin.
-- Phase `5` is partial because validation and packaging exist, and GitHub
-  publication is handled through the documented tag-push workflow and GitHub
-  Actions rather than an automated in-app path.
+- Phases `0`, `1`, `2`, `3`, and `4` are complete and validated.
+- Phase `5` is partial because release validation and packaging still depend on
+  deterministic backend readiness and environment-specific Tauri packaging
+  checks, even though publication is documented through the tag-push workflow
+  and GitHub Actions.
 
 ## Where To Look
 
@@ -40,6 +37,7 @@ path serves both references here.
 - [Backlog](./docs/roadmap/backlog.md)
 - [Implementation roadmap](./docs/roadmap/implementation-roadmap.md)
 - [Plan review traceability](./docs/roadmap/plan-review-traceability.md)
+- [Playwright test suite](./docs/roadmap/playwright-test-suite.md)
 - [shared-axioms.md](shared-axioms.md)
 - [architecture.md](architecture.md)
 - [readme-CLI.md](readme-CLI.md)

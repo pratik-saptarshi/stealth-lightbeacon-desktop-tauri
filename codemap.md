@@ -73,7 +73,8 @@ artifacts, recon output, and the canonical OpenAPI contract.
 
 - Phases `0`, `1`, `2`, `3`, and `4`: complete and validated.
 - Phase `5`: partial, because contract sync and release validation exist, but
-  final release packaging validation still needs a stable rerun.
+  package-grade release validation still needs deterministic backend readiness
+  and environment-specific Tauri packaging behavior.
 
 ## Integration
 

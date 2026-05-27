@@ -10,9 +10,9 @@ Status was revalidated against the desktop repo and the backend worktree
 | 0. Contract reset | Complete | Backend now produces the canonical OpenAPI 3.1 contract and the desktop pins it locally with drift checks. |
 | 1. Connectivity and evaluation lifecycle | Complete | Desktop config persistence, capability gating, typed errors, retry/recovery, and IPC coverage are in place. |
 | 2. Results and artifacts | Complete | Result retrieval, artifact retrieval, and terminal snapshot persistence are implemented and validated against the backend worktree. |
-| 3. Recon | Partial | Backend route and desktop transport support exist, but the operator workflow is not yet wired in `src/App.tsx`. |
-| 4. Hybrid local and remote backend operations | Partial | Local companion lifecycle and remote policy substrate are implemented, but operator-facing auth and compatibility UX is still thin. |
-| 5. History and release hardening | Partial | Contract sync, release validation, and packaging checks are implemented; remaining work includes publication plumbing and final release packaging validation. |
+| 3. Recon | Complete | Backend route, desktop transport support, and operator workflow are wired in `src/App.tsx`. |
+| 4. Hybrid local and remote backend operations | Complete | Local companion lifecycle plus remote auth and compatibility UX are implemented. |
+| 5. History and release hardening | Partial | Contract sync, release validation, and packaging checks are implemented; remaining work is package-grade release validation hardening. |
 
 ## Cross-Repo Execution Ledger
 
@@ -25,34 +25,26 @@ Status was revalidated against the desktop repo and the backend worktree
 | 2A. Terminal result contract alignment | Complete | Result route and desktop retrieval flow are implemented and validated. |
 | 2B. Artifact descriptor and snapshot alignment | Complete | Artifact descriptors and desktop artifact flow are implemented and validated. |
 | 3A. Local companion lifecycle management | Complete | Managed local companion startup, readiness, degraded state, and shutdown are implemented. |
-| 3B. Remote auth, version compatibility, transport policy | Partial | Remote HTTPS enforcement, auth token lookup, and compatibility substrate are implemented, but operator-facing UX completion remains. |
-| 4. Recon advisory API alignment | Partial | Backend recon route and desktop transport support exist, but React UI wiring is still missing. |
-| 5. Release hardening and contract-sync automation | Partial | Cross-repo validation exists; publication automation, package verification, and repo-truth docs still need attention. |
+| 3B. Remote auth, version compatibility, transport policy | Complete | Remote HTTPS enforcement, auth token lookup, and compatibility UX are implemented. |
+| 4. Recon advisory API alignment | Complete | Backend recon route and desktop transport support are wired into the React shell. |
+| 5. Release hardening and contract-sync automation | Partial | Cross-repo validation exists; package-grade release validation still needs deterministic readiness hardening. |
 
 ## Feature Map
 
 | Feature area | Owning phase | Status | Remaining work |
 | --- | --- | --- | --- |
-| Repo truth, atlas, and governance docs | R1 | Partial | Refresh the docs, codemaps, and phase ledger so they match the verified code. |
-| Recon operator workflow | R2 | Partial | Wire recon into the React shell and preserve the desktop adapter boundary. |
-| Remote policy UX | R2 | Partial | Surface unauthorized and compatibility mismatch handling to the operator. |
-| Frontend verification | R2 | Partial | Add Vitest coverage, browser smoke, and accessibility checks that keep the 80 percent gate visible. |
+| Repo truth, atlas, and governance docs | R1 | Complete | Docs, codemaps, and phase ledger now match the verified code. |
+| Recon operator workflow | R2 | Complete | Recon is wired into the React shell and validated. |
+| Remote policy UX | R2 | Complete | Unauthorized and compatibility handling are surfaced to the operator. |
+| Frontend verification | R2 | Partial | Vitest coverage, browser smoke, and accessibility checks are in place; branch coverage follow-up remains. |
 | Release packaging and validation | R3 | Partial | Keep the Tauri bundle in the release lane and stabilize readiness and loopback checks. |
-| GitHub publication | R4 | Partial | Attach `origin`, push the release line, and publish documented release notes. |
+| GitHub publication | R4 | Complete | Release tags and the GitHub release workflow are in place. |
 
 ## Merged Remaining Backlog
 
 ### Phase R1: Repo Truth, Atlas, and Governance
 
-- R1-F1: Refresh `README.md`, `readme.md`, `architecture.md`, `backlog.md`,
-  `implementation-roadmap.md`, `readme-CLI.md`, `changelog.md`,
-  `contributing.md`, `security-policy.md`, and `bill-of-materials.md` so the
-  repo docs match the verified implementation state.
-- R1-F2: Refresh the root `codemap.md` and the folder codemaps under `src/`,
-  `src/lib/`, `src-tauri/`, and `src-tauri/src/` so the atlas matches the
-  code.
-- R1-T1: Re-run doc link checks and review the completion ledger for stale
-  claims before promoting the release branch.
+- No open items. Docs, codemaps, and ledger now match the verified code.
 
 Validation gate:
 - `README.md` and `readme.md` agree on the repo purpose and current phase
@@ -61,21 +53,15 @@ Validation gate:
   ledger.
 - `codemap.md` entries point to the correct folder maps.
 
-### Phase R2: Recon And Remote Policy UX
+### Phase R2: Frontend Verification Follow-Up
 
-- R2-F1: Add the operator-facing recon workflow in `src/App.tsx`.
-- R2-F2: Add explicit unauthorized and compatibility-mismatch UX in
-  `src/App.tsx`.
-- R2-F3: Add Vitest coverage for recon and remote-policy UX with an enforced
-  frontend coverage gate.
-- R2-F4: Add a browser-level smoke check for the built shell so the recon and
-  policy states are exercised outside unit tests.
+- R2-T1: Raise the shell coverage gate to the agreed threshold for the current
+  surface mix and keep the Playwright and accessibility suite green.
 
 Validation gate:
-- `npm run test` passes.
-- Frontend coverage is measurable and stays at or above 80 percent for the
-  relevant shell surface.
-- The built shell still renders through the adapter boundary.
+- `npm run test:coverage` passes.
+- `npm run test:e2e` passes.
+- The shell stays within the compact 800 x 600 scroll budget.
 
 ### Phase R3: Package-Grade Release Validation
 
@@ -95,22 +81,11 @@ Validation gate:
 
 ### Phase R4: GitHub Publication
 
-- R4-C1: Create or attach an `origin` remote for this checkout.
-- R4-C2: Push `main` and the release tag.
-- R4-F1: Publish a documented GitHub release with operator notes, validation
-  evidence, and backend companion dependency notes.
-
-Validation gate:
-- `git remote -v` shows a live `origin`.
-- The release commit and tag are visible on GitHub.
-- The release notes capture the validation matrix and the runtime dependency
-  boundary.
+- No open items. Release tags and the GitHub release workflow are in place.
 
 ## Current Remaining Risk
 
-- Recon UI and remote-policy UX still need implementation work in the React
-  shell.
-- Frontend coverage is not yet measurable in this checkout because the
-  coverage reporter is still missing from the test toolchain.
-- GitHub publication remains blocked until a remote repository exists or is
-  attached to this checkout.
+- Frontend coverage still needs the branch threshold tightened so the shell
+  surface reflects the agreed verification target.
+- Package-grade release validation still depends on deterministic backend
+  readiness and environment-specific Tauri packaging behavior.

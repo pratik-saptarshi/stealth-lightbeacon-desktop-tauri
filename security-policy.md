@@ -34,7 +34,7 @@ public issue. Include:
 
 ## Hardening Checklist
 
-- Keep `npm run check:contract-sync` green.
+- Keep `npm run check` and `npm run check:contract-sync` green.
 - Keep `npm run validate:release` green.
 - Do not move secret handling into the frontend adapter.
 - Do not relax remote HTTPS enforcement without an explicit policy change.

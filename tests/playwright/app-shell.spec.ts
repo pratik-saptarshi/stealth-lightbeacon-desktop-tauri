@@ -73,6 +73,19 @@ test.describe('Stealth Lightbeacon shell', () => {
     ).toBeLessThanOrEqual(adaptedMetrics.innerHeight)
   })
 
+  test('shows the recon advisory surface in the audit tab', async ({ page }) => {
+    await page.getByRole('tab', { name: /^Audit/i }).click()
+
+    await expect(page.getByText(/^Recon advisory$/i)).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: /Target posture and transport hints/i }),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: /Run Recon/i })).toBeDisabled()
+    await expect(
+      page.getByText(/Reconnect capabilities and choose a target before running recon\./i),
+    ).toBeVisible()
+  })
+
   test('stays within the 800 x 600 baseline without vertical scrolling', async ({
     page,
   }) => {

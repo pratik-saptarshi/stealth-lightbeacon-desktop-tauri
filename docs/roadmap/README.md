@@ -21,5 +21,7 @@ desktop client.
 
 - Keep the shell compact and tabbed so inactive panels stay hidden.
 - Preserve the standard laptop and desktop workspace presets in Settings.
-- Keep roadmap and review material consolidated here instead of at the repo
-  root.
+- Keep future-state planning, product management, and validation material
+  consolidated here instead of at the repo root.
+- Track the remaining coverage and release-packaging hardening here rather than
+  in ad hoc root-level notes.

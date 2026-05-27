@@ -711,7 +711,6 @@ function resultToneClass(status: string) {
 function App() {
   const desktopRuntime = isDesktopRuntime()
   const pollTimerRef = useRef<number | null>(null)
-  const reconRequestIdRef = useRef(0)
   const nextActivityIdRef = useRef(1)
   const initialViewport = readViewportState()
 
@@ -746,6 +745,7 @@ function App() {
   const [reconLoadState, setReconLoadState] =
     useState<ReconLoadState>('idle')
   const [reconError, setReconError] = useState<string | null>(null)
+  const reconRequestVersionRef = useRef(0)
   const [viewport, setViewport] = useState<ViewportState>(initialViewport)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState<WorkspaceTabKey>('overview')
@@ -859,6 +859,18 @@ function App() {
     }
   }, [])
 
+  const resetReconOutput = useCallback(
+    (nextLoadState: ReconLoadState = 'idle', nextError: string | null = null) => {
+      reconRequestVersionRef.current += 1
+      startTransition(() => {
+        setReconResult(null)
+        setReconError(nextError)
+        setReconLoadState(nextLoadState)
+      })
+    },
+    [],
+  )
+
   const syncProfilesFromCapabilities = useCallback(
     (nextCapabilities: CapabilitiesResponse | null) => {
       const supportedProfiles =
@@ -917,33 +929,8 @@ function App() {
     })
   }, [])
 
-  const invalidateReconState = useCallback(
-    (loadState: ReconLoadState = 'idle', error: string | null = null) => {
-      reconRequestIdRef.current += 1
-      startTransition(() => {
-        setReconResult(null)
-        setReconError(error)
-        setReconLoadState(loadState)
-      })
-    },
-    [],
-  )
-
-  const beginReconRequest = useCallback(() => {
-    reconRequestIdRef.current += 1
-    const requestId = reconRequestIdRef.current
-
-    startTransition(() => {
-      setReconResult(null)
-      setReconError(null)
-      setReconLoadState('loading')
-    })
-
-    return requestId
-  }, [])
-
   const refreshConnectionState = useCallback(async (mode: BackendMode) => {
-    invalidateReconState()
+    resetReconOutput()
 
     if (!desktopRuntime) {
       startTransition(() => {
@@ -1070,7 +1057,7 @@ function App() {
     } finally {
       setRefreshingConnection(false)
     }
-  }, [desktopRuntime, invalidateReconState, recordActivity, syncProfilesFromCapabilities])
+  }, [desktopRuntime, recordActivity, resetReconOutput, syncProfilesFromCapabilities])
 
   useEffect(() => {
     let cancelled = false
@@ -1573,9 +1560,12 @@ function App() {
       return
     }
 
+    reconRequestVersionRef.current += 1
+    const reconRequestVersion = reconRequestVersionRef.current
     const reconValidationErrors: string[] = []
+    const nextTarget = request.target.trim()
 
-    if (!request.target.trim()) {
+    if (!nextTarget) {
       reconValidationErrors.push('Enter a target URL before running recon.')
     }
 
@@ -1593,7 +1583,7 @@ function App() {
 
     if (reconValidationErrors.length > 0) {
       const message = reconValidationErrors[0]
-      invalidateReconState('failed', message)
+      resetReconOutput('failed', message)
       startTransition(() => {
         setNotice(message)
         setStatusLine('Recon blocked')
@@ -1602,13 +1592,17 @@ function App() {
       return
     }
 
-    const reconRequestId = beginReconRequest()
+    startTransition(() => {
+      setReconLoadState('loading')
+      setReconError(null)
+    })
 
     try {
-      const nextRecon = await runRecon({ target: request.target.trim() })
-      if (reconRequestId !== reconRequestIdRef.current) {
+      const nextRecon = await runRecon({ target: nextTarget })
+      if (reconRequestVersion !== reconRequestVersionRef.current) {
         return
       }
+
       startTransition(() => {
         setReconResult(nextRecon)
         setReconLoadState('ready')
@@ -1621,11 +1615,12 @@ function App() {
         `${nextRecon.target} returned ${nextRecon.posture} posture at ${formatConfidence(nextRecon.confidence)} confidence.`,
       )
     } catch (error) {
-      if (reconRequestId !== reconRequestIdRef.current) {
+      if (reconRequestVersion !== reconRequestVersionRef.current) {
         return
       }
+
       const message = formatCommandError(error)
-      invalidateReconState('failed', message)
+      resetReconOutput('failed', message)
       startTransition(() => {
         setNotice(message)
         setStatusLine('Recon unavailable')
@@ -2086,7 +2081,7 @@ function App() {
                 value={request.target}
                 onChange={(event) => {
                   const nextTarget = event.target.value
-                  invalidateReconState()
+                  resetReconOutput()
                   setRequest((current) => ({
                     ...current,
                     target: nextTarget,

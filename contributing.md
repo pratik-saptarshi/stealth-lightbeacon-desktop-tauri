@@ -20,15 +20,13 @@
 
 ## Local Workflow
 
-1. Run `npm run check:contract-sync`.
-2. Run `npm run test`.
-3. Run `npm run test:python`.
-4. Run `npm run test:rust`.
-5. Run `npm run validate:release` for release-boundary work.
-6. Refresh `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
-   `security-policy.md`, `bill-of-materials.md`, and the relevant codemaps
-   before tagging a public release.
-7. Push the release tag to `origin` so the GitHub Actions workflow can publish
+1. Run `npm run check`.
+2. Run `npm run check:contract-sync`.
+3. Run `npm run validate:release` for release-boundary work.
+4. Refresh `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
+   `security-policy.md`, `bill-of-materials.md`, and the roadmap docs under
+   `docs/roadmap/` before tagging a public release.
+5. Push the release tag to `origin` so the GitHub Actions workflow can publish
    the GitHub release.
 
 ## Cross-Repo Changes

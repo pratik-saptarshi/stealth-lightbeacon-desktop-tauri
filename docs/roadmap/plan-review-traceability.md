@@ -64,7 +64,7 @@ feature gaps, capability gaps, validation gaps, and testing gaps.
 
 | Priority | Owner | Action | Source |
 | --- | --- | --- | --- |
+| P1 | implementer | Keep the shell coverage and browser smoke lanes green. | R1-F10, R3-F02 |
 | P1 | implementer | Keep release validation honest by validating the Tauri package boundary. | R3-F02 |
-| P1 | implementer | Publish only after a real GitHub remote exists and the repo has been pushed. | R3-F03 |
-| P2 | implementer | Maintain repo-truth docs and codemaps as part of release readiness. | R3-F01, R3-F05 |
+| P2 | implementer | Maintain repo-truth docs, codemaps, and roadmap files as part of release readiness. | R3-F01, R3-F04, R3-F05 |
 | P2 | implementer | Keep governance docs linked from the root README. | R3-F04 |

@@ -2,6 +2,17 @@
 
 ## 2026-05-27
 
+### Mainline Merge And Validation
+
+- Merged the validated feature and validation worktrees into the mainline
+  desktop branch.
+- Consolidated the remaining planning and product-management records under
+  `docs/roadmap/`.
+- Kept the shell, recon workflow, and operator-policy surfaces documented
+  against the merged code.
+- Preserved the Playwright browser smoke, Vitest coverage lane, and release
+  validation workflow as the current testing and governance surface.
+
 ### Responsive Operator Shell
 
 - Added viewport detection in the desktop shell so the UI can classify compact,

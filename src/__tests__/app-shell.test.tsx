@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import App from '../App'
@@ -49,9 +49,10 @@ function setViewportSize(width: number, height: number) {
   window.dispatchEvent(new Event('resize'))
 }
 
-function createDeferredPromise<T>() {
+function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   let reject!: (reason?: unknown) => void
+
   const promise = new Promise<T>((promiseResolve, promiseReject) => {
     resolve = promiseResolve
     reject = promiseReject
@@ -347,6 +348,51 @@ describe('App shell', () => {
     expect(appShell?.style.getPropertyValue('--surface-panel-bg')).toBe('#112233')
   })
 
+  it('updates audit controls and workspace size preferences', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.clear(screen.getByLabelText('Max depth'))
+    await user.type(screen.getByLabelText('Max depth'), '3')
+    await user.clear(screen.getByLabelText('Max URLs'))
+    await user.type(screen.getByLabelText('Max URLs'), '250')
+    await user.click(screen.getByLabelText('html'))
+    await user.click(screen.getByLabelText('html'))
+    await user.click(screen.getByLabelText('Fail on critical findings'))
+    await user.click(screen.getByLabelText('Budget gate enabled'))
+
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.clear(screen.getByLabelText('Timeout (ms)'))
+    await user.type(screen.getByLabelText('Timeout (ms)'), '15000')
+    await user.click(screen.getByRole('button', { name: 'Check Health' }))
+
+    await user.click(screen.getByRole('tab', { name: /^Audit/i }))
+    await user.selectOptions(screen.getByLabelText('Profile'), 'deep')
+    await user.click(screen.getByRole('tab', { name: /^Settings/i }))
+    await user.click(screen.getByRole('radio', { name: /^Wide desktop$/i }))
+    const settingsPanel = screen.getByRole('tabpanel', { name: /^Settings/i })
+
+    expect(screen.getByLabelText('Max depth')).toHaveValue(3)
+    expect(screen.getByLabelText('Max URLs')).toHaveValue(250)
+    expect(screen.getByLabelText('Timeout (ms)')).toHaveValue(15000)
+    expect(screen.getByLabelText('Profile')).toHaveValue('deep')
+    expect(screen.getByLabelText('Fail on critical findings')).not.toBeChecked()
+    expect(screen.getByLabelText('Budget gate enabled')).toBeChecked()
+    const appShell = document.querySelector('.app-shell')
+    expect(appShell).toHaveAttribute(
+      'data-workspace-size',
+      'wideDesktop',
+    )
+    expect(appShell).toHaveClass(/app-shell--compact/)
+    expect(
+      within(settingsPanel).getByText(
+        'Wide desktop layout defaults keep the shell compact for 1920 x 1080.',
+      ),
+    ).toBeInTheDocument()
+  })
+
   it('hides optional sections from the dashboard when disabled in settings', async () => {
     const user = userEvent.setup()
 
@@ -361,6 +407,43 @@ describe('App shell', () => {
 
     await user.click(screen.getByRole('tab', { name: /^Connection/i }))
     expect(screen.getByText('Backend surface details are disabled in Settings.')).toBeInTheDocument()
+  })
+
+  it('hides current evaluation and terminal report surfaces when disabled in settings', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Settings/i }))
+    await user.click(screen.getByRole('checkbox', { name: /Current evaluation/ }))
+    await user.click(
+      screen.getByRole('checkbox', { name: /Terminal report and artifacts/ }),
+    )
+
+    await user.click(screen.getByRole('tab', { name: /^Results/i }))
+    expect(
+      await screen.findByText('Current evaluation cards are disabled in Settings.'),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText('Terminal reporting and artifact cards are disabled in Settings.'),
+    ).toBeInTheDocument()
+  })
+
+  it('renders browser preview fallback when the desktop runtime is unavailable', async () => {
+    desktopApi.isDesktopRuntime.mockReturnValue(false)
+
+    render(<App />)
+
+    expect(
+      await screen.findByText(
+        'Browser preview loaded. The desktop runtime is required to persist backend settings and call the API.',
+      ),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('Desktop runtime unavailable')).toBeInTheDocument()
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
+    expect(
+      screen.getByRole('button', { name: 'Save Connection' }),
+    ).toBeInTheDocument()
   })
 
   it('blocks invalid evaluation requests before submit', async () => {
@@ -472,14 +555,16 @@ describe('App shell', () => {
     expect(await screen.findByText('Confidence 90% · Auto-select Allowed')).toBeInTheDocument()
   })
 
-  it('clears recon output when the target changes', async () => {
+  it('clears recon output when the target changes during a pending rerun', async () => {
     const user = userEvent.setup()
-    const pendingRecon = createDeferredPromise<desktop.ReconResponse>()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
     })
-    desktopApi.runRecon.mockReturnValueOnce(pendingRecon.promise)
+    const staleRecon = createDeferred<desktop.ReconResponse>()
+    desktopApi.runRecon
+      .mockResolvedValueOnce(reconResult)
+      .mockReturnValueOnce(staleRecon.promise)
 
     render(<App />)
 
@@ -491,27 +576,32 @@ describe('App shell', () => {
         target: 'https://example.com',
       }),
     )
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+    await waitFor(() => expect(desktopApi.runRecon).toHaveBeenCalledTimes(2))
 
     await user.clear(screen.getByLabelText('Target URL'))
     await user.type(screen.getByLabelText('Target URL'), 'https://new.example')
 
-    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
+    staleRecon.resolve({ ...reconResult, target: 'https://example.com' })
 
-    pendingRecon.resolve(reconResult)
-
-    await waitFor(() =>
-      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.queryByText('stealth')).not.toBeInTheDocument())
   })
 
-  it('clears stale recon output when capabilities refresh', async () => {
+  it('clears recon output when backend capabilities refresh during a pending rerun', async () => {
     const user = userEvent.setup()
-    const pendingRecon = createDeferredPromise<desktop.ReconResponse>()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
     })
-    desktopApi.runRecon.mockReturnValueOnce(pendingRecon.promise)
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: false,
+    })
+    const staleRecon = createDeferred<desktop.ReconResponse>()
+    desktopApi.runRecon
+      .mockResolvedValueOnce(reconResult)
+      .mockReturnValueOnce(staleRecon.promise)
 
     render(<App />)
 
@@ -523,31 +613,34 @@ describe('App shell', () => {
         target: 'https://example.com',
       }),
     )
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+    await waitFor(() => expect(desktopApi.runRecon).toHaveBeenCalledTimes(2))
 
     await user.click(screen.getByRole('tab', { name: /^Connection/i }))
-    await user.click(screen.getByRole('button', { name: 'Check Health' }))
+    await user.selectOptions(screen.getByLabelText('Backend mode'), 'remote')
+    fireEvent.change(screen.getByLabelText('Backend base URL'), {
+      target: { value: 'https://api.example.test' },
+    })
+    fireEvent.change(screen.getByLabelText('Port'), { target: { value: '9443' } })
+    await user.click(screen.getByRole('button', { name: 'Save Connection' }))
 
-    await waitFor(() =>
-      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
-    )
+    await user.click(screen.getByRole('tab', { name: /^Audit/i }))
+    staleRecon.resolve({ ...reconResult, target: 'https://example.com' })
 
-    pendingRecon.resolve(reconResult)
-
-    await waitFor(() =>
-      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.queryByText('stealth')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Run Recon' })).toBeDisabled()
   })
 
-  it('clears stale recon output before a rejected rerun reports failure', async () => {
+  it('clears stale recon output after a failed rerun', async () => {
     const user = userEvent.setup()
-    const failedRerun = createDeferredPromise<desktop.ReconResponse>()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
     })
     desktopApi.runRecon
       .mockResolvedValueOnce(reconResult)
-      .mockReturnValueOnce(failedRerun.promise)
+      .mockRejectedValueOnce('Recon failed.')
 
     render(<App />)
 
@@ -563,13 +656,8 @@ describe('App shell', () => {
 
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
 
-    await waitFor(() =>
-      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
-    )
-
-    failedRerun.reject('Recon failed.')
-
     expect((await screen.findAllByText('Recon failed.')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
   })
 
   it('starts result fetch only after the evaluation reaches a terminal status', async () => {

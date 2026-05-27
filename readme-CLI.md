@@ -13,8 +13,15 @@ for local development, validation, and release work.
   Builds the frontend bundle into `dist/`.
 - `npm run preview`
   Serves the built frontend bundle locally.
+- `npm run check`
+  Runs the full validation lane: lint, coverage, browser smoke, Python contract
+  tests, and Rust tests.
 - `npm run test`
   Runs the React and adapter-facing Vitest suite.
+- `npm run test:coverage`
+  Runs the shell coverage lane with the enforced Vitest thresholds.
+- `npm run test:e2e`
+  Runs the Playwright browser smoke for the tabbed shell and workspace presets.
 - `npm run test:python`
   Runs the pinned OpenAPI contract checks in `tests/contracts/`.
 - `npm run test:rust`

@@ -22,6 +22,9 @@
 
 - `vite` `^8.0.12`
 - `vitest` `^4.1.7`
+- `@vitest/coverage-v8` `^4.1.7`
+- `@playwright/test` `^1.60.0`
+- `axe-core` `^4.11.4`
 - `typescript` `~6.0.2`
 - `eslint` `^10.3.0`
 - `@tauri-apps/cli` `^2.11.2`
@@ -29,6 +32,8 @@
 - `@testing-library/user-event` `^14.6.1`
 - `@testing-library/jest-dom` `^6.9.1`
 - `jsdom` `^29.1.1`
+- Playwright browser smoke for the tabbed shell, workspace presets, and
+  accessibility coverage in `tests/playwright/`.
 
 ## External Runtime Dependency
 

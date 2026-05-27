@@ -16,6 +16,7 @@ artifacts, recon output, and the canonical OpenAPI contract.
 - `backlog.md`: authoritative completion tracker and merged remediation plan.
 - `implementation-roadmap.md`: historical phase ledger and completion record.
 - `changelog.md`: release notes and documentation history.
+- `shared-axioms.md`: cross-repo boundary ownership and validation axioms.
 - `scripts/check_contract_sync.py`: pinned contract drift gate.
 - `scripts/release_validate.py`: cross-repo release validation gate.
 - `.github/workflows/release.yml`: tag-push GitHub Actions release publisher.

@@ -917,6 +917,12 @@ function App() {
   }, [])
 
   const refreshConnectionState = useCallback(async (mode: BackendMode) => {
+    startTransition(() => {
+      setReconResult(null)
+      setReconError(null)
+      setReconLoadState('idle')
+    })
+
     if (!desktopRuntime) {
       startTransition(() => {
         setHealth(null)
@@ -1566,6 +1572,7 @@ function App() {
     if (reconValidationErrors.length > 0) {
       const message = reconValidationErrors[0]
       startTransition(() => {
+        setReconResult(null)
         setNotice(message)
         setStatusLine('Recon blocked')
         setReconError(message)
@@ -1594,6 +1601,7 @@ function App() {
     } catch (error) {
       const message = formatCommandError(error)
       startTransition(() => {
+        setReconResult(null)
         setReconLoadState('failed')
         setReconError(message)
         setNotice(message)
@@ -2053,12 +2061,16 @@ function App() {
                 aria-label="Target URL"
                 type="text"
                 value={request.target}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextTarget = event.target.value
+                  setReconResult(null)
+                  setReconError(null)
+                  setReconLoadState('idle')
                   setRequest((current) => ({
                     ...current,
-                    target: event.target.value,
+                    target: nextTarget,
                   }))
-                }
+                }}
               />
             </label>
 

@@ -117,22 +117,15 @@
 }
 
 .workspace-tabs {
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-
-.workspace-tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .workspace-tab {
-  flex: 0 0 auto;
   min-width: 0;
-  max-width: 16rem;
+  width: 100%;
+  max-width: none;
   padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid var(--surface-panel-border, var(--panel-border));
@@ -596,6 +589,7 @@
 
 .settings-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: 14px;
 }
 
@@ -647,6 +641,55 @@
   text-underline-offset: 3px;
 }
 
+.history-section {
+  display: grid;
+  gap: 14px;
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 14px;
+}
+
+.history-card {
+  display: grid;
+  gap: 8px;
+  border-radius: 22px;
+  padding: 18px;
+  background: var(--surface-card-bg, rgba(255, 255, 255, 0.52));
+  border: 1px solid var(--surface-panel-border, var(--panel-border));
+  box-shadow: var(--panel-shadow);
+}
+
+.history-card p {
+  color: var(--text-muted);
+}
+
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 12px;
+}
+
+.download-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-panel-border, var(--panel-border));
+  background: color-mix(in srgb, var(--surface-card-bg, #fff7ec) 80%, white);
+  box-shadow: var(--panel-shadow);
+  color: var(--text-strong);
+  text-decoration: none;
+}
+
+.download-card span {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  word-break: break-word;
+}
+
 .workspace-grid--single {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -677,7 +720,7 @@
 
 .app-shell--compact .workspace-tab {
   padding: 12px 14px;
-  max-width: 12rem;
+  max-width: none;
 }
 
 .app-shell--compact .workspace-tab small {
@@ -688,6 +731,8 @@
 .app-shell--compact .config-grid,
 .app-shell--compact .hero-metrics,
 .app-shell--compact .status-grid,
+.app-shell--compact .history-grid,
+.app-shell--compact .download-grid,
 .app-shell--compact .checkbox-grid,
 .app-shell--compact .toggle-grid {
   gap: 10px;
@@ -807,6 +852,8 @@
   .config-grid,
   .hero-metrics,
   .status-grid,
+  .history-grid,
+  .download-grid,
   .checkbox-grid,
   .toggle-grid {
     grid-template-columns: 1fr;
@@ -834,7 +881,9 @@
   .metric-card,
   .status-card,
   .validation-card,
-  .run-card {
+  .run-card,
+  .history-card,
+  .download-card {
     border-radius: 20px;
   }
 

@@ -306,6 +306,35 @@ function normalizeLastOpenedSnapshot(value: unknown): LastOpenedSnapshot | null 
     return null
   }
 
+  const evaluationStatusEvaluationId = readString(
+    statusRecord.evaluationId ?? statusRecord.evaluation_id,
+  )
+
+  const normalizedStatus = {
+    evaluationId: evaluationStatusEvaluationId ?? evaluationId,
+    status: readString(statusRecord.status) ?? status,
+    stage: readString(statusRecord.stage),
+    progressPercent:
+      typeof statusRecord.progressPercent === 'number'
+        ? statusRecord.progressPercent
+        : typeof statusRecord.progress_percent === 'number'
+          ? statusRecord.progress_percent
+          : null,
+    message: readString(statusRecord.message),
+    exitState: readString(statusRecord.exitState ?? statusRecord.exit_state),
+    terminal: typeof statusRecord.terminal === 'boolean' ? statusRecord.terminal : false,
+  }
+
+  const normalizedResult = normalizeEvaluationResultResponse(resultRecord)
+
+  if (
+    !normalizedStatus.terminal ||
+    normalizedStatus.evaluationId !== evaluationId ||
+    normalizedResult.evaluationId !== evaluationId
+  ) {
+    return null
+  }
+
   return {
     evaluation: {
       evaluationId,
@@ -314,24 +343,8 @@ function normalizeLastOpenedSnapshot(value: unknown): LastOpenedSnapshot | null 
         evaluationRecord.acceptedAt ?? evaluationRecord.accepted_at,
       ),
     },
-    evaluationStatus: {
-      evaluationId:
-        readString(statusRecord.evaluationId ?? statusRecord.evaluation_id) ??
-        evaluationId,
-      status: readString(statusRecord.status) ?? status,
-      stage: readString(statusRecord.stage),
-      progressPercent:
-        typeof statusRecord.progressPercent === 'number'
-          ? statusRecord.progressPercent
-          : typeof statusRecord.progress_percent === 'number'
-            ? statusRecord.progress_percent
-            : null,
-      message: readString(statusRecord.message),
-      exitState: readString(statusRecord.exitState ?? statusRecord.exit_state),
-      terminal:
-        typeof statusRecord.terminal === 'boolean' ? statusRecord.terminal : false,
-    },
-    evaluationResult: normalizeEvaluationResultResponse(resultRecord),
+    evaluationStatus: normalizedStatus,
+    evaluationResult: normalizedResult,
     artifacts: normalizeArtifacts(value.artifacts),
   }
 }

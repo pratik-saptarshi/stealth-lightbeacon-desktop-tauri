@@ -115,4 +115,357 @@ describe('desktop adapter', () => {
       '[CAPABILITIES_UNAVAILABLE] Capabilities failed to load | HTTP 503 | endpoint: /capabilities; retryable: true',
     )
   })
+
+  it('rejects malformed last-opened snapshots that are not terminal', async () => {
+    invoke.mockResolvedValueOnce({
+      evaluation: {
+        evaluationId: 'eval-123',
+        status: 'accepted',
+        acceptedAt: '2026-05-26T12:00:00Z',
+      },
+      evaluationStatus: {
+        evaluationId: 'eval-123',
+        status: 'running',
+        terminal: false,
+      },
+      evaluationResult: {
+        evaluationId: 'eval-123',
+        status: 'running',
+        summary: {},
+      },
+      artifacts: [],
+    })
+
+    await expect(desktop.getLastOpenedSnapshot()).resolves.toBeNull()
+  })
+
+  it('rejects malformed last-opened snapshots with mismatched evaluation ids', async () => {
+    invoke.mockResolvedValueOnce({
+      evaluation: {
+        evaluationId: 'eval-123',
+        status: 'accepted',
+        acceptedAt: '2026-05-26T12:00:00Z',
+      },
+      evaluationStatus: {
+        evaluationId: 'eval-456',
+        status: 'success',
+        terminal: true,
+      },
+      evaluationResult: {
+        evaluationId: 'eval-456',
+        status: 'success',
+        summary: {},
+      },
+      artifacts: [],
+    })
+
+    await expect(desktop.getLastOpenedSnapshot()).resolves.toBeNull()
+  })
+
+  it('detects desktop runtime from the tauri marker', () => {
+    expect(desktop.isDesktopRuntime()).toBe(false)
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
+    expect(desktop.isDesktopRuntime()).toBe(true)
+    delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+  })
+
+  it('formats structured command errors with nested details and blank entries', () => {
+    expect(
+      desktop.formatCommandError({
+        code: 'REMOTE_POLICY',
+        message: ' Remote policy rejected the request ',
+        status: 403,
+        details: [
+          '  ',
+          ['first', { retryable: true }],
+          { endpoint: '/capabilities', attempts: 3 },
+          7,
+        ],
+      }),
+    ).toBe(
+      '[REMOTE_POLICY] Remote policy rejected the request | HTTP 403 | first; retryable: true; endpoint: /capabilities; attempts: 3; 7',
+    )
+  })
+
+  it('normalizes evaluation results with snake_case payloads and filters invalid entries', async () => {
+    invoke.mockResolvedValueOnce({
+      evaluation_id: 'eval-123',
+      status: 'success',
+      summary: {
+        score: 93,
+        passed: 8,
+        warnings: 1,
+        failed: 0,
+        severity_counts: {
+          critical: 1,
+          medium: 2,
+          info: Number.NaN,
+        },
+        findings: [
+          null,
+          {
+            rule_id: 'legacy-rule',
+            status: 'warn',
+            description: '  Legacy rule triggered.  ',
+          },
+        ],
+        started_at: '2026-01-01T00:00:00Z',
+        completed_at: '2026-01-01T00:00:03Z',
+      },
+    })
+
+    await expect(desktop.getEvaluationResult('eval-123')).resolves.toEqual({
+      evaluationId: 'eval-123',
+      status: 'success',
+      summary: {
+        score: 93,
+        passed: 8,
+        warnings: 1,
+        failed: 0,
+        severity_counts: {
+          critical: 1,
+          medium: 2,
+          info: Number.NaN,
+        },
+        findings: [
+          null,
+          {
+            rule_id: 'legacy-rule',
+            status: 'warn',
+            description: '  Legacy rule triggered.  ',
+          },
+        ],
+        started_at: '2026-01-01T00:00:00Z',
+        completed_at: '2026-01-01T00:00:03Z',
+      },
+      severityCounts: {
+        critical: 1,
+        medium: 2,
+      },
+      findings: [
+        {
+          ruleId: 'legacy-rule',
+          title: null,
+          severity: null,
+          status: 'warn',
+          description: '  Legacy rule triggered.  ',
+        },
+      ],
+      startedAt: '2026-01-01T00:00:00Z',
+      completedAt: '2026-01-01T00:00:03Z',
+    })
+  })
+
+  it('normalizes artifact payloads with snake_case fields and drops invalid entries', async () => {
+    invoke.mockResolvedValueOnce([
+      null,
+      {
+        name: ' normalized-report ',
+        kind: 'normalized_report',
+        media_type: 'application/json',
+      },
+      {
+        name: 'missing-media',
+        kind: 'html',
+      },
+      {
+        name: 'html-report',
+        kind: 'html',
+        mediaType: 'text/html',
+        download_url: 'https://downloads.example.test/report.html',
+      },
+    ])
+
+    await expect(desktop.getEvaluationArtifacts('eval-123')).resolves.toEqual([
+      {
+        name: ' normalized-report ',
+        kind: 'normalized_report',
+        mediaType: 'application/json',
+        downloadUrl: null,
+      },
+      {
+        name: 'html-report',
+        kind: 'html',
+        mediaType: 'text/html',
+        downloadUrl: 'https://downloads.example.test/report.html',
+      },
+    ])
+  })
+
+  it('normalizes snake_case last-opened snapshots on the public API boundary', async () => {
+    invoke.mockResolvedValueOnce({
+      evaluation: {
+        evaluation_id: 'eval-123',
+        status: 'accepted',
+        accepted_at: '2026-05-26T12:00:00Z',
+      },
+      evaluation_status: {
+        evaluation_id: 'eval-123',
+        status: 'success',
+        stage: 'completed',
+        progress_percent: 100,
+        message: 'Evaluation complete.',
+        exit_state: 'success',
+        terminal: true,
+      },
+      evaluation_result: {
+        evaluation_id: 'eval-123',
+        status: 'success',
+        summary: {
+          score: 92,
+          severity_counts: {
+            critical: 1,
+            low: 2,
+          },
+          findings: [
+            {
+              rule_id: 'tls-version',
+              severity: 'medium',
+              status: 'warn',
+              description: 'TLS fallback still enabled.',
+            },
+          ],
+          started_at: '2026-05-26T12:00:00Z',
+          completed_at: '2026-05-26T12:00:03Z',
+        },
+      },
+      artifacts: [
+        {
+          name: 'normalized-report',
+          kind: 'normalized_report',
+          media_type: 'application/json',
+        },
+      ],
+    })
+
+    await expect(desktop.getLastOpenedSnapshot()).resolves.toEqual({
+      evaluation: {
+        evaluationId: 'eval-123',
+        status: 'accepted',
+        acceptedAt: '2026-05-26T12:00:00Z',
+      },
+      evaluationStatus: {
+        evaluationId: 'eval-123',
+        status: 'success',
+        stage: 'completed',
+        progressPercent: 100,
+        message: 'Evaluation complete.',
+        exitState: 'success',
+        terminal: true,
+      },
+      evaluationResult: {
+        evaluationId: 'eval-123',
+        status: 'success',
+        summary: {
+          score: 92,
+          severity_counts: {
+            critical: 1,
+            low: 2,
+          },
+          findings: [
+            {
+              rule_id: 'tls-version',
+              severity: 'medium',
+              status: 'warn',
+              description: 'TLS fallback still enabled.',
+            },
+          ],
+          started_at: '2026-05-26T12:00:00Z',
+          completed_at: '2026-05-26T12:00:03Z',
+        },
+        severityCounts: {
+          critical: 1,
+          low: 2,
+        },
+        findings: [
+          {
+            ruleId: 'tls-version',
+            title: null,
+            severity: 'medium',
+            status: 'warn',
+            description: 'TLS fallback still enabled.',
+          },
+        ],
+        startedAt: '2026-05-26T12:00:00Z',
+        completedAt: '2026-05-26T12:00:03Z',
+      },
+      artifacts: [
+        {
+          name: 'normalized-report',
+          kind: 'normalized_report',
+          mediaType: 'application/json',
+          downloadUrl: null,
+        },
+      ],
+    })
+  })
+
+  it('normalizes non-object evaluation results and non-array artifacts', async () => {
+    invoke.mockResolvedValueOnce({
+      evaluationId: 'eval-123',
+      status: 'success',
+      summary: null,
+    })
+    await expect(desktop.getEvaluationResult('eval-123')).resolves.toEqual({
+      evaluationId: 'eval-123',
+      status: 'success',
+      summary: {},
+      severityCounts: undefined,
+      findings: undefined,
+      startedAt: null,
+      completedAt: null,
+    })
+
+    invoke.mockResolvedValueOnce(null)
+    await expect(desktop.getEvaluationArtifacts('eval-123')).resolves.toEqual([])
+  })
+
+  it('drops empty severity counts and findings from evaluation results', async () => {
+    invoke.mockResolvedValueOnce({
+      evaluationId: 'eval-123',
+      status: 'success',
+      summary: {
+        severity_counts: {
+          info: Number.NaN,
+        },
+        findings: ['not-a-finding', {}],
+      },
+    })
+
+    await expect(desktop.getEvaluationResult('eval-123')).resolves.toEqual({
+      evaluationId: 'eval-123',
+      status: 'success',
+      summary: {
+        severity_counts: {
+          info: Number.NaN,
+        },
+        findings: ['not-a-finding', {}],
+      },
+      severityCounts: undefined,
+      findings: undefined,
+      startedAt: null,
+      completedAt: null,
+    })
+  })
+
+  it('falls back to generic command errors for strings, errors, and empty objects', () => {
+    expect(desktop.formatCommandError('raw error')).toBe('raw error')
+    expect(desktop.formatCommandError(new Error('boom'))).toBe('boom')
+    expect(
+      desktop.formatCommandError({
+        message: '   ',
+        details: null,
+      }),
+    ).toBe('Unknown desktop command error.')
+    expect(desktop.formatCommandError(undefined)).toBe('Unknown desktop command error.')
+  })
+
+  it('rejects malformed snapshot payloads that are not objects', async () => {
+    invoke.mockResolvedValueOnce('not-an-object')
+
+    await expect(desktop.getLastOpenedSnapshot()).resolves.toBeNull()
+  })
 })

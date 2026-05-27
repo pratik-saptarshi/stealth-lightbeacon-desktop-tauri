@@ -75,6 +75,23 @@ type ReconResultView = {
   autoSelectAllowed: string
 }
 
+type EvaluationHistoryView = {
+  evaluationId: string
+  acceptedAt: string | null
+  statusLabel: string
+  stageLabel: string | null
+  resultLabel: string | null
+  scoreLabel: string | null
+  artifactCount: number
+  detailLabel: string
+}
+
+type ReportDownloadView = {
+  label: string
+  filename: string
+  href: string
+}
+
 type UiThemeKey =
   | 'panelBg'
   | 'panelBorder'
@@ -299,7 +316,7 @@ const workspaceTabs: Array<{
   },
 ]
 
-function isHexColor(value: unknown): value is string {
+export function isHexColor(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
 }
 
@@ -311,7 +328,7 @@ function getUiStorage() {
   return window.localStorage
 }
 
-function loadUiSettings() {
+export function loadUiSettings() {
   const storage = getUiStorage()
   if (!storage) {
     return defaultUiSettings
@@ -331,7 +348,12 @@ function loadUiSettings() {
       ]),
     ) as Record<UiThemeKey, string>
     const sections = Object.fromEntries(
-      uiSectionFields.map(({ key }) => [key, parsed?.sections?.[key] ?? defaultUiSettings.sections[key]]),
+      uiSectionFields.map(({ key }) => [
+        key,
+        typeof parsed?.sections?.[key] === 'boolean'
+          ? parsed.sections[key]
+          : defaultUiSettings.sections[key],
+      ]),
     ) as Record<UiSectionKey, boolean>
 
     const workspaceSize = workspaceSizeOptions.some(({ key }) => key === parsed?.workspaceSize)
@@ -344,7 +366,7 @@ function loadUiSettings() {
   }
 }
 
-function buildUiShellStyle(uiSettings: UiSettings): CSSProperties {
+export function buildUiShellStyle(uiSettings: UiSettings): CSSProperties {
   return {
     '--surface-panel-bg': uiSettings.theme.panelBg,
     '--surface-panel-border': uiSettings.theme.panelBorder,
@@ -361,7 +383,7 @@ function getWorkspaceSizeOption(workspaceSize: WorkspaceSizeKey) {
   )
 }
 
-function classifyViewport(width: number, height: number): ViewportDensity {
+export function classifyViewport(width: number, height: number): ViewportDensity {
   if (width < 920 || height < 680) {
     return 'compact'
   }
@@ -373,7 +395,7 @@ function classifyViewport(width: number, height: number): ViewportDensity {
   return 'wide'
 }
 
-function readViewportState(): ViewportState {
+export function readViewportState(): ViewportState {
   if (typeof window === 'undefined') {
     return {
       width: 800,
@@ -428,7 +450,7 @@ function resolveWorkspaceLayout(
   }
 }
 
-function formatBackendMode(mode: BackendMode | string) {
+export function formatBackendMode(mode: BackendMode | string) {
   switch (mode) {
     case 'local':
       return 'Local companion'
@@ -439,15 +461,15 @@ function formatBackendMode(mode: BackendMode | string) {
   }
 }
 
-function buildLoopbackBaseUrl(port: number) {
+export function buildLoopbackBaseUrl(port: number) {
   return `http://127.0.0.1:${port}`
 }
 
-function buildRemoteBaseUrl(port: number) {
+export function buildRemoteBaseUrl(port: number) {
   return `https://api.example.test:${port}`
 }
 
-function inferPortFromBaseUrl(baseUrl: string) {
+export function inferPortFromBaseUrl(baseUrl: string) {
   try {
     const url = new URL(baseUrl)
     if (url.port) {
@@ -466,7 +488,7 @@ function inferPortFromBaseUrl(baseUrl: string) {
   return null
 }
 
-function withPortApplied(baseUrl: string, port: number) {
+export function withPortApplied(baseUrl: string, port: number) {
   try {
     const url = new URL(baseUrl.trim() || buildRemoteBaseUrl(port))
     url.port = String(port)
@@ -476,7 +498,7 @@ function withPortApplied(baseUrl: string, port: number) {
   }
 }
 
-function nextDraftConfigForMode(mode: BackendMode, current: BackendConfig): BackendConfig {
+export function nextDraftConfigForMode(mode: BackendMode, current: BackendConfig): BackendConfig {
   if (mode === 'remote') {
     return {
       ...current,
@@ -493,7 +515,7 @@ function nextDraftConfigForMode(mode: BackendMode, current: BackendConfig): Back
   }
 }
 
-function summarizeHealth(health: HealthResponse | null) {
+export function summarizeHealth(health: HealthResponse | null) {
   if (!health) {
     return 'Unavailable'
   }
@@ -562,7 +584,7 @@ function isIntegerWithinRange(value: number, minimum: number, maximum: number) {
   return Number.isInteger(value) && value >= minimum && value <= maximum
 }
 
-function validateEvaluationRequest(
+export function validateEvaluationRequest(
   request: CreateEvaluationRequest,
   capabilities: CapabilitiesResponse | null,
 ) {
@@ -617,15 +639,15 @@ function validateEvaluationRequest(
   return issues
 }
 
-function readFiniteNumber(value: unknown) {
+export function readFiniteNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function formatResultStatus(status: string) {
+export function formatResultStatus(status: string) {
   return status.replaceAll('_', ' ')
 }
 
-function buildResultSummaryMetrics(summary: Record<string, unknown>) {
+export function buildResultSummaryMetrics(summary: Record<string, unknown>) {
   const metrics: EvaluationResultMetric[] = []
   const score = readFiniteNumber(summary.score)
   const passed = readFiniteNumber(summary.passed)
@@ -651,7 +673,7 @@ function buildResultSummaryMetrics(summary: Record<string, unknown>) {
   return metrics
 }
 
-function buildResultSeverityItems(severityCounts?: Record<string, number> | null) {
+export function buildResultSeverityItems(severityCounts?: Record<string, number> | null) {
   if (!severityCounts) {
     return []
   }
@@ -671,7 +693,7 @@ function buildResultSeverityItems(severityCounts?: Record<string, number> | null
   return [...orderedItems, ...unorderedItems]
 }
 
-function buildResultTimelineMetrics(result: EvaluationResultResponse) {
+export function buildResultTimelineMetrics(result: EvaluationResultResponse) {
   const metrics: EvaluationResultMetric[] = []
 
   if (result.startedAt) {
@@ -685,7 +707,7 @@ function buildResultTimelineMetrics(result: EvaluationResultResponse) {
   return metrics
 }
 
-function buildResultFindings(result: EvaluationResultResponse) {
+export function buildResultFindings(result: EvaluationResultResponse) {
   return (result.findings ?? []).map((finding, index) => ({
     key: finding.ruleId ?? `finding-${index}`,
     title: finding.title?.trim() || finding.ruleId?.trim() || `Finding ${index + 1}`,
@@ -694,7 +716,7 @@ function buildResultFindings(result: EvaluationResultResponse) {
   }))
 }
 
-function buildEvaluationResultView(result: EvaluationResultResponse): EvaluationResultView {
+export function buildEvaluationResultView(result: EvaluationResultResponse): EvaluationResultView {
   return {
     statusLabel: formatResultStatus(result.status),
     summaryMetrics: buildResultSummaryMetrics(result.summary),
@@ -704,7 +726,247 @@ function buildEvaluationResultView(result: EvaluationResultResponse): Evaluation
   }
 }
 
-function resultToneClass(status: string) {
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function buildDataUrl(mimeType: string, content: string) {
+  return `data:${mimeType};charset=utf-8,${encodeURIComponent(content)}`
+}
+
+export function buildEvaluationHistoryView(
+  evaluation: CreateEvaluationResponse,
+  evaluationStatus: EvaluationStatusResponse | null,
+  evaluationResult: EvaluationResultResponse | null,
+  artifacts: ArtifactDescriptor[],
+): EvaluationHistoryView {
+  const score = evaluationResult ? readFiniteNumber(evaluationResult.summary.score) : null
+
+  return {
+    evaluationId: evaluation.evaluationId,
+    acceptedAt: evaluation.acceptedAt ?? null,
+    statusLabel: formatResultStatus(
+      evaluationStatus?.exitState ?? evaluationStatus?.status ?? evaluation.status,
+    ),
+    stageLabel: evaluationStatus?.stage ?? null,
+    resultLabel: evaluationResult ? formatResultStatus(evaluationResult.status) : null,
+    scoreLabel: score === null ? null : `Score ${score}`,
+    artifactCount: artifacts.length,
+    detailLabel: evaluationResult
+      ? 'Terminal report ready for download.'
+      : evaluationStatus?.message ?? 'Waiting for the terminal report.',
+  }
+}
+
+function buildReportSummaryLines(
+  evaluationId: string,
+  result: EvaluationResultResponse,
+  artifacts: ArtifactDescriptor[],
+) {
+  const view = buildEvaluationResultView(result)
+  return [
+    `Evaluation ID: ${evaluationId}`,
+    `Status: ${view.statusLabel}`,
+    ...view.summaryMetrics.map((metric) => `${metric.label}: ${metric.value}`),
+    ...view.severityItems.map((item) => `Severity: ${item}`),
+    ...view.timelineMetrics.map((metric) => `${metric.label}: ${metric.value}`),
+    ...view.findings.map((finding) => {
+      const parts = [finding.title]
+      if (finding.meta) {
+        parts.push(finding.meta)
+      }
+      if (finding.description) {
+        parts.push(finding.description)
+      }
+      return `Finding: ${parts.join(' - ')}`
+    }),
+    ...artifacts.map((artifact) => {
+      const parts = [`Artifact: ${artifact.name}`, artifact.kind, artifact.mediaType]
+      if (artifact.downloadUrl) {
+        parts.push(artifact.downloadUrl)
+      }
+      return parts.filter(Boolean).join(' | ')
+    }),
+  ]
+}
+
+function buildReportMarkdown(
+  evaluationId: string,
+  result: EvaluationResultResponse,
+  artifacts: ArtifactDescriptor[],
+) {
+  const view = buildEvaluationResultView(result)
+  const summaryLines = buildReportSummaryLines(evaluationId, result, artifacts)
+
+  return [
+    '# Stealth Lightbeacon Report',
+    '',
+    `- Evaluation ID: \`${evaluationId}\``,
+    `- Status: ${view.statusLabel}`,
+    ...view.summaryMetrics.map((metric) => `- ${metric.label}: ${metric.value}`),
+    ...view.severityItems.map((item) => `- Severity: ${item}`),
+    ...view.timelineMetrics.map((metric) => `- ${metric.label}: ${metric.value}`),
+    '',
+    '## Findings',
+    ...(view.findings.length
+      ? view.findings.flatMap((finding) => {
+          const header = `- ${finding.title}`
+          const details = [finding.meta, finding.description].filter(Boolean)
+          return details.length
+            ? [header, ...details.map((detail) => `  - ${detail}`)]
+            : [header]
+        })
+      : ['- No findings reported.']),
+    '',
+    '## Artifacts',
+    ...(artifacts.length
+      ? artifacts.map((artifact) => {
+          const details = [
+            `- ${artifact.name}`,
+            `  - Kind: ${artifact.kind}`,
+            `  - Media type: ${artifact.mediaType}`,
+            artifact.downloadUrl ? `  - Download: ${artifact.downloadUrl}` : null,
+          ].filter(Boolean)
+          return details.join('\n')
+        })
+      : ['- No artifacts available.']),
+    '',
+    '## Summary',
+    ...summaryLines.map((line) => `- ${line}`),
+    '',
+  ].join('\n')
+}
+
+function buildReportHtml(
+  evaluationId: string,
+  result: EvaluationResultResponse,
+  artifacts: ArtifactDescriptor[],
+) {
+  const view = buildEvaluationResultView(result)
+  const summaryItems = [
+    ...view.summaryMetrics.map(
+      (metric) => `<li><strong>${escapeHtml(metric.label)}</strong> ${escapeHtml(metric.value)}</li>`,
+    ),
+    ...view.severityItems.map((item) => `<li>${escapeHtml(item)}</li>`),
+    ...view.timelineMetrics.map(
+      (metric) => `<li><strong>${escapeHtml(metric.label)}</strong> ${escapeHtml(metric.value)}</li>`,
+    ),
+  ].join('')
+
+  const findingItems = view.findings.length
+    ? view.findings
+        .map(
+          (finding) => `
+            <article>
+              <h3>${escapeHtml(finding.title)}</h3>
+              ${finding.meta ? `<p><strong>Meta:</strong> ${escapeHtml(finding.meta)}</p>` : ''}
+              ${finding.description ? `<p>${escapeHtml(finding.description)}</p>` : ''}
+            </article>
+          `,
+        )
+        .join('')
+    : '<p>No findings reported.</p>'
+
+  const artifactItems = artifacts.length
+    ? artifacts
+        .map(
+          (artifact) => `
+            <article>
+              <h3>${escapeHtml(artifact.name)}</h3>
+              <p><strong>Kind:</strong> ${escapeHtml(artifact.kind)}</p>
+              <p><strong>Media type:</strong> ${escapeHtml(artifact.mediaType)}</p>
+              ${artifact.downloadUrl ? `<p><strong>Download:</strong> ${escapeHtml(artifact.downloadUrl)}</p>` : ''}
+            </article>
+          `,
+        )
+        .join('')
+    : '<p>No artifacts available.</p>'
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Stealth Lightbeacon Report ${escapeHtml(evaluationId)}</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 32px; color: #1f2a30; background: #faf5ec; }
+      header, section { margin-bottom: 24px; }
+      h1, h2, h3 { font-family: Georgia, serif; }
+      ul { padding-left: 20px; }
+      article { border: 1px solid #d7c8b6; border-radius: 16px; padding: 16px; margin: 12px 0; background: #fff; }
+      .summary { display: grid; gap: 8px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Stealth Lightbeacon Report</h1>
+      <p>Evaluation ID: <code>${escapeHtml(evaluationId)}</code></p>
+      <p>Status: ${escapeHtml(view.statusLabel)}</p>
+    </header>
+    <section>
+      <h2>Summary</h2>
+      <ul class="summary">${summaryItems}</ul>
+    </section>
+    <section>
+      <h2>Findings</h2>
+      ${findingItems}
+    </section>
+    <section>
+      <h2>Artifacts</h2>
+      ${artifactItems}
+    </section>
+  </body>
+</html>`
+}
+
+export function buildEvaluationReportDownloads(
+  evaluationId: string,
+  result: EvaluationResultResponse,
+  artifacts: ArtifactDescriptor[],
+): ReportDownloadView[] {
+  const markdown = buildReportMarkdown(evaluationId, result, artifacts)
+  const html = buildReportHtml(evaluationId, result, artifacts)
+  const json = JSON.stringify(
+    {
+      evaluationId,
+      result,
+      artifacts,
+    },
+    null,
+    2,
+  )
+
+  return [
+    {
+      label: 'Download JSON report',
+      filename: `${evaluationId}-report.json`,
+      href: buildDataUrl('application/json', json),
+    },
+    {
+      label: 'Download Markdown report',
+      filename: `${evaluationId}-report.md`,
+      href: buildDataUrl('text/markdown', markdown),
+    },
+    {
+      label: 'Download HTML report',
+      filename: `${evaluationId}-report.html`,
+      href: buildDataUrl('text/html', html),
+    },
+  ]
+}
+
+export function upsertEvaluationHistoryView(
+  history: EvaluationHistoryView[],
+  entry: EvaluationHistoryView,
+): EvaluationHistoryView[] {
+  return [entry, ...history.filter((item) => item.evaluationId !== entry.evaluationId)].slice(0, 5)
+}
+
+export function resultToneClass(status: string) {
   return status === 'success' ? 'tone-good' : 'tone-idle'
 }
 
@@ -736,6 +998,7 @@ function App() {
   const [evaluationResult, setEvaluationResult] =
     useState<EvaluationResultResponse | null>(null)
   const [artifacts, setArtifacts] = useState<ArtifactDescriptor[]>([])
+  const [evaluationHistory, setEvaluationHistory] = useState<EvaluationHistoryView[]>([])
   const [resultLoadState, setResultLoadState] = useState<ResultLoadState>('idle')
   const [resultError, setResultError] = useState<string | null>(null)
   const [artifactsLoadState, setArtifactsLoadState] =
@@ -746,6 +1009,9 @@ function App() {
     useState<ReconLoadState>('idle')
   const [reconError, setReconError] = useState<string | null>(null)
   const reconRequestVersionRef = useRef(0)
+  const evaluationStatusRef = useRef<EvaluationStatusResponse | null>(null)
+  const evaluationResultRef = useRef<EvaluationResultResponse | null>(null)
+  const artifactsRef = useRef<ArtifactDescriptor[]>([])
   const [viewport, setViewport] = useState<ViewportState>(initialViewport)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState<WorkspaceTabKey>('overview')
@@ -820,6 +1086,18 @@ function App() {
       window.visualViewport?.removeEventListener('resize', updateViewport)
     }
   }, [])
+
+  useEffect(() => {
+    evaluationStatusRef.current = evaluationStatus
+  }, [evaluationStatus])
+
+  useEffect(() => {
+    evaluationResultRef.current = evaluationResult
+  }, [evaluationResult])
+
+  useEffect(() => {
+    artifactsRef.current = artifacts
+  }, [artifacts])
 
   const updateUiColor = useCallback((key: UiThemeKey, value: string) => {
     setUiSettings((current) => ({
@@ -1092,6 +1370,14 @@ function App() {
             setEvaluationStatus(snapshot.evaluationStatus)
             setEvaluationResult(snapshot.evaluationResult)
             setArtifacts(snapshot.artifacts)
+            setEvaluationHistory([
+              buildEvaluationHistoryView(
+                snapshot.evaluation,
+                snapshot.evaluationStatus,
+                snapshot.evaluationResult,
+                snapshot.artifacts,
+              ),
+            ])
             setResultLoadState('ready')
             setArtifactsLoadState('ready')
             setResultError(null)
@@ -1282,6 +1568,21 @@ function App() {
           setEvaluationResult(nextResult)
           setResultLoadState('ready')
           setResultError(null)
+          setEvaluationHistory((current) => {
+            if (!activeEvaluation) {
+              return current
+            }
+
+            return upsertEvaluationHistoryView(
+              current,
+              buildEvaluationHistoryView(
+                activeEvaluation,
+                evaluationStatusRef.current,
+                nextResult,
+                artifactsRef.current,
+              ),
+            )
+          })
         })
         recordActivity(
           'Evaluation result loaded',
@@ -1344,6 +1645,21 @@ function App() {
           setArtifacts(nextArtifacts)
           setArtifactsLoadState('ready')
           setArtifactsError(null)
+          setEvaluationHistory((current) => {
+            if (!activeEvaluation) {
+              return current
+            }
+
+            return upsertEvaluationHistoryView(
+              current,
+              buildEvaluationHistoryView(
+                activeEvaluation,
+                evaluationStatusRef.current,
+                evaluationResultRef.current,
+                nextArtifacts,
+              ),
+            )
+          })
         })
         recordActivity(
           'Evaluation artifacts loaded',
@@ -1532,6 +1848,25 @@ function App() {
           exitState: null,
           terminal: false,
         })
+        setEvaluationHistory((current) =>
+          upsertEvaluationHistoryView(
+            current,
+            buildEvaluationHistoryView(
+              accepted,
+              {
+                evaluationId: accepted.evaluationId,
+                status: accepted.status,
+                stage: 'queued',
+                progressPercent: 0,
+                message: 'Evaluation accepted by backend.',
+                exitState: null,
+                terminal: false,
+              },
+              null,
+              [],
+            ),
+          ),
+        )
         setNotice(`Run ${accepted.evaluationId} accepted by the backend API.`)
         setStatusLine(`Evaluation ${accepted.evaluationId} accepted`)
       })
@@ -1661,6 +1996,14 @@ function App() {
     ? buildEvaluationResultView(evaluationResult)
     : null
   const reconResultView = reconResult ? buildReconResultView(reconResult) : null
+  const reportDownloads =
+    evaluationResult && activeEvaluation
+      ? buildEvaluationReportDownloads(
+          activeEvaluation.evaluationId,
+          evaluationResult,
+          artifacts,
+        )
+      : []
   const remoteDraftMode = draftConfig.mode === 'remote'
   const reportAvailable = Boolean(evaluationStatus?.terminal)
   const shellStyle = buildUiShellStyle(uiSettings)
@@ -1669,6 +2012,7 @@ function App() {
   const showCurrentEvaluation = uiSettings.sections.currentEvaluation
   const showTerminalReport = uiSettings.sections.terminalReport
   const showBackendSurface = uiSettings.sections.backendSurface
+  const visibleEvaluationHistory = evaluationHistory.filter((item) => item.evaluationId)
   const modeOperationsCopy =
     backendConfig.mode === 'standalone'
       ? 'Embedded SEO, GEO, AEO, and WCAG 2.1/2.2 AA rules run inside the desktop boundary.'
@@ -2562,6 +2906,66 @@ function App() {
                       ) : null}
                     </article>
                   ))}
+                </div>
+              ) : null}
+
+              {visibleEvaluationHistory.length ? (
+                <div className="history-section">
+                  <div className="subsection-heading">
+                    <div>
+                      <p className="section-kicker">Run history</p>
+                      <h3>Recent Evaluations</h3>
+                    </div>
+                    <span className="status-pill status-muted">
+                      {visibleEvaluationHistory.length} cached
+                    </span>
+                  </div>
+
+                  <div className="history-grid">
+                    {visibleEvaluationHistory.map((entry) => (
+                      <article key={entry.evaluationId} className="history-card">
+                        <div className="validation-header">
+                          <span>{entry.evaluationId}</span>
+                          <strong className={entry.resultLabel === 'success' ? 'tone-good' : 'tone-idle'}>
+                            {entry.statusLabel}
+                          </strong>
+                        </div>
+                        <p>{entry.detailLabel}</p>
+                        <p>
+                          {entry.acceptedAt ? `Accepted ${entry.acceptedAt}` : 'Accepted time unavailable'}
+                        </p>
+                        <p>
+                          {entry.stageLabel ? `${entry.stageLabel} · ` : ''}
+                          {entry.scoreLabel ?? 'Score unavailable'} · {entry.artifactCount} artifacts
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {reportDownloads.length ? (
+                <div className="history-section">
+                  <div className="subsection-heading">
+                    <div>
+                      <p className="section-kicker">Downloads</p>
+                      <h3>Formatted Reports</h3>
+                    </div>
+                  </div>
+
+                  <div className="download-grid">
+                    {reportDownloads.map((download) => (
+                      <a
+                        key={download.label}
+                        className="download-card"
+                        href={download.href}
+                        download={download.filename}
+                      >
+                        <strong>{download.label}</strong>
+                        <span>{download.filename}</span>
+                      </a>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </>

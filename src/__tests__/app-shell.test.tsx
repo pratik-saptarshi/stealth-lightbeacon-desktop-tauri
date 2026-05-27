@@ -245,6 +245,23 @@ describe('App shell', () => {
     expect(await screen.findByText('baseline, deep, export')).toBeInTheDocument()
   })
 
+  it('shows browser preview mode when the desktop runtime is unavailable', async () => {
+    desktopApi.isDesktopRuntime.mockReturnValue(false)
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    expect(await screen.findByText('Browser preview')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    expect(
+      await screen.findByText(
+        'Browser preview loaded. The desktop runtime is required to persist backend settings and call the API.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save Connection' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Check Health' })).toBeDisabled()
+  })
+
   it('keeps only the active workspace panel visible', async () => {
     const user = userEvent.setup()
 
@@ -328,6 +345,19 @@ describe('App shell', () => {
         }),
       ),
     )
+  })
+
+  it('surfaces backend connection save failures', async () => {
+    const user = userEvent.setup()
+    desktopApi.setBackendConfig.mockRejectedValueOnce('Save exploded')
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('button', { name: 'Save Connection' }))
+
+    expect((await screen.findAllByText('Save exploded')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('Save failed')).length).toBeGreaterThan(0)
   })
 
   it('opens settings tab and applies custom panel colors', async () => {
@@ -468,6 +498,20 @@ describe('App shell', () => {
       screen.getByText('Max depth must be an integer between 1 and 8.'),
     ).toBeInTheDocument()
     expect(desktopApi.createEvaluation).not.toHaveBeenCalled()
+  })
+
+  it('surfaces evaluation submission failures', async () => {
+    const user = userEvent.setup()
+    desktopApi.createEvaluation.mockRejectedValueOnce('Submission exploded')
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await screen.findByRole('button', { name: 'Submit Evaluation' })
+    await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
+
+    expect((await screen.findAllByText('Submission exploded')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('Submission failed')).length).toBeGreaterThan(0)
   })
 
   it('keeps submission disabled when capabilities fail to load', async () => {
@@ -760,6 +804,80 @@ describe('App shell', () => {
     expect(await screen.findByText('TLS version review')).toBeInTheDocument()
     expect(await screen.findByText('critical 0')).toBeInTheDocument()
     expect(await screen.findByText('Completed 2026-01-15T10:00:03Z')).toBeInTheDocument()
+    expect(await screen.findByText('Recent Evaluations')).toBeInTheDocument()
+    expect(screen.getAllByText('eval-123').length).toBeGreaterThan(0)
+    expect(
+      screen.getByRole('link', { name: /Download JSON report/i }),
+    ).toHaveAttribute('download', 'eval-123-report.json')
+    expect(
+      screen.getByRole('link', { name: /Download Markdown report/i }),
+    ).toHaveAttribute('href', expect.stringContaining('data:'))
+  })
+
+  it('surfaces terminal result retrieval failures', async () => {
+    const user = userEvent.setup()
+    desktopApi.createEvaluation.mockResolvedValue({
+      evaluationId: 'eval-123',
+      status: 'accepted',
+      acceptedAt: '2026-05-26T12:00:00Z',
+    })
+    desktopApi.getEvaluationStatus.mockResolvedValue({
+      evaluationId: 'eval-123',
+      status: 'success',
+      stage: 'completed',
+      progressPercent: 100,
+      message: 'Evaluation complete.',
+      exitState: 'success',
+      terminal: true,
+    })
+    desktopApi.getEvaluationResult.mockRejectedValueOnce('Result exploded')
+    desktopApi.getEvaluationArtifacts.mockResolvedValueOnce([])
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await screen.findByRole('button', { name: 'Submit Evaluation' })
+    await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
+
+    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
+    expect(await screen.findByText('Terminal report')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Result retrieval failed. Result exploded'),
+    ).toBeInTheDocument()
+  })
+
+  it('surfaces artifact retrieval failures', async () => {
+    const user = userEvent.setup()
+    desktopApi.createEvaluation.mockResolvedValue({
+      evaluationId: 'eval-123',
+      status: 'accepted',
+      acceptedAt: '2026-05-26T12:00:00Z',
+    })
+    desktopApi.getEvaluationStatus.mockResolvedValue({
+      evaluationId: 'eval-123',
+      status: 'success',
+      stage: 'completed',
+      progressPercent: 100,
+      message: 'Evaluation complete.',
+      exitState: 'success',
+      terminal: true,
+    })
+    desktopApi.getEvaluationResult.mockResolvedValue(successResult)
+    desktopApi.getEvaluationArtifacts.mockRejectedValueOnce('Artifact exploded')
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await screen.findByRole('button', { name: 'Submit Evaluation' })
+    await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
+
+    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
+    expect(await screen.findByText('Terminal report')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Artifact retrieval failed. Artifact exploded'),
+    ).toBeInTheDocument()
   })
 
   it('renders terminal non-success results after polling completes', async () => {

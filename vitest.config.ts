@@ -6,12 +6,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    exclude: ['.worktrees/**', 'node_modules/**', 'target/**'],
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
-    exclude: ['tests/playwright/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text-summary', 'json-summary', 'json'],
       include: ['src/App.tsx'],
       thresholds: {
         statements: 80,

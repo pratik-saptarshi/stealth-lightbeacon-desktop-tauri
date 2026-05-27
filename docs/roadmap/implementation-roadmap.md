@@ -51,9 +51,9 @@ for the current remediation backlog.
 | 2A | Complete | Terminal result route and desktop retrieval alignment |
 | 2B | Complete | Artifact descriptor route and desktop artifact retrieval alignment |
 | 3A | Complete | Managed local companion lifecycle |
-| 3B | Partial | Remote auth, compatibility, and transport substrate exists, but operator-facing UX is incomplete |
-| 4 | Partial | Recon route and transport exist, but React workflow wiring is incomplete |
-| 5 | Partial | Contract sync and local validation exist, but publication plumbing is incomplete |
+| 3B | Complete | Remote auth, compatibility, and transport substrate exists, and the operator-facing UX is surfaced and verified in the React shell |
+| 4 | Complete | Recon route and transport exist, and the React workflow is wired and validated with coverage and browser/a11y checks |
+| 5 | Partial | Contract sync and local validation exist, but final release packaging validation remains |
 
 ## Phase Summary
 
@@ -82,19 +82,19 @@ for the current remediation backlog.
 
 - Local mode became a managed companion runtime.
 - Remote mode became policy-driven with HTTPS enforcement, compatibility
-  metadata, and Rust-only auth-token lookup, but the React shell still lacks
-  explicit unauthorized and incompatibility UX.
+  metadata, and Rust-only auth-token lookup, and the React shell now surfaces
+  explicit unauthorized and incompatibility guidance that has been verified.
 
 ### Phase 4
 
 - Recon became a capability-gated backend route with desktop transport support.
-- The remaining gap is operator workflow wiring in `src/App.tsx`.
+- The operator workflow is now wired in `src/App.tsx` and verified with unit,
+  browser, and accessibility checks.
 
 ### Phase 5
 
 - Contract sync and cross-repo validation became part of the release boundary.
-- Tauri package validation is now part of the release lane, but publication
-  plumbing remains outstanding.
+- Tauri package validation is still the remaining release-lane follow-up.
 
 ## Completion Definition
 
@@ -111,6 +111,4 @@ The remaining desktop-completion work is tracked in `./backlog.md`.
 
 The remaining work is tracked in `./backlog.md` under phases `R1` to `R4`:
 
-- repo-truth and codemap refresh
 - package-grade release validation
-- GitHub publication plumbing

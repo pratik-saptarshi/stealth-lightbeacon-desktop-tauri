@@ -13,8 +13,11 @@ desktop client.
 ## Validation Surface
 
 - `npm run test:e2e` runs the browser suite that checks the tabbed shell,
-  workspace-size presets, and the 800 x 600 scroll budget.
 - `npm test` runs the unit suite for the React shell and desktop adapter seam.
+- `npm run test:coverage` measures the React shell coverage gate at 80 percent
+  or higher.
+- `npm run test:e2e` also covers recon advisory visibility and axe-core scans
+  on the shell, Settings, and Audit views.
 - `npm run build` validates the production bundle.
 
 ## Current Focus

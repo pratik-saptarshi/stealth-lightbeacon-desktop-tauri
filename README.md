@@ -27,8 +27,8 @@ path serves both references here.
 - Phase `4` is partial because the local/remote runtime substrate exists, but
   operator-facing auth and compatibility UX is still thin.
 - Phase `5` is partial because validation and packaging exist, and GitHub
-  publication is handled through the documented CLI workflow rather than an
-  automated in-app path.
+  publication is handled through the documented tag-push workflow and GitHub
+  Actions rather than an automated in-app path.
 
 ## Where To Look
 

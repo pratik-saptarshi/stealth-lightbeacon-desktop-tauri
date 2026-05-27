@@ -31,10 +31,10 @@ for local development, validation, and release work.
   Produces the macOS `.app` bundle through Tauri.
 - `git tag -a <tag> -m "<message>"`
   Creates the release tag after validation passes.
-- `gh release create <tag> --title "<title>" --notes-file changelog.md`
-  Publishes the GitHub release from the validated tag and the public changelog.
+- `git push origin <tag>`
+  Publishes the GitHub release by triggering the tag-based release workflow.
 - `gh release view <tag>`
-  Verifies the published release page and notes.
+  Verifies the published release page and notes when CLI auth is available.
 
 ## Repo Truth Files
 

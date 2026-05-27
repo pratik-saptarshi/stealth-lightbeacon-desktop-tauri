@@ -98,8 +98,8 @@ against the backend producer with `npm run check:contract-sync`.
 - Recon is not yet wired into `src/App.tsx`.
 - Remote auth-required and compatibility-mismatch handling exists at the
   transport layer, but operator-facing UX is still thin.
-- GitHub release publication is handled through the documented CLI workflow,
-  not an in-app publishing service.
+- GitHub release publication is handled through the documented tag-push
+  workflow and GitHub Actions, not an in-app publishing service.
 - The desktop package still depends on a separately versioned backend runtime;
   it does not embed Python or the audit engine.
 - Long-term Rust decomposition is still desirable because `src-tauri/src/lib.rs`

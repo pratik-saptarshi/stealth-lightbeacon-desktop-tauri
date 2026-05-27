@@ -47,6 +47,8 @@ Validated worktree used for this integration:
   `src-tauri/tauri.conf.json`
 - release validation script:
   `scripts/release_validate.py`
+- GitHub release workflow:
+  `.github/workflows/release.yml`
 - public documentation set:
   `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
   `contributing.md`, `security-policy.md`, `bill-of-materials.md`

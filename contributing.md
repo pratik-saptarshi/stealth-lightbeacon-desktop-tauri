@@ -28,6 +28,8 @@
 6. Refresh `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
    `security-policy.md`, `bill-of-materials.md`, and the relevant codemaps
    before tagging a public release.
+7. Push the release tag to `origin` so the GitHub Actions workflow can publish
+   the GitHub release.
 
 ## Cross-Repo Changes
 

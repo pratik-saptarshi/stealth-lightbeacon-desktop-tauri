@@ -18,6 +18,7 @@ artifacts, recon output, and the canonical OpenAPI contract.
 - `changelog.md`: release notes and documentation history.
 - `scripts/check_contract_sync.py`: pinned contract drift gate.
 - `scripts/release_validate.py`: cross-repo release validation gate.
+- `.github/workflows/release.yml`: tag-push GitHub Actions release publisher.
 - `src-tauri/tauri.conf.json`: desktop window defaults and packaging metadata.
 - `src/main.tsx`: React bootstrap.
 - `src/App.tsx`: operator shell and workflow state.
@@ -69,7 +70,7 @@ artifacts, recon output, and the canonical OpenAPI contract.
   operator-facing auth and compatibility UX is still thin.
 - Phase `5`: partially complete, because contract sync and release validation
   exist and the release publication workflow is documented and exercised
-  through GitHub CLI.
+  through the tag-push GitHub Actions path.
 
 ## Integration
 

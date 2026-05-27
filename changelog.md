@@ -19,7 +19,8 @@
   the tabbed operator layout.
 - Refreshed the repository atlas and folder codemaps to describe the current UI
   and runtime boundaries.
-- Published the current documented GitHub release for this iteration.
+- Published the current documented GitHub release for this iteration through
+  the tag-push workflow.
 
 ## 2026-05-26
 

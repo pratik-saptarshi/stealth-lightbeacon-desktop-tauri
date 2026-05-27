@@ -745,6 +745,7 @@ function App() {
   const [reconLoadState, setReconLoadState] =
     useState<ReconLoadState>('idle')
   const [reconError, setReconError] = useState<string | null>(null)
+  const reconRequestVersionRef = useRef(0)
   const [viewport, setViewport] = useState<ViewportState>(initialViewport)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState<WorkspaceTabKey>('overview')
@@ -858,6 +859,18 @@ function App() {
     }
   }, [])
 
+  const resetReconOutput = useCallback(
+    (nextLoadState: ReconLoadState = 'idle', nextError: string | null = null) => {
+      reconRequestVersionRef.current += 1
+      startTransition(() => {
+        setReconResult(null)
+        setReconError(nextError)
+        setReconLoadState(nextLoadState)
+      })
+    },
+    [],
+  )
+
   const syncProfilesFromCapabilities = useCallback(
     (nextCapabilities: CapabilitiesResponse | null) => {
       const supportedProfiles =
@@ -917,11 +930,7 @@ function App() {
   }, [])
 
   const refreshConnectionState = useCallback(async (mode: BackendMode) => {
-    startTransition(() => {
-      setReconResult(null)
-      setReconError(null)
-      setReconLoadState('idle')
-    })
+    resetReconOutput()
 
     if (!desktopRuntime) {
       startTransition(() => {
@@ -1048,7 +1057,7 @@ function App() {
     } finally {
       setRefreshingConnection(false)
     }
-  }, [desktopRuntime, recordActivity, syncProfilesFromCapabilities])
+  }, [desktopRuntime, recordActivity, resetReconOutput, syncProfilesFromCapabilities])
 
   useEffect(() => {
     let cancelled = false
@@ -1551,9 +1560,12 @@ function App() {
       return
     }
 
+    reconRequestVersionRef.current += 1
+    const reconRequestVersion = reconRequestVersionRef.current
     const reconValidationErrors: string[] = []
+    const nextTarget = request.target.trim()
 
-    if (!request.target.trim()) {
+    if (!nextTarget) {
       reconValidationErrors.push('Enter a target URL before running recon.')
     }
 
@@ -1571,22 +1583,26 @@ function App() {
 
     if (reconValidationErrors.length > 0) {
       const message = reconValidationErrors[0]
+      resetReconOutput('failed', message)
       startTransition(() => {
-        setReconResult(null)
         setNotice(message)
         setStatusLine('Recon blocked')
-        setReconError(message)
-        setReconLoadState('failed')
       })
       recordActivity('Recon blocked', message)
       return
     }
 
-    setReconLoadState('loading')
-    setReconError(null)
+    startTransition(() => {
+      setReconLoadState('loading')
+      setReconError(null)
+    })
 
     try {
-      const nextRecon = await runRecon({ target: request.target.trim() })
+      const nextRecon = await runRecon({ target: nextTarget })
+      if (reconRequestVersion !== reconRequestVersionRef.current) {
+        return
+      }
+
       startTransition(() => {
         setReconResult(nextRecon)
         setReconLoadState('ready')
@@ -1599,11 +1615,13 @@ function App() {
         `${nextRecon.target} returned ${nextRecon.posture} posture at ${formatConfidence(nextRecon.confidence)} confidence.`,
       )
     } catch (error) {
+      if (reconRequestVersion !== reconRequestVersionRef.current) {
+        return
+      }
+
       const message = formatCommandError(error)
+      resetReconOutput('failed', message)
       startTransition(() => {
-        setReconResult(null)
-        setReconLoadState('failed')
-        setReconError(message)
         setNotice(message)
         setStatusLine('Recon unavailable')
       })
@@ -2063,9 +2081,7 @@ function App() {
                 value={request.target}
                 onChange={(event) => {
                   const nextTarget = event.target.value
-                  setReconResult(null)
-                  setReconError(null)
-                  setReconLoadState('idle')
+                  resetReconOutput()
                   setRequest((current) => ({
                     ...current,
                     target: nextTarget,

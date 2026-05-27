@@ -49,6 +49,18 @@ function setViewportSize(width: number, height: number) {
   window.dispatchEvent(new Event('resize'))
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+
+  return { promise, resolve, reject }
+}
+
 const backendConfig: desktop.BackendConfig = {
   mode: 'local',
   baseUrl: 'http://127.0.0.1:9000',
@@ -541,12 +553,16 @@ describe('App shell', () => {
     expect(await screen.findByText('Confidence 90% · Auto-select Allowed')).toBeInTheDocument()
   })
 
-  it('clears recon output when the target changes', async () => {
+  it('clears recon output when the target changes during a pending rerun', async () => {
     const user = userEvent.setup()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
     })
+    const staleRecon = createDeferred<desktop.ReconResponse>()
+    desktopApi.runRecon
+      .mockResolvedValueOnce(reconResult)
+      .mockReturnValueOnce(staleRecon.promise)
 
     render(<App />)
 
@@ -559,11 +575,59 @@ describe('App shell', () => {
       }),
     )
     expect(await screen.findByText('stealth')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+    await waitFor(() => expect(desktopApi.runRecon).toHaveBeenCalledTimes(2))
 
     await user.clear(screen.getByLabelText('Target URL'))
     await user.type(screen.getByLabelText('Target URL'), 'https://new.example')
 
-    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
+    staleRecon.resolve({ ...reconResult, target: 'https://example.com' })
+
+    await waitFor(() => expect(screen.queryByText('stealth')).not.toBeInTheDocument())
+  })
+
+  it('clears recon output when backend capabilities refresh during a pending rerun', async () => {
+    const user = userEvent.setup()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: false,
+    })
+    const staleRecon = createDeferred<desktop.ReconResponse>()
+    desktopApi.runRecon
+      .mockResolvedValueOnce(reconResult)
+      .mockReturnValueOnce(staleRecon.promise)
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+    await waitFor(() => expect(desktopApi.runRecon).toHaveBeenCalledTimes(2))
+
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.selectOptions(screen.getByLabelText('Backend mode'), 'remote')
+    fireEvent.change(screen.getByLabelText('Backend base URL'), {
+      target: { value: 'https://api.example.test' },
+    })
+    fireEvent.change(screen.getByLabelText('Port'), { target: { value: '9443' } })
+    await user.click(screen.getByRole('button', { name: 'Save Connection' }))
+
+    await user.click(screen.getByRole('tab', { name: /^Audit/i }))
+    staleRecon.resolve({ ...reconResult, target: 'https://example.com' })
+
+    await waitFor(() => expect(screen.queryByText('stealth')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Run Recon' })).toBeDisabled()
   })
 
   it('clears stale recon output after a failed rerun', async () => {

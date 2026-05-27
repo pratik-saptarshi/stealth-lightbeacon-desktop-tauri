@@ -90,9 +90,21 @@ type ViewportState = {
   density: ViewportDensity
 }
 
+type WorkspaceSizeKey = 'auto' | 'laptop13' | 'laptop15' | 'desktop' | 'wideDesktop'
+
+type WorkspaceSizeOption = {
+  key: WorkspaceSizeKey
+  label: string
+  description: string
+  width?: number
+  height?: number
+  density: ViewportDensity
+}
+
 type UiSettings = {
   theme: Record<UiThemeKey, string>
   sections: Record<UiSectionKey, boolean>
+  workspaceSize: WorkspaceSizeKey
 }
 
 const defaultPort = 8000
@@ -136,7 +148,48 @@ const defaultUiSettings: UiSettings = {
     terminalReport: true,
     backendSurface: true,
   },
+  workspaceSize: 'auto',
 }
+const workspaceSizeOptions: WorkspaceSizeOption[] = [
+  {
+    key: 'auto',
+    label: 'Auto detect',
+    description: 'Follow the current screen size and tune the shell automatically.',
+    density: 'compact',
+  },
+  {
+    key: 'laptop13',
+    label: '13-inch laptop',
+    description: 'Compact shell density for smaller notebook screens.',
+    width: 1280,
+    height: 800,
+    density: 'compact',
+  },
+  {
+    key: 'laptop15',
+    label: '15-inch laptop',
+    description: 'Balanced shell density for standard laptop panels.',
+    width: 1440,
+    height: 900,
+    density: 'balanced',
+  },
+  {
+    key: 'desktop',
+    label: 'Desktop',
+    description: 'Balanced shell density for common office desktops.',
+    width: 1600,
+    height: 1000,
+    density: 'balanced',
+  },
+  {
+    key: 'wideDesktop',
+    label: 'Wide desktop',
+    description: 'Wide shell density for large monitors and external displays.',
+    width: 1920,
+    height: 1080,
+    density: 'wide',
+  },
+]
 const uiThemeFields: Array<{
   key: UiThemeKey
   label: string
@@ -267,7 +320,11 @@ function loadUiSettings() {
       uiSectionFields.map(({ key }) => [key, parsed?.sections?.[key] ?? defaultUiSettings.sections[key]]),
     ) as Record<UiSectionKey, boolean>
 
-    return { theme, sections }
+    const workspaceSize = workspaceSizeOptions.some(({ key }) => key === parsed?.workspaceSize)
+      ? (parsed?.workspaceSize ?? defaultUiSettings.workspaceSize)
+      : defaultUiSettings.workspaceSize
+
+    return { theme, sections, workspaceSize }
   } catch {
     return defaultUiSettings
   }
@@ -281,6 +338,13 @@ function buildUiShellStyle(uiSettings: UiSettings): CSSProperties {
     '--surface-accent': uiSettings.theme.accent,
     '--surface-button': uiSettings.theme.button,
   } as CSSProperties
+}
+
+function getWorkspaceSizeOption(workspaceSize: WorkspaceSizeKey) {
+  return (
+    workspaceSizeOptions.find((option) => option.key === workspaceSize) ??
+    workspaceSizeOptions[0]
+  )
 }
 
 function classifyViewport(width: number, height: number): ViewportDensity {
@@ -311,6 +375,42 @@ function readViewportState(): ViewportState {
     width,
     height,
     density: classifyViewport(width, height),
+  }
+}
+
+function resolveWorkspaceLayout(
+  uiSettings: UiSettings,
+  viewport: ViewportState,
+): {
+  key: WorkspaceSizeKey
+  label: string
+  width: number
+  height: number
+  density: ViewportDensity
+} {
+  const workspaceSizeOption = getWorkspaceSizeOption(uiSettings.workspaceSize)
+
+  if (workspaceSizeOption.key === 'auto') {
+    return {
+      key: workspaceSizeOption.key,
+      label:
+        viewport.density === 'compact'
+          ? 'Compact laptop'
+          : viewport.density === 'balanced'
+            ? 'Balanced desktop'
+            : 'Wide desktop',
+      width: viewport.width,
+      height: viewport.height,
+      density: viewport.density,
+    }
+  }
+
+  return {
+    key: workspaceSizeOption.key,
+    label: workspaceSizeOption.label,
+    width: workspaceSizeOption.width ?? viewport.width,
+    height: workspaceSizeOption.height ?? viewport.height,
+    density: workspaceSizeOption.density,
   }
 }
 
@@ -660,6 +760,13 @@ function App() {
         ...current.sections,
         [key]: enabled,
       },
+    }))
+  }, [])
+
+  const updateWorkspaceSize = useCallback((workspaceSize: WorkspaceSizeKey) => {
+    setUiSettings((current) => ({
+      ...current,
+      workspaceSize,
     }))
   }, [])
 
@@ -1363,6 +1470,7 @@ function App() {
   const remoteDraftMode = draftConfig.mode === 'remote'
   const reportAvailable = Boolean(evaluationStatus?.terminal)
   const shellStyle = buildUiShellStyle(uiSettings)
+  const workspaceLayout = resolveWorkspaceLayout(uiSettings, viewport)
   const showRecentActivity = uiSettings.sections.recentActivity
   const showCurrentEvaluation = uiSettings.sections.currentEvaluation
   const showTerminalReport = uiSettings.sections.terminalReport
@@ -1373,13 +1481,8 @@ function App() {
       : backendConfig.mode === 'local'
         ? 'The desktop process supervises a loopback companion while keeping configuration and results inside Tauri.'
         : 'The desktop shell brokers remote HTTPS requests while preserving desktop-side validation and caching.'
-  const workspaceDensityLabel =
-    viewport.density === 'compact'
-      ? 'Compact laptop'
-      : viewport.density === 'balanced'
-        ? 'Balanced desktop'
-        : 'Wide desktop'
-  const workspaceSizeLabel = `${viewport.width} x ${viewport.height}`
+  const workspaceDensityLabel = workspaceLayout.label
+  const workspaceSizeLabel = `${workspaceLayout.width} x ${workspaceLayout.height}`
   const requestValidationErrors = validateEvaluationRequest(
     request,
     capabilitiesLoadState === 'ready' ? capabilities : null,
@@ -1403,9 +1506,10 @@ function App() {
 
   return (
     <div
-      className={`app-shell app-shell--${viewport.density}`}
+      className={`app-shell app-shell--${workspaceLayout.density}`}
       style={shellStyle}
       data-viewport-density={viewport.density}
+      data-workspace-size={workspaceLayout.key}
     >
       <header className="topbar">
         <div className="topbar-brand">
@@ -1482,9 +1586,9 @@ function App() {
               <h2>Run audits through a companion service, embedded engine, or remote API.</h2>
             </div>
             <span className="status-pill status-live">
-              {viewport.density === 'compact'
+              {workspaceLayout.density === 'compact'
                 ? 'Dense shell'
-                : viewport.density === 'balanced'
+                : workspaceLayout.density === 'balanced'
                   ? 'Balanced shell'
                   : 'Wide shell'}
             </span>
@@ -2188,6 +2292,40 @@ function App() {
             </div>
             <span className="status-pill status-muted">Persisted locally</span>
           </div>
+
+          <section className="settings-section">
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Screen size</p>
+                <h3>Workspace presets</h3>
+              </div>
+            </div>
+            <div className="toggle-grid settings-toggle-grid">
+              {workspaceSizeOptions.map((option) => (
+                <label key={option.key} className="toggle-card">
+                  <input
+                    type="radio"
+                    name="workspace-size"
+                    aria-label={option.label}
+                    aria-describedby={`workspace-size-${option.key}-description`}
+                    checked={uiSettings.workspaceSize === option.key}
+                    onChange={() => updateWorkspaceSize(option.key)}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small id={`workspace-size-${option.key}-description`}>
+                      {option.description}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="field-hint">
+              {workspaceLayout.key === 'auto'
+                ? 'Auto detect follows the current screen size and keeps the shell compressed for the visible viewport.'
+                : `${workspaceLayout.label} layout defaults keep the shell compact for ${workspaceLayout.width} x ${workspaceLayout.height}.`}
+            </p>
+          </section>
 
           <section className="settings-section">
             <div className="subsection-heading">

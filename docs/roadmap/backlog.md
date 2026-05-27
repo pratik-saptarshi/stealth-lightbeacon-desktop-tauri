@@ -57,7 +57,7 @@ Status was revalidated against the desktop repo and the backend worktree
 Validation gate:
 - `README.md` and `readme.md` agree on the repo purpose and current phase
   status.
-- `backlog.md` and `implementation-roadmap.md` agree on the partial-vs-complete
+- `./backlog.md` and `./implementation-roadmap.md` agree on the partial-vs-complete
   ledger.
 - `codemap.md` entries point to the correct folder maps.
 

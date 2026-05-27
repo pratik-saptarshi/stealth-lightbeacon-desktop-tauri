@@ -12,8 +12,12 @@ artifacts, recon output, and the canonical OpenAPI contract.
 
 - `README.md`: canonical GitHub landing page for the desktop client.
 - `readme.md`: lowercase mirror for tooling and handoff consistency.
-- `backlog.md`: authoritative completion tracker and merged remediation plan.
-- `implementation-roadmap.md`: historical phase ledger and completion record.
+- `docs/roadmap/backlog.md`: authoritative completion tracker and merged
+  remediation plan.
+- `docs/roadmap/implementation-roadmap.md`: historical phase ledger and
+  completion record.
+- `docs/roadmap/plan-review-traceability.md`: review findings and roadmap
+  mapping.
 - `changelog.md`: release notes and documentation history.
 - `shared-axioms.md`: cross-repo boundary ownership and validation axioms.
 - `scripts/check_contract_sync.py`: pinned contract drift gate.
@@ -74,5 +78,7 @@ artifacts, recon output, and the canonical OpenAPI contract.
   - `README.md`
   - `readme.md`
   - `architecture.md`
-  - `backlog.md`
+  - `docs/roadmap/backlog.md`
+  - `docs/roadmap/implementation-roadmap.md`
+  - `docs/roadmap/plan-review-traceability.md`
   - `readme-CLI.md`

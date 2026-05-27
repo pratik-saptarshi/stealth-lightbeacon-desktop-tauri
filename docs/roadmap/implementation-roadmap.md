@@ -13,9 +13,9 @@ Verified state on 2026-05-26:
   release-operability cleanup.
 
 See
-[desktop-backend-contract.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/desktop-backend-contract.md)
+[desktop-backend-contract.md](../../desktop-backend-contract.md)
 for the verified interface map and
-[backlog.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/backlog.md)
+[backlog.md](./backlog.md)
 for the current remediation backlog.
 
 ## Delivery Loop Used Per Phase
@@ -25,7 +25,7 @@ for the current remediation backlog.
    - Review current code in both repos, not only planning docs.
    - Review the pinned OpenAPI snapshot and the backend-generated artifact.
    - Review open findings in
-     [plan-review-traceability.md](/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/plan-review-traceability.md).
+     [plan-review-traceability.md](./plan-review-traceability.md).
 2. Test-first work
    - Add failing producer tests in the backend repo first.
    - Add failing consumer tests in the desktop repo second.
@@ -105,11 +105,11 @@ The original critical path is complete because:
 3. local and remote runtime policy exists inside Rust
 4. contract, adapter, IPC, integration, and release validation are in place
 
-The remaining desktop-completion work is tracked in `backlog.md`.
+The remaining desktop-completion work is tracked in `./backlog.md`.
 
 ## Post-Completion Follow-Up
 
-The remaining work is tracked in `backlog.md` under phases `R1` to `R4`:
+The remaining work is tracked in `./backlog.md` under phases `R1` to `R4`:
 
 - repo-truth and codemap refresh
 - package-grade release validation

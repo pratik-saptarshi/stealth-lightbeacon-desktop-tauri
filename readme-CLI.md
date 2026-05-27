@@ -37,11 +37,13 @@ for local development, validation, and release work.
 - `readme.md`
   Lowercase companion to `README.md` for tools that expect normalized file
   names.
-- `backlog.md`
+- `docs/roadmap/README.md`
+  Roadmap index for the moved planning and review documents.
+- `docs/roadmap/backlog.md`
   Verified completion tracker and merged remediation backlog.
-- `implementation-roadmap.md`
+- `docs/roadmap/implementation-roadmap.md`
   Historical phase sequence plus the verified partial-vs-complete ledger.
-- `plan-review-traceability.md`
+- `docs/roadmap/plan-review-traceability.md`
   Review findings and how they mapped into implementation/remediation work.
 
 ## External Dependencies

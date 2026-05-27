@@ -29,8 +29,10 @@ path serves both references here.
 
 - [README.md](README.md)
 - [codemap.md](codemap.md)
-- [backlog.md](backlog.md)
-- [implementation-roadmap.md](implementation-roadmap.md)
+- [Roadmap index](./docs/roadmap/README.md)
+- [Backlog](./docs/roadmap/backlog.md)
+- [Implementation roadmap](./docs/roadmap/implementation-roadmap.md)
+- [Plan review traceability](./docs/roadmap/plan-review-traceability.md)
 - [shared-axioms.md](shared-axioms.md)
 - [architecture.md](architecture.md)
 - [readme-CLI.md](readme-CLI.md)

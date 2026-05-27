@@ -49,6 +49,17 @@ function setViewportSize(width: number, height: number) {
   window.dispatchEvent(new Event('resize'))
 }
 
+function createDeferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+
+  return { promise, resolve, reject }
+}
+
 const backendConfig: desktop.BackendConfig = {
   mode: 'local',
   baseUrl: 'http://127.0.0.1:9000',
@@ -486,15 +497,43 @@ describe('App shell', () => {
     expect(screen.queryByText('stealth')).not.toBeInTheDocument()
   })
 
-  it('clears stale recon output after a failed rerun', async () => {
+  it('clears stale recon output when capabilities refresh', async () => {
     const user = userEvent.setup()
+    desktopApi.getCapabilities.mockResolvedValueOnce({
+      ...capabilities,
+      supportsRecon: true,
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Recon' }))
+
+    await waitFor(() =>
+      expect(desktopApi.runRecon).toHaveBeenCalledWith({
+        target: 'https://example.com',
+      }),
+    )
+    expect(await screen.findByText('stealth')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('button', { name: 'Check Health' }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('clears stale recon output before a rejected rerun reports failure', async () => {
+    const user = userEvent.setup()
+    const failedRerun = createDeferredPromise<void>()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
     })
     desktopApi.runRecon
       .mockResolvedValueOnce(reconResult)
-      .mockRejectedValueOnce('Recon failed.')
+      .mockReturnValueOnce(failedRerun.promise)
 
     render(<App />)
 
@@ -510,8 +549,13 @@ describe('App shell', () => {
 
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
 
+    await waitFor(() =>
+      expect(screen.queryByText('stealth')).not.toBeInTheDocument(),
+    )
+
+    failedRerun.reject('Recon failed.')
+
     expect((await screen.findAllByText('Recon failed.')).length).toBeGreaterThan(0)
-    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
   })
 
   it('starts result fetch only after the evaluation reaches a terminal status', async () => {

@@ -916,12 +916,19 @@ function App() {
     })
   }, [])
 
+  const resetReconState = useCallback(
+    (loadState: ReconLoadState = 'idle', error: string | null = null) => {
+      startTransition(() => {
+        setReconResult(null)
+        setReconError(error)
+        setReconLoadState(loadState)
+      })
+    },
+    [],
+  )
+
   const refreshConnectionState = useCallback(async (mode: BackendMode) => {
-    startTransition(() => {
-      setReconResult(null)
-      setReconError(null)
-      setReconLoadState('idle')
-    })
+    resetReconState()
 
     if (!desktopRuntime) {
       startTransition(() => {
@@ -1048,7 +1055,7 @@ function App() {
     } finally {
       setRefreshingConnection(false)
     }
-  }, [desktopRuntime, recordActivity, syncProfilesFromCapabilities])
+  }, [desktopRuntime, recordActivity, resetReconState, syncProfilesFromCapabilities])
 
   useEffect(() => {
     let cancelled = false
@@ -1571,19 +1578,16 @@ function App() {
 
     if (reconValidationErrors.length > 0) {
       const message = reconValidationErrors[0]
+      resetReconState('failed', message)
       startTransition(() => {
-        setReconResult(null)
         setNotice(message)
         setStatusLine('Recon blocked')
-        setReconError(message)
-        setReconLoadState('failed')
       })
       recordActivity('Recon blocked', message)
       return
     }
 
-    setReconLoadState('loading')
-    setReconError(null)
+    resetReconState('loading')
 
     try {
       const nextRecon = await runRecon({ target: request.target.trim() })
@@ -1600,10 +1604,8 @@ function App() {
       )
     } catch (error) {
       const message = formatCommandError(error)
+      resetReconState('failed', message)
       startTransition(() => {
-        setReconResult(null)
-        setReconLoadState('failed')
-        setReconError(message)
         setNotice(message)
         setStatusLine('Recon unavailable')
       })
@@ -2063,9 +2065,7 @@ function App() {
                 value={request.target}
                 onChange={(event) => {
                   const nextTarget = event.target.value
-                  setReconResult(null)
-                  setReconError(null)
-                  setReconLoadState('idle')
+                  resetReconState()
                   setRequest((current) => ({
                     ...current,
                     target: nextTarget,

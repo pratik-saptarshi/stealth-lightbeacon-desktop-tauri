@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import type { CSSProperties } from 'react'
 
 import './App.css'
 import {
@@ -60,7 +61,42 @@ type EvaluationResultView = {
   findings: EvaluationResultFindingView[]
 }
 
+type UiThemeKey =
+  | 'panelBg'
+  | 'panelBorder'
+  | 'cardBg'
+  | 'accent'
+  | 'button'
+
+type UiSectionKey =
+  | 'recentActivity'
+  | 'currentEvaluation'
+  | 'terminalReport'
+  | 'backendSurface'
+
+type WorkspaceTabKey =
+  | 'overview'
+  | 'connection'
+  | 'audit'
+  | 'results'
+  | 'activity'
+  | 'settings'
+
+type ViewportDensity = 'compact' | 'balanced' | 'wide'
+
+type ViewportState = {
+  width: number
+  height: number
+  density: ViewportDensity
+}
+
+type UiSettings = {
+  theme: Record<UiThemeKey, string>
+  sections: Record<UiSectionKey, boolean>
+}
+
 const defaultPort = 8000
+const uiSettingsStorageKey = 'stealth-lightbeacon.ui-settings.v1'
 
 const defaultBackendConfig: BackendConfig = {
   mode: 'local',
@@ -86,6 +122,197 @@ const maxUrlsBounds = { min: 1, max: 5000 }
 const pollDelayMs = 1500
 const maxAutomaticPollRetries = 2
 const severityOrder = ['critical', 'high', 'medium', 'low', 'info'] as const
+const defaultUiSettings: UiSettings = {
+  theme: {
+    panelBg: '#fffaf2',
+    panelBorder: '#8f7860',
+    cardBg: '#fff7ec',
+    accent: '#245d56',
+    button: '#244b4f',
+  },
+  sections: {
+    recentActivity: true,
+    currentEvaluation: true,
+    terminalReport: true,
+    backendSurface: true,
+  },
+}
+const uiThemeFields: Array<{
+  key: UiThemeKey
+  label: string
+  description: string
+}> = [
+  {
+    key: 'panelBg',
+    label: 'Panel background',
+    description: 'Main shell panels and the topbar surface.',
+  },
+  {
+    key: 'cardBg',
+    label: 'Card background',
+    description: 'Metric cards, validation cards, and toggles.',
+  },
+  {
+    key: 'panelBorder',
+    label: 'Panel border',
+    description: 'Outlines around the shell and nested cards.',
+  },
+  {
+    key: 'accent',
+    label: 'Accent color',
+    description: 'Progress bars, decorative highlights, and status cues.',
+  },
+  {
+    key: 'button',
+    label: 'Primary action',
+    description: 'Primary buttons in the main workflow.',
+  },
+]
+const uiSectionFields: Array<{
+  key: UiSectionKey
+  label: string
+  description: string
+}> = [
+  {
+    key: 'recentActivity',
+    label: 'Recent activity',
+    description: 'Show the desktop adapter trace.',
+  },
+  {
+    key: 'currentEvaluation',
+    label: 'Current evaluation',
+    description: 'Show the live evaluation status panel.',
+  },
+  {
+    key: 'terminalReport',
+    label: 'Terminal report and artifacts',
+    description: 'Show the terminal result and artifact cards.',
+  },
+  {
+    key: 'backendSurface',
+    label: 'Backend surface',
+    description: 'Show the health, profile, and artifact capability cards.',
+  },
+]
+
+const workspaceTabs: Array<{
+  key: WorkspaceTabKey
+  label: string
+  description: string
+}> = [
+  {
+    key: 'overview',
+    label: 'Overview',
+    description: 'Compact launch summary and execution modes.',
+  },
+  {
+    key: 'connection',
+    label: 'Connection',
+    description: 'Backend mode, health, and capability surface.',
+  },
+  {
+    key: 'audit',
+    label: 'Audit',
+    description: 'Target, profile, and submission controls.',
+  },
+  {
+    key: 'results',
+    label: 'Results',
+    description: 'Live status, terminal report, and artifacts.',
+  },
+  {
+    key: 'activity',
+    label: 'Activity',
+    description: 'Desktop adapter trace and polling history.',
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    description: 'Theme, visibility, and support preferences.',
+  },
+]
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
+}
+
+function getUiStorage() {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return null
+  }
+
+  return window.localStorage
+}
+
+function loadUiSettings() {
+  const storage = getUiStorage()
+  if (!storage) {
+    return defaultUiSettings
+  }
+
+  try {
+    const stored = storage.getItem(uiSettingsStorageKey)
+    if (!stored) {
+      return defaultUiSettings
+    }
+
+    const parsed = JSON.parse(stored) as Partial<UiSettings> | null
+    const theme = Object.fromEntries(
+      uiThemeFields.map(({ key }) => [
+        key,
+        isHexColor(parsed?.theme?.[key]) ? parsed?.theme?.[key] : defaultUiSettings.theme[key],
+      ]),
+    ) as Record<UiThemeKey, string>
+    const sections = Object.fromEntries(
+      uiSectionFields.map(({ key }) => [key, parsed?.sections?.[key] ?? defaultUiSettings.sections[key]]),
+    ) as Record<UiSectionKey, boolean>
+
+    return { theme, sections }
+  } catch {
+    return defaultUiSettings
+  }
+}
+
+function buildUiShellStyle(uiSettings: UiSettings): CSSProperties {
+  return {
+    '--surface-panel-bg': uiSettings.theme.panelBg,
+    '--surface-panel-border': uiSettings.theme.panelBorder,
+    '--surface-card-bg': uiSettings.theme.cardBg,
+    '--surface-accent': uiSettings.theme.accent,
+    '--surface-button': uiSettings.theme.button,
+  } as CSSProperties
+}
+
+function classifyViewport(width: number, height: number): ViewportDensity {
+  if (width < 920 || height < 680) {
+    return 'compact'
+  }
+
+  if (width < 1360 || height < 860) {
+    return 'balanced'
+  }
+
+  return 'wide'
+}
+
+function readViewportState(): ViewportState {
+  if (typeof window === 'undefined') {
+    return {
+      width: 800,
+      height: 600,
+      density: 'compact',
+    }
+  }
+
+  const width = window.innerWidth
+  const height = window.innerHeight
+
+  return {
+    width,
+    height,
+    density: classifyViewport(width, height),
+  }
+}
 
 function formatBackendMode(mode: BackendMode | string) {
   switch (mode) {
@@ -314,6 +541,7 @@ function App() {
   const desktopRuntime = isDesktopRuntime()
   const pollTimerRef = useRef<number | null>(null)
   const nextActivityIdRef = useRef(1)
+  const initialViewport = readViewportState()
 
   const [booting, setBooting] = useState(true)
   const [savingConfig, setSavingConfig] = useState(false)
@@ -340,8 +568,15 @@ function App() {
   const [artifactsLoadState, setArtifactsLoadState] =
     useState<ResultLoadState>('idle')
   const [artifactsError, setArtifactsError] = useState<string | null>(null)
-  const [traceExpanded, setTraceExpanded] = useState(true)
-  const [reportExpanded, setReportExpanded] = useState(true)
+  const [viewport, setViewport] = useState<ViewportState>(initialViewport)
+  const [activeWorkspaceTab, setActiveWorkspaceTab] =
+    useState<WorkspaceTabKey>('overview')
+  const [traceExpanded, setTraceExpanded] = useState(
+    initialViewport.density !== 'compact',
+  )
+  const [reportExpanded, setReportExpanded] = useState(
+    initialViewport.density !== 'compact',
+  )
   const [pollingPaused, setPollingPaused] = useState(false)
   const [pollFailureCount, setPollFailureCount] = useState(0)
   const [pollError, setPollError] = useState<string | null>(null)
@@ -349,6 +584,7 @@ function App() {
   const [shouldPollActiveEvaluation, setShouldPollActiveEvaluation] = useState(false)
   const [snapshotPersistedForEvaluationId, setSnapshotPersistedForEvaluationId] =
     useState<string | null>(null)
+  const [uiSettings, setUiSettings] = useState<UiSettings>(loadUiSettings)
   const [notice, setNotice] = useState(
     'Choose companion, standalone, or remote mode, confirm health, then submit an audit run.',
   )
@@ -379,6 +615,56 @@ function App() {
         ].slice(0, 4)
       })
     })
+  }, [])
+
+  useEffect(() => {
+    try {
+      getUiStorage()?.setItem(uiSettingsStorageKey, JSON.stringify(uiSettings))
+    } catch {
+      // Ignore persistence failures in preview or sandboxed contexts.
+    }
+  }, [uiSettings])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const updateViewport = () => {
+      setViewport(readViewportState())
+    }
+
+    window.addEventListener('resize', updateViewport)
+    window.visualViewport?.addEventListener('resize', updateViewport)
+
+    return () => {
+      window.removeEventListener('resize', updateViewport)
+      window.visualViewport?.removeEventListener('resize', updateViewport)
+    }
+  }, [])
+
+  const updateUiColor = useCallback((key: UiThemeKey, value: string) => {
+    setUiSettings((current) => ({
+      ...current,
+      theme: {
+        ...current.theme,
+        [key]: value,
+      },
+    }))
+  }, [])
+
+  const toggleUiSection = useCallback((key: UiSectionKey, enabled: boolean) => {
+    setUiSettings((current) => ({
+      ...current,
+      sections: {
+        ...current.sections,
+        [key]: enabled,
+      },
+    }))
+  }, [])
+
+  const resetUiSettings = useCallback(() => {
+    setUiSettings(defaultUiSettings)
   }, [])
 
   const clearPollTimer = useCallback(() => {
@@ -805,7 +1091,6 @@ function App() {
     desktopRuntime,
     evaluationStatus?.terminal,
     recordActivity,
-    resultLoadState,
   ])
 
   useEffect(() => {
@@ -863,7 +1148,6 @@ function App() {
     }
   }, [
     activeEvaluation?.evaluationId,
-    artifactsLoadState,
     desktopRuntime,
     evaluationStatus?.terminal,
     recordActivity,
@@ -1078,12 +1362,24 @@ function App() {
     : null
   const remoteDraftMode = draftConfig.mode === 'remote'
   const reportAvailable = Boolean(evaluationStatus?.terminal)
+  const shellStyle = buildUiShellStyle(uiSettings)
+  const showRecentActivity = uiSettings.sections.recentActivity
+  const showCurrentEvaluation = uiSettings.sections.currentEvaluation
+  const showTerminalReport = uiSettings.sections.terminalReport
+  const showBackendSurface = uiSettings.sections.backendSurface
   const modeOperationsCopy =
     backendConfig.mode === 'standalone'
       ? 'Embedded SEO, GEO, AEO, and WCAG 2.1/2.2 AA rules run inside the desktop boundary.'
       : backendConfig.mode === 'local'
         ? 'The desktop process supervises a loopback companion while keeping configuration and results inside Tauri.'
         : 'The desktop shell brokers remote HTTPS requests while preserving desktop-side validation and caching.'
+  const workspaceDensityLabel =
+    viewport.density === 'compact'
+      ? 'Compact laptop'
+      : viewport.density === 'balanced'
+        ? 'Balanced desktop'
+        : 'Wide desktop'
+  const workspaceSizeLabel = `${viewport.width} x ${viewport.height}`
   const requestValidationErrors = validateEvaluationRequest(
     request,
     capabilitiesLoadState === 'ready' ? capabilities : null,
@@ -1106,7 +1402,11 @@ function App() {
     requestValidationErrors.length === 0
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell app-shell--${viewport.density}`}
+      style={shellStyle}
+      data-viewport-density={viewport.density}
+    >
       <header className="topbar">
         <div className="topbar-brand">
           <img
@@ -1138,28 +1438,75 @@ function App() {
             <span className="meta-label">Connection</span>
             <strong>{summarizeHealth(health)}</strong>
           </div>
+          <div className="meta-block">
+            <span className="meta-label">Viewport</span>
+            <strong>
+              {workspaceDensityLabel} · {workspaceSizeLabel}
+            </strong>
+          </div>
         </div>
       </header>
 
-      <main className="workspace-grid">
-        <section className="main-column">
-          <section className="panel hero-panel">
-            <div className="hero-copy">
+      <nav className="workspace-tabs" role="tablist" aria-label="Workspace panels">
+        {workspaceTabs.map((tab) => {
+          const selected = activeWorkspaceTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              id={`workspace-tab-${tab.key}`}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={`workspace-panel-${tab.key}`}
+              className={`workspace-tab${selected ? ' workspace-tab--active' : ''}`}
+              onClick={() => setActiveWorkspaceTab(tab.key)}
+            >
+              <span>{tab.label}</span>
+              <small>{tab.description}</small>
+            </button>
+          )
+        })}
+      </nav>
+
+      <main className="workspace-panels">
+        <section
+          id="workspace-panel-overview"
+          className="panel workspace-panel"
+          role="tabpanel"
+          aria-labelledby="workspace-tab-overview"
+          hidden={activeWorkspaceTab !== 'overview'}
+        >
+          <div className="panel-heading">
+            <div>
               <p className="section-kicker">Execution Modes</p>
               <h2>Run audits through a companion service, embedded engine, or remote API.</h2>
+            </div>
+            <span className="status-pill status-live">
+              {viewport.density === 'compact'
+                ? 'Dense shell'
+                : viewport.density === 'balanced'
+                  ? 'Balanced shell'
+                  : 'Wide shell'}
+            </span>
+          </div>
+
+          <div className="hero-panel hero-panel--tabbed">
+            <div className="hero-copy">
               <p className="hero-text">
                 The Tauri layer stores connection state, coordinates evaluation
                 lifecycle, and now ships an embedded ruleset for SEO, GEO, AEO,
                 and WCAG 2.1/2.2 AA coverage when you need a standalone run.
               </p>
+              <div className="notice-bar notice-bar--compact">
+                <div>
+                  <span className="notice-label">Execution path</span>
+                  <p>{modeOperationsCopy}</p>
+                </div>
+                <strong>{backendConfig.mode === 'standalone' ? 'Embedded' : backendConfig.baseUrl}</strong>
+              </div>
             </div>
 
             <div className="hero-metrics">
-              <article className="metric-card">
-                <span className="metric-label">Execution path</span>
-                <strong>{formatBackendMode(backendConfig.mode)}</strong>
-                <p>{modeOperationsCopy}</p>
-              </article>
               <article className="metric-card">
                 <span className="metric-label">Connection target</span>
                 <strong>{backendConfig.mode === 'standalone' ? 'Embedded ruleset' : backendConfig.baseUrl}</strong>
@@ -1172,7 +1519,10 @@ function App() {
               <article className="metric-card">
                 <span className="metric-label">Audit coverage</span>
                 <strong>SEO / GEO / AEO / WCAG AA</strong>
-                <p>Embedded capability profiles keep accessibility checks aligned with search-facing analysis.</p>
+                <p>
+                  Embedded capability profiles keep accessibility checks aligned
+                  with search-facing analysis.
+                </p>
               </article>
               <article className="metric-card">
                 <span className="metric-label">Active evaluation</span>
@@ -1183,333 +1533,360 @@ function App() {
                     : 'No evaluation submitted yet'}
                 </p>
               </article>
+              <article className="metric-card">
+                <span className="metric-label">Window size</span>
+                <strong>{workspaceSizeLabel}</strong>
+                <p>{workspaceDensityLabel} layout defaults keep the shell compact.</p>
+              </article>
             </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="section-kicker">Connectivity</p>
-                <h2>Backend Connection</h2>
-              </div>
-              <span className="status-pill status-draft">
-                {booting ? 'Bootstrapping' : health ? 'Connected' : 'Awaiting health'}
-              </span>
-            </div>
-
-            <div className="config-grid">
-              <label className="field">
-                <span>Backend mode</span>
-                <select
-                  aria-label="Backend mode"
-                  value={draftConfig.mode}
-                  onChange={(event) => updateDraftMode(event.target.value as BackendMode)}
-                >
-                  <option value="local">Local companion</option>
-                  <option value="standalone">Standalone engine</option>
-                  <option value="remote">Remote API</option>
-                </select>
-              </label>
-
-              <label className="field">
-                <span>Port</span>
-                <input
-                  aria-label="Port"
-                  type="number"
-                  min={1}
-                  max={65535}
-                  step={1}
-                  value={draftConfig.port}
-                  onChange={(event) => updateDraftPort(event.target.value)}
-                />
-                <small className="field-hint">
-                  {remoteDraftMode
-                    ? 'Overrides the remote endpoint port while preserving the current hostname.'
-                    : 'Used for companion startup and preserved when switching execution modes.'}
-                </small>
-              </label>
-
-              <label className="field field-wide">
-                <span>{remoteDraftMode ? 'Backend base URL' : 'Loopback base URL'}</span>
-                <input
-                  aria-label={remoteDraftMode ? 'Backend base URL' : 'Loopback base URL'}
-                  type="text"
-                  value={draftConfig.baseUrl}
-                  readOnly={!remoteDraftMode}
-                  onChange={(event) => updateDraftBaseUrl(event.target.value)}
-                />
-                <small className="field-hint">
-                  {remoteDraftMode
-                    ? 'Use an absolute HTTPS endpoint for a managed companion service.'
-                    : 'Standalone and local companion modes bind to loopback automatically.'}
-                </small>
-              </label>
-
-              <label className="field">
-                <span>Timeout (ms)</span>
-                <input
-                  aria-label="Timeout (ms)"
-                  type="number"
-                  min={1000}
-                  max={60000}
-                  step={500}
-                  value={draftConfig.timeoutMs}
-                  onChange={(event) =>
-                    setDraftConfig((current) => ({
-                      ...current,
-                      timeoutMs: Number(event.target.value),
-                    }))
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>API version</span>
-                <input
-                  type="text"
-                  value={health?.apiVersion ?? 'Unreachable'}
-                  readOnly
-                />
-              </label>
-            </div>
-
-            <div className="notice-bar">
-              <div>
-                <span className="notice-label">Connection state</span>
-                <p>{notice}</p>
-              </div>
-              <strong>{statusLine}</strong>
-            </div>
-
-            <div className="action-row">
-              <button
-                type="button"
-                className="primary-action"
-                disabled={savingConfig || !desktopRuntime}
-                onClick={() => void handleSaveConnection()}
-              >
-                {savingConfig ? 'Saving Connection' : 'Save Connection'}
-              </button>
-              <button
-                type="button"
-                className="secondary-action"
-                disabled={refreshingConnection || !desktopRuntime}
-                onClick={() => void refreshConnectionState(backendConfig.mode)}
-              >
-                {refreshingConnection ? 'Checking Health' : 'Check Health'}
-              </button>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="section-kicker">Submission</p>
-                <h2>Evaluation Request</h2>
-              </div>
-              <span className="status-pill status-muted">
-                {capabilitiesLoadState === 'ready'
-                  ? 'Capabilities loaded'
-                  : capabilitiesLoadState === 'failed'
-                    ? 'Capabilities unavailable'
-                    : 'Loading capabilities'}
-              </span>
-            </div>
-
-            <div className="config-grid">
-              <label className="field field-wide">
-                <span>Target URL</span>
-                <input
-                  aria-label="Target URL"
-                  type="text"
-                  value={request.target}
-                  onChange={(event) =>
-                    setRequest((current) => ({
-                      ...current,
-                      target: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Profile</span>
-                <select
-                  aria-label="Profile"
-                  value={request.profile}
-                  onChange={(event) =>
-                    setRequest((current) => ({
-                      ...current,
-                      profile: event.target.value,
-                    }))
-                  }
-                >
-                  {availableProfiles.map((profile) => (
-                    <option key={profile} value={profile}>
-                      {profile}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field">
-                <span>Max depth</span>
-                <input
-                  aria-label="Max depth"
-                  type="number"
-                  min={1}
-                  max={8}
-                  value={request.maxDepth}
-                  onChange={(event) =>
-                    setRequest((current) => ({
-                      ...current,
-                      maxDepth: Number(event.target.value),
-                    }))
-                  }
-                />
-              </label>
-
-              <label className="field">
-                <span>Max URLs</span>
-                <input
-                  aria-label="Max URLs"
-                  type="number"
-                  min={1}
-                  max={5000}
-                  value={request.maxUrls}
-                  onChange={(event) =>
-                    setRequest((current) => ({
-                      ...current,
-                      maxUrls: Number(event.target.value),
-                    }))
-                  }
-                />
-              </label>
-            </div>
-
-            <div className="focus-strip">
-              <span className="focus-label">Output formats</span>
-              <div className="checkbox-grid">
-                {availableFormats.map((format) => {
-                  const checked = request.outputFormats.includes(format)
-                  return (
-                    <label key={format} className="checkbox-card">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() =>
-                          setRequest((current) => ({
-                            ...current,
-                            outputFormats: checked
-                              ? current.outputFormats.filter(
-                                  (item) => item !== format,
-                                )
-                              : [...current.outputFormats, format],
-                          }))
-                        }
-                      />
-                      <span>{format}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="toggle-grid">
-              <label className="toggle-card">
-                <input
-                  type="checkbox"
-                  checked={request.failOnCritical}
-                  onChange={(event) =>
-                    setRequest((current) => ({
-                      ...current,
-                      failOnCritical: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Fail on critical findings</span>
-              </label>
-
-              <label className="toggle-card">
-                <input
-                  type="checkbox"
-                  checked={request.budgetGate}
-                  onChange={(event) =>
-                    setRequest((current) => ({
-                      ...current,
-                      budgetGate: event.target.checked,
-                    }))
-                  }
-                />
-                <span>Budget gate enabled</span>
-              </label>
-            </div>
-
-            <div className="action-row">
-              <button
-                type="button"
-                className="primary-action"
-                disabled={!canSubmit}
-                onClick={() => void handleCreateEvaluation()}
-              >
-                {submitting ? 'Submitting Evaluation' : 'Submit Evaluation'}
-              </button>
-            </div>
-
-            {submissionIssues.length > 0 ? (
-              <div className="validation-list" role="alert" aria-live="polite">
-                {submissionIssues.map((issue) => (
-                  <p key={issue}>{issue}</p>
-                ))}
-              </div>
-            ) : null}
-          </section>
-
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="section-kicker">Recent activity</p>
-                <h2>Desktop Adapter Trace</h2>
-              </div>
-              <div className="heading-actions">
-                <span className="status-pill status-muted">Last four events</span>
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  aria-expanded={traceExpanded}
-                  aria-controls="trace-panel"
-                  onClick={() => setTraceExpanded((current) => !current)}
-                >
-                  {traceExpanded ? 'Collapse trace' : 'Expand trace'}
-                </button>
-              </div>
-            </div>
-
-            <div id="trace-panel" className="run-list" hidden={!traceExpanded}>
-              {activity.map((item) => (
-                <article key={item.id} className="run-card">
-                  <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.detail}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
+          </div>
         </section>
 
-        <aside className="side-column">
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="section-kicker">Status</p>
-                <h2>Current Evaluation</h2>
-              </div>
-              <span className="status-pill status-soft">
-                {evaluationStatus?.terminal ? 'Terminal' : 'Polling'}
-              </span>
+        <section
+          id="workspace-panel-connection"
+          className="panel workspace-panel"
+          role="tabpanel"
+          aria-labelledby="workspace-tab-connection"
+          hidden={activeWorkspaceTab !== 'connection'}
+        >
+          <div className="panel-heading">
+            <div>
+              <p className="section-kicker">Connectivity</p>
+              <h2>Backend Connection</h2>
             </div>
+            <span className="status-pill status-draft">
+              {booting ? 'Bootstrapping' : health ? 'Connected' : 'Awaiting health'}
+            </span>
+          </div>
 
+          <div className="config-grid">
+            <label className="field">
+              <span>Backend mode</span>
+              <select
+                aria-label="Backend mode"
+                value={draftConfig.mode}
+                onChange={(event) => updateDraftMode(event.target.value as BackendMode)}
+              >
+                <option value="local">Local companion</option>
+                <option value="standalone">Standalone engine</option>
+                <option value="remote">Remote API</option>
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Port</span>
+              <input
+                aria-label="Port"
+                type="number"
+                min={1}
+                max={65535}
+                step={1}
+                value={draftConfig.port}
+                onChange={(event) => updateDraftPort(event.target.value)}
+              />
+              <small className="field-hint">
+                {remoteDraftMode
+                  ? 'Overrides the remote endpoint port while preserving the current hostname.'
+                  : 'Used for companion startup and preserved when switching execution modes.'}
+              </small>
+            </label>
+
+            <label className="field field-wide">
+              <span>{remoteDraftMode ? 'Backend base URL' : 'Loopback base URL'}</span>
+              <input
+                aria-label={remoteDraftMode ? 'Backend base URL' : 'Loopback base URL'}
+                type="text"
+                value={draftConfig.baseUrl}
+                readOnly={!remoteDraftMode}
+                onChange={(event) => updateDraftBaseUrl(event.target.value)}
+              />
+              <small className="field-hint">
+                {remoteDraftMode
+                  ? 'Use an absolute HTTPS endpoint for a managed companion service.'
+                  : 'Standalone and local companion modes bind to loopback automatically.'}
+              </small>
+            </label>
+
+            <label className="field">
+              <span>Timeout (ms)</span>
+              <input
+                aria-label="Timeout (ms)"
+                type="number"
+                min={1000}
+                max={60000}
+                step={500}
+                value={draftConfig.timeoutMs}
+                onChange={(event) =>
+                  setDraftConfig((current) => ({
+                    ...current,
+                    timeoutMs: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field">
+              <span>API version</span>
+              <input type="text" value={health?.apiVersion ?? 'Unreachable'} readOnly />
+            </label>
+          </div>
+
+          <div className="notice-bar">
+            <div>
+              <span className="notice-label">Connection state</span>
+              <p>{notice}</p>
+            </div>
+            <strong>{statusLine}</strong>
+          </div>
+
+          <div className="action-row">
+            <button
+              type="button"
+              className="primary-action"
+              disabled={savingConfig || !desktopRuntime}
+              onClick={() => void handleSaveConnection()}
+            >
+              {savingConfig ? 'Saving Connection' : 'Save Connection'}
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              disabled={refreshingConnection || !desktopRuntime}
+              onClick={() => void refreshConnectionState(backendConfig.mode)}
+            >
+              {refreshingConnection ? 'Checking Health' : 'Check Health'}
+            </button>
+          </div>
+
+          {showBackendSurface ? (
+            <div className="validation-list">
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Service</span>
+                  <strong className={health ? 'tone-good' : 'tone-idle'}>
+                    {health?.service ?? 'Unavailable'}
+                  </strong>
+                </div>
+                <p>Health checks come from `GET /health`.</p>
+              </article>
+
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Profiles</span>
+                  <strong className="tone-good">{availableProfiles.join(', ')}</strong>
+                </div>
+                <p>Capability options are loaded from `GET /capabilities`.</p>
+              </article>
+
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Artifacts</span>
+                  <strong className={capabilities?.supportsArtifacts ? 'tone-good' : 'tone-warn'}>
+                    {capabilities?.supportsArtifacts ? 'Supported' : 'Deferred'}
+                  </strong>
+                </div>
+                <p>Phase 2 consumes artifact routes without moving persistence into the client.</p>
+              </article>
+            </div>
+          ) : (
+            <div className="validation-list">
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Backend surface</span>
+                  <strong className="tone-idle">Hidden</strong>
+                </div>
+                <p>Backend surface details are disabled in Settings.</p>
+              </article>
+            </div>
+          )}
+        </section>
+
+        <section
+          id="workspace-panel-audit"
+          className="panel workspace-panel"
+          role="tabpanel"
+          aria-labelledby="workspace-tab-audit"
+          hidden={activeWorkspaceTab !== 'audit'}
+        >
+          <div className="panel-heading">
+            <div>
+              <p className="section-kicker">Submission</p>
+              <h2>Evaluation Request</h2>
+            </div>
+            <span className="status-pill status-muted">
+              {capabilitiesLoadState === 'ready'
+                ? 'Capabilities loaded'
+                : capabilitiesLoadState === 'failed'
+                  ? 'Capabilities unavailable'
+                  : 'Loading capabilities'}
+            </span>
+          </div>
+
+          <div className="config-grid">
+            <label className="field field-wide">
+              <span>Target URL</span>
+              <input
+                aria-label="Target URL"
+                type="text"
+                value={request.target}
+                onChange={(event) =>
+                  setRequest((current) => ({
+                    ...current,
+                    target: event.target.value,
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field">
+              <span>Profile</span>
+              <select
+                aria-label="Profile"
+                value={request.profile}
+                onChange={(event) =>
+                  setRequest((current) => ({
+                    ...current,
+                    profile: event.target.value,
+                  }))
+                }
+              >
+                {availableProfiles.map((profile) => (
+                  <option key={profile} value={profile}>
+                    {profile}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Max depth</span>
+              <input
+                aria-label="Max depth"
+                type="number"
+                min={1}
+                max={8}
+                value={request.maxDepth}
+                onChange={(event) =>
+                  setRequest((current) => ({
+                    ...current,
+                    maxDepth: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+
+            <label className="field">
+              <span>Max URLs</span>
+              <input
+                aria-label="Max URLs"
+                type="number"
+                min={1}
+                max={5000}
+                value={request.maxUrls}
+                onChange={(event) =>
+                  setRequest((current) => ({
+                    ...current,
+                    maxUrls: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+          </div>
+
+          <div className="focus-strip">
+            <span className="focus-label">Output formats</span>
+            <div className="checkbox-grid">
+              {availableFormats.map((format) => {
+                const checked = request.outputFormats.includes(format)
+                return (
+                  <label key={format} className="checkbox-card">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setRequest((current) => ({
+                          ...current,
+                          outputFormats: checked
+                            ? current.outputFormats.filter((item) => item !== format)
+                            : [...current.outputFormats, format],
+                        }))
+                      }
+                    />
+                    <span>{format}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="toggle-grid">
+            <label className="toggle-card">
+              <input
+                type="checkbox"
+                checked={request.failOnCritical}
+                onChange={(event) =>
+                  setRequest((current) => ({
+                    ...current,
+                    failOnCritical: event.target.checked,
+                  }))
+                }
+              />
+              <span>Fail on critical findings</span>
+            </label>
+
+            <label className="toggle-card">
+              <input
+                type="checkbox"
+                checked={request.budgetGate}
+                onChange={(event) =>
+                  setRequest((current) => ({
+                    ...current,
+                    budgetGate: event.target.checked,
+                  }))
+                }
+              />
+              <span>Budget gate enabled</span>
+            </label>
+          </div>
+
+          <div className="action-row">
+            <button
+              type="button"
+              className="primary-action"
+              disabled={!canSubmit}
+              onClick={() => void handleCreateEvaluation()}
+            >
+              {submitting ? 'Submitting Evaluation' : 'Submit Evaluation'}
+            </button>
+          </div>
+
+          {submissionIssues.length > 0 ? (
+            <div className="validation-list" role="alert" aria-live="polite">
+              {submissionIssues.map((issue) => (
+                <p key={issue}>{issue}</p>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        <section
+          id="workspace-panel-results"
+          className="panel workspace-panel"
+          role="tabpanel"
+          aria-labelledby="workspace-tab-results"
+          hidden={activeWorkspaceTab !== 'results'}
+        >
+          <div className="panel-heading">
+            <div>
+              <p className="section-kicker">Status</p>
+              <h2>Current Evaluation</h2>
+            </div>
+            <span className="status-pill status-soft">
+              {evaluationStatus?.terminal ? 'Terminal' : 'Polling'}
+            </span>
+          </div>
+
+          {showCurrentEvaluation ? (
             <div className="status-grid">
               <article className="status-card">
                 <span className="metric-label">Evaluation ID</span>
@@ -1545,220 +1922,346 @@ function App() {
                 </p>
               </article>
             </div>
-
-            {pollingPaused ? (
-              <div className="action-row">
-                <button
-                  type="button"
-                  className="secondary-action"
-                  onClick={handleResumePolling}
-                >
-                  Resume Polling
-                </button>
-              </div>
-            ) : null}
-
-            {pollError ? (
-              <div className="validation-list" role="status" aria-live="polite">
-                <p>
-                  Last polling error ({pollFailureCount}): {pollError}
-                </p>
-              </div>
-            ) : null}
-
-            <div className="subsection-heading">
-              <div>
-                <p className="section-kicker">Reporting</p>
-                <h3>Terminal Report and Artifacts</h3>
-              </div>
-              <button
-                type="button"
-                className="collapse-toggle"
-                aria-expanded={reportExpanded}
-                aria-controls="reporting-panel"
-                disabled={!reportAvailable}
-                onClick={() => setReportExpanded((current) => !current)}
-              >
-                {reportExpanded ? 'Collapse reporting' : 'Expand reporting'}
-              </button>
-            </div>
-
-            {!reportAvailable ? (
-              <div className="validation-list">
-                <article className="validation-card">
-                  <div className="validation-header">
-                    <span>Reporting</span>
-                    <strong className="tone-idle">Waiting</strong>
-                  </div>
-                  <p>Terminal reports and artifact descriptors appear once the active audit reaches a terminal state.</p>
-                </article>
-              </div>
-            ) : null}
-
-            {evaluationStatus?.terminal ? (
-              <div id="reporting-panel" className="validation-list" hidden={!reportExpanded}>
-                <article className="validation-card">
-                  <div className="validation-header">
-                    <span>Terminal report</span>
-                    <strong
-                      className={
-                        evaluationResult
-                          ? resultToneClass(evaluationResult.status)
-                          : 'tone-idle'
-                      }
-                    >
-                      {terminalResultView?.statusLabel ??
-                        (resultLoadState === 'failed' ? 'Unavailable' : 'Loading')}
-                    </strong>
-                  </div>
-                  <p>
-                    {resultLoadState === 'loading'
-                      ? 'Fetching terminal result from GET /evaluations/{evaluation_id}/result.'
-                      : resultLoadState === 'failed'
-                        ? `Result retrieval failed. ${resultError ?? 'Unknown desktop command error.'}`
-                        : 'Terminal result retrieved through the desktop adapter.'}
-                  </p>
-                </article>
-
-                {terminalResultView?.summaryMetrics.length ? (
-                  <article className="validation-card">
-                    <div className="validation-header">
-                      <span>Summary</span>
-                      <strong className={resultToneClass(evaluationResult?.status ?? '')}>
-                        {terminalResultView.summaryMetrics[0]?.label}{' '}
-                        {terminalResultView.summaryMetrics[0]?.value}
-                      </strong>
-                    </div>
-                    {terminalResultView.summaryMetrics.slice(1).map((metric) => (
-                      <p key={metric.label}>
-                        {metric.label} {metric.value}
-                      </p>
-                    ))}
-                  </article>
-                ) : null}
-
-                {terminalResultView?.severityItems.length ? (
-                  <article className="validation-card">
-                    <div className="validation-header">
-                      <span>Severity counts</span>
-                      <strong className={resultToneClass(evaluationResult?.status ?? '')}>
-                        {terminalResultView.severityItems[0]}
-                      </strong>
-                    </div>
-                    {terminalResultView.severityItems.slice(1).map((item) => (
-                      <p key={item}>{item}</p>
-                    ))}
-                  </article>
-                ) : null}
-
-                {terminalResultView?.timelineMetrics.length ? (
-                  <article className="validation-card">
-                    <div className="validation-header">
-                      <span>Run timing</span>
-                      <strong className="tone-idle">
-                        {terminalResultView.timelineMetrics[0]?.label}{' '}
-                        {terminalResultView.timelineMetrics[0]?.value}
-                      </strong>
-                    </div>
-                    {terminalResultView.timelineMetrics.slice(1).map((metric) => (
-                      <p key={metric.label}>
-                        {metric.label} {metric.value}
-                      </p>
-                    ))}
-                  </article>
-                ) : null}
-
-                {terminalResultView?.findings.map((finding) => (
-                  <article key={finding.key} className="validation-card">
-                    <div className="validation-header">
-                      <span>Finding</span>
-                      <strong className="tone-idle">{finding.title}</strong>
-                    </div>
-                    {finding.meta ? <p>{finding.meta}</p> : null}
-                    {finding.description ? <p>{finding.description}</p> : null}
-                  </article>
-                ))}
-                <article className="validation-card">
-                  <div className="validation-header">
-                    <span>Artifacts</span>
-                    <strong className="tone-idle">
-                      {artifactsLoadState === 'loading'
-                        ? 'Loading'
-                        : artifactsLoadState === 'failed'
-                          ? 'Unavailable'
-                          : `${artifacts.length} loaded`}
-                    </strong>
-                  </div>
-                  <p>
-                    {artifactsLoadState === 'failed'
-                      ? `Artifact retrieval failed. ${artifactsError ?? 'Unknown desktop command error.'}`
-                      : 'Artifact descriptors come from GET /evaluations/{evaluation_id}/artifacts.'}
-                  </p>
-                </article>
-
-                {artifacts.map((artifact) => (
-                  <article key={`${artifact.kind}-${artifact.name}`} className="validation-card">
-                    <div className="validation-header">
-                      <span>{artifact.kind}</span>
-                      <strong className="tone-idle">{artifact.name}</strong>
-                    </div>
-                    <p>{artifact.mediaType}</p>
-                    {artifact.downloadUrl ? (
-                      <p>
-                        <a href={artifact.downloadUrl} target="_blank" rel="noreferrer">
-                          {`Open ${artifact.name}`}
-                        </a>
-                      </p>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
-            ) : null}
-          </section>
-
-          <section className="panel">
-            <div className="panel-heading">
-              <div>
-                <p className="section-kicker">Capabilities</p>
-                <h2>Backend Surface</h2>
-              </div>
-            </div>
-
+          ) : (
             <div className="validation-list">
               <article className="validation-card">
                 <div className="validation-header">
-                  <span>Service</span>
-                  <strong className={health ? 'tone-good' : 'tone-idle'}>
-                    {health?.service ?? 'Unavailable'}
-                  </strong>
+                  <span>Status</span>
+                  <strong className="tone-idle">Hidden</strong>
                 </div>
-                <p>Health checks come from `GET /health`.</p>
-              </article>
-
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Profiles</span>
-                  <strong className="tone-good">{availableProfiles.join(', ')}</strong>
-                </div>
-                <p>Capability options are loaded from `GET /capabilities`.</p>
-              </article>
-
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Artifacts</span>
-                  <strong
-                    className={
-                      capabilities?.supportsArtifacts ? 'tone-good' : 'tone-warn'
-                    }
-                  >
-                    {capabilities?.supportsArtifacts ? 'Supported' : 'Deferred'}
-                  </strong>
-                </div>
-                <p>Phase 2 consumes artifact routes without moving persistence into the client.</p>
+                <p>Current evaluation cards are disabled in Settings.</p>
               </article>
             </div>
+          )}
+
+          {pollingPaused ? (
+            <div className="action-row">
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={handleResumePolling}
+              >
+                Resume Polling
+              </button>
+            </div>
+          ) : null}
+
+          {pollError ? (
+            <div className="validation-list" role="status" aria-live="polite">
+              <p>
+                Last polling error ({pollFailureCount}): {pollError}
+              </p>
+            </div>
+          ) : null}
+
+          {showTerminalReport ? (
+            <>
+              <div className="subsection-heading">
+                <div>
+                  <p className="section-kicker">Reporting</p>
+                  <h3>Terminal Report and Artifacts</h3>
+                </div>
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  aria-expanded={reportExpanded}
+                  aria-controls="reporting-panel"
+                  disabled={!reportAvailable}
+                  onClick={() => setReportExpanded((current) => !current)}
+                >
+                  {reportExpanded ? 'Collapse reporting' : 'Expand reporting'}
+                </button>
+              </div>
+
+              {!reportAvailable ? (
+                <div className="validation-list">
+                  <article className="validation-card">
+                    <div className="validation-header">
+                      <span>Reporting</span>
+                      <strong className="tone-idle">Waiting</strong>
+                    </div>
+                    <p>
+                      Terminal reports and artifact descriptors appear once the active audit reaches a terminal state.
+                    </p>
+                  </article>
+                </div>
+              ) : null}
+
+              {evaluationStatus?.terminal ? (
+                <div id="reporting-panel" className="validation-list" hidden={!reportExpanded}>
+                  <article className="validation-card">
+                    <div className="validation-header">
+                      <span>Terminal report</span>
+                      <strong
+                        className={
+                          evaluationResult
+                            ? resultToneClass(evaluationResult.status)
+                            : 'tone-idle'
+                        }
+                      >
+                        {terminalResultView?.statusLabel ??
+                          (resultLoadState === 'failed' ? 'Unavailable' : 'Loading')}
+                      </strong>
+                    </div>
+                    <p>
+                      {resultLoadState === 'loading'
+                        ? 'Fetching terminal result from GET /evaluations/{evaluation_id}/result.'
+                        : resultLoadState === 'failed'
+                          ? `Result retrieval failed. ${resultError ?? 'Unknown desktop command error.'}`
+                          : 'Terminal result retrieved through the desktop adapter.'}
+                    </p>
+                  </article>
+
+                  {terminalResultView?.summaryMetrics.length ? (
+                    <article className="validation-card">
+                      <div className="validation-header">
+                        <span>Summary</span>
+                        <strong className={resultToneClass(evaluationResult?.status ?? '')}>
+                          {terminalResultView.summaryMetrics[0]?.label}{' '}
+                          {terminalResultView.summaryMetrics[0]?.value}
+                        </strong>
+                      </div>
+                      {terminalResultView.summaryMetrics.slice(1).map((metric) => (
+                        <p key={metric.label}>
+                          {metric.label} {metric.value}
+                        </p>
+                      ))}
+                    </article>
+                  ) : null}
+
+                  {terminalResultView?.severityItems.length ? (
+                    <article className="validation-card">
+                      <div className="validation-header">
+                        <span>Severity counts</span>
+                        <strong className={resultToneClass(evaluationResult?.status ?? '')}>
+                          {terminalResultView.severityItems[0]}
+                        </strong>
+                      </div>
+                      {terminalResultView.severityItems.slice(1).map((item) => (
+                        <p key={item}>{item}</p>
+                      ))}
+                    </article>
+                  ) : null}
+
+                  {terminalResultView?.timelineMetrics.length ? (
+                    <article className="validation-card">
+                      <div className="validation-header">
+                        <span>Run timing</span>
+                        <strong className="tone-idle">
+                          {terminalResultView.timelineMetrics[0]?.label}{' '}
+                          {terminalResultView.timelineMetrics[0]?.value}
+                        </strong>
+                      </div>
+                      {terminalResultView.timelineMetrics.slice(1).map((metric) => (
+                        <p key={metric.label}>
+                          {metric.label} {metric.value}
+                        </p>
+                      ))}
+                    </article>
+                  ) : null}
+
+                  {terminalResultView?.findings.map((finding) => (
+                    <article key={finding.key} className="validation-card">
+                      <div className="validation-header">
+                        <span>Finding</span>
+                        <strong className="tone-idle">{finding.title}</strong>
+                      </div>
+                      {finding.meta ? <p>{finding.meta}</p> : null}
+                      {finding.description ? <p>{finding.description}</p> : null}
+                    </article>
+                  ))}
+
+                  <article className="validation-card">
+                    <div className="validation-header">
+                      <span>Artifacts</span>
+                      <strong className="tone-idle">
+                        {artifactsLoadState === 'loading'
+                          ? 'Loading'
+                          : artifactsLoadState === 'failed'
+                            ? 'Unavailable'
+                            : `${artifacts.length} loaded`}
+                      </strong>
+                    </div>
+                    <p>
+                      {artifactsLoadState === 'failed'
+                        ? `Artifact retrieval failed. ${artifactsError ?? 'Unknown desktop command error.'}`
+                        : 'Artifact descriptors come from GET /evaluations/{evaluation_id}/artifacts.'}
+                    </p>
+                  </article>
+
+                  {artifacts.map((artifact) => (
+                    <article
+                      key={`${artifact.kind}-${artifact.name}`}
+                      className="validation-card"
+                    >
+                      <div className="validation-header">
+                        <span>{artifact.kind}</span>
+                        <strong className="tone-idle">{artifact.name}</strong>
+                      </div>
+                      <p>{artifact.mediaType}</p>
+                      {artifact.downloadUrl ? (
+                        <p>
+                          <a href={artifact.downloadUrl} target="_blank" rel="noreferrer">
+                            {`Open ${artifact.name}`}
+                          </a>
+                        </p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="validation-list">
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Reporting</span>
+                  <strong className="tone-idle">Hidden</strong>
+                </div>
+                <p>Terminal reporting and artifact cards are disabled in Settings.</p>
+              </article>
+            </div>
+          )}
+        </section>
+
+        <section
+          id="workspace-panel-activity"
+          className="panel workspace-panel"
+          role="tabpanel"
+          aria-labelledby="workspace-tab-activity"
+          hidden={activeWorkspaceTab !== 'activity'}
+        >
+          <div className="panel-heading">
+            <div>
+              <p className="section-kicker">Recent activity</p>
+              <h2>Desktop Adapter Trace</h2>
+            </div>
+            <div className="heading-actions">
+              <span className="status-pill status-muted">Last four events</span>
+              <button
+                type="button"
+                className="collapse-toggle"
+                aria-expanded={traceExpanded}
+                aria-controls="trace-panel"
+                onClick={() => setTraceExpanded((current) => !current)}
+              >
+                {traceExpanded ? 'Collapse trace' : 'Expand trace'}
+              </button>
+            </div>
+          </div>
+
+          {showRecentActivity ? (
+            <div id="trace-panel" className="run-list" hidden={!traceExpanded}>
+              {activity.map((item) => (
+                <article key={item.id} className="run-card">
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.detail}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="validation-list">
+              <article className="validation-card">
+                <div className="validation-header">
+                  <span>Trace</span>
+                  <strong className="tone-idle">Hidden</strong>
+                </div>
+                <p>Recent activity is disabled in Settings.</p>
+              </article>
+            </div>
+          )}
+        </section>
+
+        <section
+          id="workspace-panel-settings"
+          className="panel workspace-panel"
+          role="tabpanel"
+          aria-labelledby="workspace-tab-settings"
+          hidden={activeWorkspaceTab !== 'settings'}
+        >
+          <div className="panel-heading">
+            <div>
+              <p className="section-kicker">Operator preferences</p>
+              <h2>Settings</h2>
+            </div>
+            <span className="status-pill status-muted">Persisted locally</span>
+          </div>
+
+          <section className="settings-section">
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Theme</p>
+                <h3>Panel colors</h3>
+              </div>
+            </div>
+            <div className="settings-grid">
+              {uiThemeFields.map((field) => (
+                <label key={field.key} className="field settings-field">
+                  <span>{field.label}</span>
+                  <input
+                    aria-label={field.label}
+                    type="color"
+                    value={uiSettings.theme[field.key]}
+                    onChange={(event) => updateUiColor(field.key, event.target.value)}
+                  />
+                  <small className="field-hint">{field.description}</small>
+                </label>
+              ))}
+            </div>
           </section>
-        </aside>
+
+          <section className="settings-section">
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Visibility</p>
+                <h3>Optional sections</h3>
+              </div>
+            </div>
+            <div className="toggle-grid settings-toggle-grid">
+              {uiSectionFields.map((field) => (
+                <label key={field.key} className="toggle-card">
+                  <input
+                    type="checkbox"
+                    checked={uiSettings.sections[field.key]}
+                    onChange={(event) =>
+                      toggleUiSection(field.key, event.target.checked)
+                    }
+                  />
+                  <span>
+                    <strong>{field.label}</strong>
+                    <small>{field.description}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="action-row">
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={resetUiSettings}
+              >
+                Restore defaults
+              </button>
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Support</p>
+                <h3>Report a bug</h3>
+              </div>
+            </div>
+            <div className="support-card">
+              <p>Send bug reports to pratik.saptarshi@outlook.com.</p>
+              <a href="mailto:pratik.saptarshi@outlook.com?subject=Stealth%20Lightbeacon%20bug%20report">
+                Report a bug
+              </a>
+            </div>
+          </section>
+        </section>
       </main>
     </div>
   )

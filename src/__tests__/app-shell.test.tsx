@@ -34,6 +34,20 @@ vi.mock('../lib/desktop', () => ({
 
 const desktopApi = vi.mocked(desktop)
 
+function setViewportSize(width: number, height: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: width,
+    writable: true,
+  })
+  Object.defineProperty(window, 'innerHeight', {
+    configurable: true,
+    value: height,
+    writable: true,
+  })
+  window.dispatchEvent(new Event('resize'))
+}
+
 const backendConfig: desktop.BackendConfig = {
   mode: 'local',
   baseUrl: 'http://127.0.0.1:9000',
@@ -173,6 +187,8 @@ describe('App shell', () => {
   beforeEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
+    window.localStorage?.clear?.()
+    setViewportSize(800, 600)
     desktopApi.isDesktopRuntime.mockReturnValue(true)
     desktopApi.getBackendConfig.mockResolvedValue(backendConfig)
     desktopApi.setBackendConfig.mockResolvedValue(backendConfig)
@@ -194,9 +210,38 @@ describe('App shell', () => {
     expect(
       await screen.findByRole('heading', { name: 'Stealth Lightbeacon' }),
     ).toBeInTheDocument()
+    expect(await screen.findByText('Compact laptop · 800 x 600')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+
     expect(await screen.findByDisplayValue(backendConfig.baseUrl)).toBeInTheDocument()
     expect(await screen.findByText('stealth-lightbeacon-api')).toBeInTheDocument()
     expect(await screen.findByText('baseline, deep, export')).toBeInTheDocument()
+  })
+
+  it('keeps only the active workspace panel visible', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    expect(screen.getByRole('tab', { name: /^Overview/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(document.getElementById('workspace-panel-connection')).toHaveAttribute(
+      'hidden',
+    )
+
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+
+    expect(screen.getByRole('tab', { name: /^Connection/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(document.getElementById('workspace-panel-connection')).not.toHaveAttribute(
+      'hidden',
+    )
   })
 
   it('renders standalone mode metadata when the embedded engine is configured', async () => {
@@ -241,6 +286,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
     await user.selectOptions(await screen.findByLabelText('Backend mode'), 'remote')
     const baseUrlInput = await screen.findByLabelText('Backend base URL')
     fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.test' } })
@@ -259,11 +305,46 @@ describe('App shell', () => {
     )
   })
 
+  it('opens settings tab and applies custom panel colors', async () => {
+    render(<App />)
+
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /^Settings/i }))
+    fireEvent.change(screen.getByLabelText('Panel background'), {
+      target: { value: '#112233' },
+    })
+
+    expect(screen.getByText(/send bug reports to/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Report a bug' })).toHaveAttribute(
+      'href',
+      'mailto:pratik.saptarshi@outlook.com?subject=Stealth%20Lightbeacon%20bug%20report',
+    )
+    const appShell = document.querySelector('.app-shell') as HTMLElement | null
+    expect(appShell?.style.getPropertyValue('--surface-panel-bg')).toBe('#112233')
+  })
+
+  it('hides optional sections from the dashboard when disabled in settings', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Settings/i }))
+    await user.click(screen.getByRole('checkbox', { name: /Recent activity/ }))
+    await user.click(screen.getByRole('checkbox', { name: /Backend surface/ }))
+
+    await user.click(screen.getByRole('tab', { name: /^Activity/i }))
+    expect(screen.getByText('Recent activity is disabled in Settings.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    expect(screen.getByText('Backend surface details are disabled in Settings.')).toBeInTheDocument()
+  })
+
   it('blocks invalid evaluation requests before submit', async () => {
     const user = userEvent.setup()
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByLabelText('json'))
     await user.click(screen.getByLabelText('markdown'))
@@ -287,6 +368,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Audit/i }))
     const submitButton = await screen.findByRole('button', {
       name: 'Submit Evaluation',
     })
@@ -311,6 +393,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
     expect(
       (
         await screen.findAllByText(
@@ -330,6 +413,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
     expect(
       (
         await screen.findAllByText(
@@ -368,6 +452,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
@@ -414,11 +499,27 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
+    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
-    expect(await screen.findByText('Score 92')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(desktopApi.getEvaluationResult).toHaveBeenCalledWith('eval-123'),
+    )
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText('Terminal result retrieved through the desktop adapter.'),
+        ).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
+    await waitFor(() =>
+      expect(screen.getByText(/Score\s*92/i)).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
     expect(await screen.findByText('TLS version review')).toBeInTheDocument()
     expect(await screen.findByText('critical 0')).toBeInTheDocument()
     expect(await screen.findByText('Completed 2026-01-15T10:00:03Z')).toBeInTheDocument()
@@ -444,11 +545,27 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
+    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
-    expect(await screen.findByText('Score 78')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(desktopApi.getEvaluationResult).toHaveBeenCalledWith('eval-123'),
+    )
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText('Terminal result retrieved through the desktop adapter.'),
+        ).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
+    await waitFor(() =>
+      expect(screen.getByText(/Score\s*78/i)).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
     expect(await screen.findByText('Budget threshold reached')).toBeInTheDocument()
     expect(await screen.findByText('high 1')).toBeInTheDocument()
     expect(await screen.findByText('Failed 1')).toBeInTheDocument()
@@ -473,14 +590,28 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
+    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     await waitFor(() =>
       expect(desktopApi.getEvaluationArtifacts).toHaveBeenCalledWith('eval-123'),
     )
-    expect(await screen.findByText('html-report')).toBeInTheDocument()
-    expect(await screen.findByText('text/html')).toBeInTheDocument()
+    await waitFor(
+      () =>
+        expect(
+          screen.getByText(
+            'Artifact descriptors come from GET /evaluations/{evaluation_id}/artifacts.',
+          ),
+        ).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
+    await waitFor(
+      () => expect(screen.getByText(/text\/html/i)).toBeInTheDocument(),
+      { timeout: 4000 },
+    )
     expect(
       screen.getByRole('link', { name: 'Open html-report' }),
     ).toHaveAttribute(
@@ -494,6 +625,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Results/i }))
     expect(
       await screen.findByText('Accepted at 2026-05-25T08:00:00Z'),
     ).toBeInTheDocument()
@@ -505,10 +637,12 @@ describe('App shell', () => {
   it('collapses trace and reporting panels on demand', async () => {
     const user = userEvent.setup()
     desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
+    setViewportSize(1280, 900)
 
     render(<App />)
 
     expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: /^Activity/i }))
     await user.click(screen.getByRole('button', { name: 'Collapse trace' }))
     expect(screen.getByRole('button', { name: 'Expand trace' })).toHaveAttribute(
       'aria-expanded',
@@ -516,6 +650,7 @@ describe('App shell', () => {
     )
     expect(document.getElementById('trace-panel')).toHaveAttribute('hidden')
 
+    await user.click(screen.getByRole('tab', { name: /^Results/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Collapse reporting' }))
     expect(screen.getByRole('button', { name: 'Expand reporting' })).toHaveAttribute(
@@ -549,6 +684,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
@@ -557,7 +693,9 @@ describe('App shell', () => {
       { timeout: 4000 },
     )
 
+    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
     expect(await screen.findByText('Polling paused for eval-123 after 3 failed attempts.')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /^Results/i }))
     expect(
       await screen.findByRole('button', { name: 'Resume Polling' }),
     ).toBeInTheDocument()
@@ -567,8 +705,7 @@ describe('App shell', () => {
     await waitFor(() =>
       expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(4),
     )
-    expect(
-      await screen.findByText('Evaluation eval-123 finished with success'),
-    ).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
+    expect(await screen.findByText('Evaluation eval-123 finished with success')).toBeInTheDocument()
   }, 10000)
 })

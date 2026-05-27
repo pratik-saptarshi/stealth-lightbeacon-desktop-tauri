@@ -380,10 +380,12 @@ describe('App shell', () => {
     expect(screen.getByLabelText('Profile')).toHaveValue('deep')
     expect(screen.getByLabelText('Fail on critical findings')).not.toBeChecked()
     expect(screen.getByLabelText('Budget gate enabled')).toBeChecked()
-    expect(document.querySelector('.app-shell')).toHaveAttribute(
+    const appShell = document.querySelector('.app-shell')
+    expect(appShell).toHaveAttribute(
       'data-workspace-size',
       'wideDesktop',
     )
+    expect(appShell).toHaveClass(/app-shell--compact/)
     expect(
       within(settingsPanel).getByText(
         'Wide desktop layout defaults keep the shell compact for 1920 x 1080.',

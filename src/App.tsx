@@ -419,12 +419,15 @@ function resolveWorkspaceLayout(
     }
   }
 
+  const density =
+    viewport.density === 'compact' ? 'compact' : workspaceSizeOption.density
+
   return {
     key: workspaceSizeOption.key,
     label: workspaceSizeOption.label,
     width: workspaceSizeOption.width ?? viewport.width,
     height: workspaceSizeOption.height ?? viewport.height,
-    density: workspaceSizeOption.density,
+    density,
   }
 }
 

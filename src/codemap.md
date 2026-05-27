@@ -11,8 +11,8 @@ renders the operator workflow, and keeps all Tauri command details behind
 `main.tsx` is the thin entrypoint: it mounts `<App />` inside `StrictMode` and
 loads global styles from `index.css`. `App.tsx` owns UI state for backend
 configuration, health, capabilities, evaluation submission, polling, terminal
-results, artifacts, last-opened snapshot restore, and the operator settings
-drawer. `App.css` provides the screen layout and panel styling, while
+results, artifacts, last-opened snapshot restore, and the tabbed operator
+shell. `App.css` provides the screen layout and panel styling, while
 `index.css` defines global tokens and page background. Tests under
 `src/__tests__/` exercise the shell through the desktop adapter boundary.
 
@@ -28,7 +28,9 @@ backend returns a terminal status. After terminal completion, the shell loads
 the result and artifacts and persists the thin snapshot. Recon transport
 exists in the adapter but is not yet surfaced in the operator shell. In
 browser preview, the same shell renders but desktop actions remain disabled and
-the desktop-only commands stay gated.
+the desktop-only commands stay gated. The workspace now classifies viewport
+density, uses horizontal tabs below the header, and hides inactive panels so
+the default experience stays scroll-light.
 
 ## Integration
 

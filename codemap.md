@@ -12,11 +12,13 @@ artifacts, recon output, and the canonical OpenAPI contract.
 
 - `README.md`: canonical GitHub landing page for the desktop client.
 - `readme.md`: lowercase mirror for tooling and handoff consistency.
+- `codemap.md`: repository atlas and current architecture map.
 - `backlog.md`: authoritative completion tracker and merged remediation plan.
 - `implementation-roadmap.md`: historical phase ledger and completion record.
 - `changelog.md`: release notes and documentation history.
 - `scripts/check_contract_sync.py`: pinned contract drift gate.
 - `scripts/release_validate.py`: cross-repo release validation gate.
+- `src-tauri/tauri.conf.json`: desktop window defaults and packaging metadata.
 - `src/main.tsx`: React bootstrap.
 - `src/App.tsx`: operator shell and workflow state.
 - `src/lib/desktop.ts`: typed Tauri adapter boundary.
@@ -38,19 +40,24 @@ artifacts, recon output, and the canonical OpenAPI contract.
 
 ## Runtime Topology
 
-1. React loads persisted backend config and snapshot state through Tauri.
-2. Rust resolves `backend-config.json` and the last-opened terminal snapshot
+1. Tauri opens the desktop window at `800 x 600` by default and embeds the
+   current frontend build.
+2. React loads persisted backend config and snapshot state through Tauri.
+3. The frontend classifies the viewport, switches the shell into compact or
+   balanced density, and exposes the operator workflow through horizontal
+   tabs.
+4. Rust resolves `backend-config.json` and the last-opened terminal snapshot
    from the app config directory.
-3. React refreshes `/health` and `/capabilities` and gates operator actions on
+5. React refreshes `/health` and `/capabilities` and gates operator actions on
    capability data.
-4. In local mode, Rust can auto-start the sibling backend companion and wait
+6. In local mode, Rust can auto-start the sibling backend companion and wait
    for readiness before requests proceed.
-5. Submission flows through `POST /evaluations`, polling through
+7. Submission flows through `POST /evaluations`, polling through
    `GET /evaluations/{evaluation_id}`, and terminal retrieval through result
    and artifact routes.
-6. Recon transport exists in the adapter/runtime, but the operator workflow is
+8. Recon transport exists in the adapter/runtime, but the operator workflow is
    still backlog work in `src/App.tsx`.
-7. Release validation checks contract sync, backend tests, desktop tests, Rust
+9. Release validation checks contract sync, backend tests, desktop tests, Rust
    tests, frontend build, and Tauri package build.
 
 ## Current Completion Status
@@ -60,8 +67,9 @@ artifacts, recon output, and the canonical OpenAPI contract.
   workflow is not yet wired.
 - Phase `4`: partial, because local and remote runtime substrate exists but the
   operator-facing auth and compatibility UX is still thin.
-- Phase `5`: partial, because contract sync and release validation exist but
-  GitHub publication plumbing is still missing.
+- Phase `5`: partially complete, because contract sync and release validation
+  exist and the release publication workflow is documented and exercised
+  through GitHub CLI.
 
 ## Integration
 

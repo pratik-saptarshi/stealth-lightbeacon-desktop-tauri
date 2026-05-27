@@ -29,6 +29,12 @@ for local development, validation, and release work.
   contract tests, Vitest, Rust tests, frontend build, and Tauri package build.
 - `npm run tauri:build`
   Produces the macOS `.app` bundle through Tauri.
+- `git tag -a <tag> -m "<message>"`
+  Creates the release tag after validation passes.
+- `gh release create <tag> --title "<title>" --notes-file changelog.md`
+  Publishes the GitHub release from the validated tag and the public changelog.
+- `gh release view <tag>`
+  Verifies the published release page and notes.
 
 ## Repo Truth Files
 
@@ -43,6 +49,8 @@ for local development, validation, and release work.
   Historical phase sequence plus the verified partial-vs-complete ledger.
 - `plan-review-traceability.md`
   Review findings and how they mapped into implementation/remediation work.
+- `codemap.md`
+  Repository atlas for the current desktop shell, runtime, and release surface.
 
 ## External Dependencies
 

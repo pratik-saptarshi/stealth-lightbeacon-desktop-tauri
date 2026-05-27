@@ -12,6 +12,8 @@ window/runtime configuration used to ship the desktop client.
   `lib.rs` currently contains the full runtime adapter.
 - `tauri.conf.json` defines app identity, build hooks, window defaults, and the
   release packaging configuration.
+- The default window size is `800 x 600`, which matches the compact-first
+  desktop shell layout.
 - `capabilities/default.json` contains the Tauri capability manifest.
 - `gen/schemas/` contains generated configuration schemas for local reference.
 - `Cargo.toml` keeps the Rust dependency surface narrow: `tauri`, `reqwest`,
@@ -31,6 +33,8 @@ transport policy, contract-aware IPC, and packaging validation.
    the backend API.
 5. Packaging settings in `tauri.conf.json` control how the built frontend is
    embedded and how the release bundle is produced.
+6. The tabbed React shell adapts its density to the viewport while keeping
+   inactive panels hidden.
 
 ## Integration
 

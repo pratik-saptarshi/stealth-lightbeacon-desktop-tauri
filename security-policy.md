@@ -18,6 +18,8 @@ areas in this repo include:
   `STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN`.
 - Remote mode requires `https://`.
 - Local companion startup is loopback-bound and runtime-discovered.
+- Public docs and release notes must not contain secrets, auth tokens, or
+  non-public backend endpoints.
 
 ## Reporting
 
@@ -36,3 +38,5 @@ public issue. Include:
 - Keep `npm run validate:release` green.
 - Do not move secret handling into the frontend adapter.
 - Do not relax remote HTTPS enforcement without an explicit policy change.
+- Review the changelog and release notes for accidental internal data before
+  publishing a GitHub release.

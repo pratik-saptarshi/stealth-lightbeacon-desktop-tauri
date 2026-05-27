@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-05-27
+
+### Responsive Operator Shell
+
+- Added viewport detection in the desktop shell so the UI can classify compact,
+  balanced, and wide layouts.
+- Set the first-launch Tauri window size to `800 x 600` so the app opens in a
+  compact but usable default workspace.
+- Reworked the main workspace into horizontal tabs below the header so only the
+  active panel stays visible.
+- Kept the terminal reporting and artifact loading flow stable after the tabbed
+  shell refactor.
+
+### Public Release Refresh
+
+- Updated the public status docs to match the current viewport-aware shell and
+  the tabbed operator layout.
+- Refreshed the repository atlas and folder codemaps to describe the current UI
+  and runtime boundaries.
+- Published the current documented GitHub release for this iteration.
+
 ## 2026-05-26
 
 ### Verified Completion

@@ -685,81 +685,172 @@ fn standalone_evaluation_status(evaluation: &StandaloneEvaluation) -> Evaluation
         };
     }
 
+    let terminal_status = standalone_terminal_status(evaluation);
+
     EvaluationStatusResponse {
         evaluation_id: evaluation.evaluation_id.clone(),
-        status: "success".into(),
+        status: terminal_status.into(),
         stage: Some("completed".into()),
         progress_percent: Some(100),
-        message: Some("Standalone evaluation completed with embedded audit rules.".into()),
-        exit_state: Some("success".into()),
+        message: Some(match terminal_status {
+            "budget_breach" => {
+                "Standalone evaluation completed with embedded audit rules and a budget breach."
+            }
+            _ => "Standalone evaluation completed with embedded audit rules.",
+        }
+        .into()),
+        exit_state: Some(terminal_status.into()),
         terminal: true,
     }
 }
 
-fn standalone_findings(target: &str) -> Vec<serde_json::Value> {
+fn standalone_terminal_status(evaluation: &StandaloneEvaluation) -> &'static str {
+    if evaluation.request.budget_gate {
+        "budget_breach"
+    } else {
+        "success"
+    }
+}
+
+fn standalone_findings(target: &str, budget_breach: bool) -> Vec<serde_json::Value> {
     let host_hint = reqwest::Url::parse(target)
         .ok()
         .and_then(|url| url.host_str().map(str::to_owned))
         .unwrap_or_else(|| "target".into());
-    vec![
-        serde_json::json!({
-            "rule_id": "seo-canonical-strategy",
-            "title": "Canonical strategy review",
-            "severity": "medium",
-            "status": "warn",
-            "description": format!("{host_hint} should expose a clearer canonical pattern across indexable templates.")
-        }),
-        serde_json::json!({
-            "rule_id": "geo-entity-coverage",
-            "title": "Location entity coverage",
-            "severity": "medium",
-            "status": "warn",
-            "description": "Geo signals should be reinforced with location-specific copy, schema, and internal linking."
-        }),
-        serde_json::json!({
-            "rule_id": "aeo-answer-blocks",
-            "title": "Answer extraction readiness",
-            "severity": "low",
-            "status": "warn",
-            "description": "Primary informational sections should lead with direct answer blocks for generative retrieval."
-        }),
-        serde_json::json!({
-            "rule_id": "wcag-1.1.1-alt-text",
-            "title": "Meaningful image alternatives",
+
+    if budget_breach {
+        return vec![serde_json::json!({
+            "rule_id": "request-budget",
+            "title": "Budget threshold reached",
             "severity": "high",
             "status": "fail",
-            "description": "Review critical template images for descriptive alt text that matches page intent."
+            "description": "Run stopped after exceeding the configured request budget."
+        })];
+    }
+
+    vec![
+        serde_json::json!({
+            "rule_id": "tls-version",
+            "title": "TLS version review",
+            "severity": "medium",
+            "status": "warn",
+            "description": format!("{host_hint} still negotiates a legacy TLS fallback.")
         }),
         serde_json::json!({
-            "rule_id": "wcag-2.4.6-heading-structure",
-            "title": "Heading structure consistency",
+            "rule_id": "security-headers",
+            "title": "Security headers present",
             "severity": "low",
             "status": "pass",
-            "description": "Heading hierarchy is largely consistent but should stay aligned with answer-first content blocks."
+            "description": "Core headers present in mock response."
         }),
     ]
 }
 
+fn standalone_requested_report_formats(output_formats: &[String]) -> Vec<String> {
+    let mut formats = Vec::new();
+
+    for format in output_formats {
+        let normalized = match format.as_str() {
+            "json" => Some("json"),
+            "markdown" | "md" => Some("markdown"),
+            "html" => Some("html"),
+            "xml" => Some("xml"),
+            _ => None,
+        };
+
+        if let Some(normalized) = normalized {
+            let normalized = normalized.to_string();
+            if !formats.contains(&normalized) {
+                formats.push(normalized);
+            }
+        }
+    }
+
+    formats
+}
+
+fn standalone_report_artifact_manifest(evaluation: &StandaloneEvaluation) -> Vec<serde_json::Value> {
+    let mut artifacts = vec![serde_json::json!({
+        "kind": "normalized_report",
+        "path": "__REPORT_PATH__"
+    })];
+
+    for format in standalone_requested_report_formats(&evaluation.request.output_formats) {
+        match format.as_str() {
+            "markdown" => artifacts.push(serde_json::json!({
+                "kind": "markdown",
+                "path": "__ARTIFACT_DIR__/report.md"
+            })),
+            "html" => artifacts.push(serde_json::json!({
+                "kind": "html",
+                "path": "__ARTIFACT_DIR__/report.html"
+            })),
+            "xml" => artifacts.push(serde_json::json!({
+                "kind": "xml",
+                "path": "__ARTIFACT_DIR__/report.xml"
+            })),
+            _ => {}
+        }
+    }
+
+    artifacts
+}
+
 fn standalone_result_response(evaluation: &StandaloneEvaluation) -> EvaluationResultResponse {
-    let findings = standalone_findings(&evaluation.request.target);
-    EvaluationResultResponse {
-        evaluation_id: evaluation.evaluation_id.clone(),
-        status: "success".into(),
-        summary: serde_json::json!({
-            "score": 86,
-            "passed": 1,
-            "warnings": 3,
-            "failed": 1,
-            "severity_counts": {
+    let terminal_status = standalone_terminal_status(evaluation);
+    let budget_breach = terminal_status == "budget_breach";
+    let findings = standalone_findings(&evaluation.request.target, budget_breach);
+    let artifacts = standalone_report_artifact_manifest(evaluation);
+    let (score, passed, warnings, failed, severity_counts) = if budget_breach {
+        (
+            78,
+            5,
+            2,
+            1,
+            serde_json::json!({
                 "critical": 0,
                 "high": 1,
                 "medium": 2,
+                "low": 1,
+                "info": 2
+            }),
+        )
+    } else {
+        (
+            92,
+            8,
+            1,
+            0,
+            serde_json::json!({
+                "critical": 0,
+                "high": 0,
+                "medium": 1,
                 "low": 2,
-                "info": 0
+                "info": 3
+            }),
+        )
+    };
+    EvaluationResultResponse {
+        evaluation_id: evaluation.evaluation_id.clone(),
+        status: terminal_status.into(),
+        summary: serde_json::json!({
+            "contract_version": "0.1.0",
+            "run_id": evaluation.evaluation_id.clone(),
+            "target": evaluation.request.target.clone(),
+            "target_details": {
+                "url": evaluation.request.target.clone(),
+                "engine": "embedded-rule-engine",
+                "profile": evaluation.request.profile.clone()
             },
+            "status": terminal_status,
+            "score": score,
+            "passed": passed,
+            "warnings": warnings,
+            "failed": failed,
+            "severity_counts": severity_counts,
             "frameworks": ["SEO", "GEO", "AEO", "WCAG 2.1 AA", "WCAG 2.2 AA"],
             "profile": evaluation.request.profile.clone(),
-            "target": evaluation.request.target.clone(),
+            "artifacts": artifacts,
             "started_at": evaluation.accepted_at.clone(),
             "completed_at": "2026-05-26T12:00:03Z",
             "findings": findings
@@ -775,32 +866,28 @@ fn standalone_artifacts_response(evaluation: &StandaloneEvaluation) -> Vec<Artif
         download_url: None,
     }];
 
-    if evaluation
-        .request
-        .output_formats
-        .iter()
-        .any(|format| format == "markdown")
-    {
-        artifacts.push(ArtifactDescriptor {
-            name: format!("{}-executive-summary", evaluation.evaluation_id),
-            kind: "markdown".into(),
-            media_type: "text/markdown".into(),
-            download_url: None,
-        });
-    }
-
-    if evaluation
-        .request
-        .output_formats
-        .iter()
-        .any(|format| format == "html")
-    {
-        artifacts.push(ArtifactDescriptor {
-            name: format!("{}-scorecard", evaluation.evaluation_id),
-            kind: "html".into(),
-            media_type: "text/html".into(),
-            download_url: None,
-        });
+    for format in standalone_requested_report_formats(&evaluation.request.output_formats) {
+        match format.as_str() {
+            "markdown" => artifacts.push(ArtifactDescriptor {
+                name: format!("{}-executive-summary", evaluation.evaluation_id),
+                kind: "markdown".into(),
+                media_type: "text/markdown".into(),
+                download_url: None,
+            }),
+            "html" => artifacts.push(ArtifactDescriptor {
+                name: format!("{}-scorecard", evaluation.evaluation_id),
+                kind: "html".into(),
+                media_type: "text/html".into(),
+                download_url: None,
+            }),
+            "xml" => artifacts.push(ArtifactDescriptor {
+                name: format!("{}-xml-report", evaluation.evaluation_id),
+                kind: "xml".into(),
+                media_type: "application/xml".into(),
+                download_url: None,
+            }),
+            _ => {}
+        }
     }
 
     artifacts
@@ -1925,6 +2012,47 @@ mod tests {
         assert_eq!(result.summary["frameworks"][0], serde_json::json!("SEO"));
         assert!(!artifacts.is_empty());
         assert_eq!(recon.recommendation, "stealth");
+    }
+
+    #[tokio::test]
+    async fn standalone_mode_generates_budget_breach_reports() {
+        let config = normalize_backend_config(BackendConfig {
+            mode: BackendMode::Standalone,
+            base_url: DEFAULT_LOCAL_BASE_URL.into(),
+            port: 9135,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        });
+        let state = AppState::new(config);
+        let request = CreateEvaluationRequest {
+            target: "https://example.com/budget".into(),
+            profile: "full-spectrum".into(),
+            output_formats: vec!["json".into(), "markdown".into(), "html".into(), "xml".into()],
+            max_depth: 4,
+            max_urls: 1_000,
+            fail_on_critical: true,
+            budget_gate: true,
+        };
+
+        let accepted = create_standalone_evaluation(&state, &request).expect("accepted");
+        tokio::time::sleep(Duration::from_millis(400)).await;
+
+        let evaluation = standalone_lookup(&state, &accepted.evaluation_id).expect("terminal lookup");
+        let terminal = standalone_evaluation_status(&evaluation);
+        let result = standalone_result_response(&evaluation);
+        let artifacts = standalone_artifacts_response(&evaluation);
+
+        assert!(terminal.terminal);
+        assert_eq!(terminal.status, "budget_breach");
+        assert_eq!(result.status, "budget_breach");
+        assert_eq!(result.summary["severity_counts"]["high"], serde_json::json!(1));
+        assert_eq!(result.summary["artifacts"].as_array().expect("artifacts").len(), 4);
+        assert!(result.summary["artifacts"]
+            .as_array()
+            .expect("artifacts")
+            .iter()
+            .any(|artifact| artifact["kind"] == serde_json::json!("xml")));
+        assert_eq!(artifacts.len(), 4);
+        assert!(artifacts.iter().any(|artifact| artifact.kind == "xml"));
     }
 
     #[tokio::test]

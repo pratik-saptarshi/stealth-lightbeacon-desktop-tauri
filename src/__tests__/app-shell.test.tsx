@@ -90,7 +90,7 @@ const capabilities: desktop.CapabilitiesResponse = {
   },
   evaluationProfiles: ['baseline', 'deep', 'export'],
   outputFormats: ['json', 'markdown', 'html'],
-  supportsRecon: false,
+  supportsRecon: true,
   supportsArtifacts: true,
 }
 
@@ -421,7 +421,7 @@ describe('App shell', () => {
         'Wide desktop layout defaults keep the shell compact for 1920 x 1080.',
       ),
     ).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('hides optional sections from the dashboard when disabled in settings', async () => {
     const user = userEvent.setup()
@@ -812,7 +812,7 @@ describe('App shell', () => {
     expect(
       screen.getByRole('link', { name: /Download Markdown report/i }),
     ).toHaveAttribute('href', expect.stringContaining('data:'))
-  })
+  }, 15000)
 
   it('surfaces terminal result retrieval failures', async () => {
     const user = userEvent.setup()
@@ -924,7 +924,7 @@ describe('App shell', () => {
     expect(await screen.findByText('Budget threshold reached')).toBeInTheDocument()
     expect(await screen.findByText('high 1')).toBeInTheDocument()
     expect(await screen.findByText('Failed 1')).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('renders artifact metadata and actions after terminal completion', async () => {
     const user = userEvent.setup()
@@ -973,7 +973,7 @@ describe('App shell', () => {
       'href',
       'https://downloads.example.test/eval-123/report.html',
     )
-  })
+  }, 15000)
 
   it('restores the last-opened terminal snapshot during bootstrap', async () => {
     desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)

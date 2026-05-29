@@ -142,7 +142,7 @@ const defaultPort = 8000
 const uiSettingsStorageKey = 'stealth-lightbeacon.ui-settings.v1'
 
 const defaultBackendConfig: BackendConfig = {
-  mode: 'local',
+  mode: 'standalone',
   baseUrl: `http://127.0.0.1:${defaultPort}`,
   port: defaultPort,
   timeoutMs: 15000,
@@ -1030,7 +1030,7 @@ function App() {
     useState<string | null>(null)
   const [uiSettings, setUiSettings] = useState<UiSettings>(loadUiSettings)
   const [notice, setNotice] = useState(
-    'Choose companion, standalone, or remote mode, confirm health, then submit an audit run.',
+    'Standalone engine is ready by default. Confirm health, then submit an audit run.',
   )
   const [statusLine, setStatusLine] = useState('Waiting for desktop runtime')
   const [activity, setActivity] = useState<ActivityItem[]>([

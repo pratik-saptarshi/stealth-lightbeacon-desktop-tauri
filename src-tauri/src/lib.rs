@@ -46,7 +46,7 @@ struct BackendConfig {
 impl Default for BackendConfig {
     fn default() -> Self {
         Self {
-            mode: BackendMode::Local,
+            mode: BackendMode::Standalone,
             base_url: DEFAULT_LOCAL_BASE_URL.into(),
             port: DEFAULT_LOCAL_PORT,
             timeout_ms: DEFAULT_TIMEOUT_MS,

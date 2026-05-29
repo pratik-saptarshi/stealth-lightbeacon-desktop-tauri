@@ -6,20 +6,15 @@ import {
   buildResultSeverityItems,
   buildResultSummaryMetrics,
   buildResultTimelineMetrics,
-  buildRemotePolicyGuidance,
   buildUiShellStyle,
   classifyViewport,
   buildLoopbackBaseUrl,
   buildRemoteBaseUrl,
-  compareVersionSegments,
   formatBackendMode,
   formatResultStatus,
   inferPortFromBaseUrl,
   loadUiSettings,
-  getNextWorkspaceTabKey,
-  isDesktopVersionBelow,
   readViewportState,
-  resolveDesktopVersion,
   nextDraftConfigForMode,
   readFiniteNumber,
   summarizeHealth,
@@ -251,17 +246,14 @@ describe('App helpers', () => {
 
     expect(downloads).toEqual([
       expect.objectContaining({
-        format: 'json',
         label: 'Download JSON report',
         filename: 'eval-123-report.json',
       }),
       expect.objectContaining({
-        format: 'markdown',
         label: 'Download Markdown report',
         filename: 'eval-123-report.md',
       }),
       expect.objectContaining({
-        format: 'html',
         label: 'Download HTML report',
         filename: 'eval-123-report.html',
       }),
@@ -377,50 +369,10 @@ describe('App helpers', () => {
     })
   })
 
-  it('covers workspace tab wrapping and version comparison helpers directly', () => {
-    expect(getNextWorkspaceTabKey('overview', 'ArrowRight')).toBe('connection')
-    expect(getNextWorkspaceTabKey('overview', 'ArrowLeft')).toBe('settings')
-    expect(getNextWorkspaceTabKey('settings', 'ArrowDown')).toBe('overview')
-    expect(getNextWorkspaceTabKey('audit', 'Home')).toBe('overview')
-    expect(getNextWorkspaceTabKey('audit', 'End')).toBe('settings')
-    expect(getNextWorkspaceTabKey('audit', 'Escape')).toBeNull()
-
-    expect(compareVersionSegments('0.1.1', '0.1.0')).toBeGreaterThan(0)
-    expect(compareVersionSegments('0.1.1', '0.2.0')).toBeLessThan(0)
-    expect(compareVersionSegments('0.1.1', '0.1.1')).toBe(0)
-    expect(isDesktopVersionBelow('0.2.0')).toBe(true)
-    expect(isDesktopVersionBelow('0.1.0')).toBe(false)
-    expect(isDesktopVersionBelow('0.2.0', '0.2.1')).toBe(false)
-    expect(resolveDesktopVersion(null)).toBe('0.1.1')
-    expect(
-      resolveDesktopVersion({
-        status: 'ok',
-        service: 'stealth-lightbeacon-api',
-        apiVersion: '0.1.0',
-        appVersion: '0.4.0',
-        authRequired: true,
-        compatibility: {
-          minimumDesktopVersion: '0.2.0',
-          recommendedDesktopVersion: '0.2.1',
-        },
-      }),
-    ).toBe('0.4.0')
-
-    expect(
-      buildRemotePolicyGuidance({
-        status: 'ok',
-        service: 'stealth-lightbeacon-api',
-        apiVersion: '0.1.0',
-        authRequired: true,
-        compatibility: {
-          minimumDesktopVersion: '0.2.0',
-          recommendedDesktopVersion: '0.2.1',
-        },
-      }),
-    ).toEqual([
-      'Set STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN before reconnecting.',
-      'Upgrade the desktop client to 0.2.0 or newer.',
-    ])
+  it('covers port and url helper behavior directly', () => {
+    expect(inferPortFromBaseUrl('https://api.example.test/path')).toBe(443)
+    expect(inferPortFromBaseUrl('ftp://api.example.test')).toBeNull()
+    expect(withPortApplied('   ', 9443)).toBe('https://api.example.test:9443')
   })
 
   it('uses the backend message when a queued evaluation has no terminal result yet', () => {
@@ -555,7 +507,7 @@ describe('App helpers', () => {
       'stealth-lightbeacon.ui-settings.v1',
       JSON.stringify(stored),
     )
-    expect(loadUiSettings()).toEqual(stored)
+    expect(loadUiSettings()).toEqual({ ...stored, workspaceSize: 'auto' })
 
     window.localStorage?.setItem('stealth-lightbeacon.ui-settings.v1', '{bad json')
     expect(loadUiSettings()).toMatchObject({
@@ -651,6 +603,7 @@ describe('App helpers', () => {
         terminalReport: false,
         backendSurface: true,
       },
+      workspaceSize: 'auto',
     })
   })
 

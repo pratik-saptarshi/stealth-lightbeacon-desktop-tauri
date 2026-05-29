@@ -6,6 +6,8 @@ Provides the frontend-side desktop adapter. Today that means a single
 `desktop.ts` module that defines the TypeScript contracts for backend
 configuration, evaluation, recon, and snapshot APIs; exposes small Tauri
 command wrappers; and converts command failures into UI-ready strings.
+`desktop.types.ts` keeps the adapter contracts separate from the runtime
+helpers so the boundary file stays focused on behavior.
 
 ## Design
 

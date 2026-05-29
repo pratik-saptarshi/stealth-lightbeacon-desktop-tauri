@@ -1,41 +1,28 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Stealth Lightbeacon Backend API",
-    "version": "0.1.0",
-    "description": "Generated backend companion contract for Stealth Lightbeacon desktop integration."
+    "title": "Stealth Lightbeacon Service API",
+    "version": "1.2.7",
+    "description": "Canonical contract for local and remote Stealth Lightbeacon clients."
   },
   "servers": [
     {
       "url": "http://127.0.0.1:8000",
-      "description": "Default local companion target"
+      "description": "Local loopback service"
+    },
+    {
+      "url": "https://api.stealth-lightbeacon.example",
+      "description": "Cloud-hosted service"
     }
   ],
   "paths": {
     "/health": {
       "get": {
         "operationId": "getHealth",
+        "summary": "Check service liveness.",
         "responses": {
           "200": {
-            "description": "Backend health status",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                },
-                "example": {
-                  "status": "ok",
-                  "service": "stealth-lightbeacon-api",
-                  "apiVersion": "0.1.0",
-                  "appVersion": "1.2.2",
-                  "authRequired": false,
-                  "compatibility": {
-                    "minimumDesktopVersion": "0.1.0",
-                    "recommendedDesktopVersion": "0.1.0"
-                  }
-                }
-              }
-            }
+            "description": "Service is healthy."
           }
         }
       }
@@ -43,57 +30,10 @@
     "/capabilities": {
       "get": {
         "operationId": "getCapabilities",
+        "summary": "List service transport and feature capabilities.",
         "responses": {
           "200": {
-            "description": "Backend capability surface",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CapabilitiesResponse"
-                },
-                "example": {
-                  "apiMode": {
-                    "mode": "local",
-                    "baseUrl": "http://127.0.0.1:8000",
-                    "transport": "http",
-                    "apiVersion": "0.1.0",
-                    "supportsRemote": false
-                  },
-                  "evaluationProfiles": [
-                    "baseline",
-                    "deep",
-                    "export"
-                  ],
-                  "outputFormats": [
-                    "json",
-                    "markdown",
-                    "html"
-                  ],
-                  "supportsRecon": true,
-                  "supportsArtifacts": true
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Remote API auth required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Desktop client is incompatible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "description": "Capability payload."
           }
         }
       }
@@ -101,56 +41,10 @@
     "/evaluations": {
       "post": {
         "operationId": "createEvaluation",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateEvaluationRequest"
-              }
-            }
-          }
-        },
+        "summary": "Submit a new evaluation request.",
         "responses": {
           "202": {
-            "description": "Evaluation accepted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateEvaluationResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Remote API auth required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Desktop client is incompatible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "description": "Evaluation accepted."
           }
         }
       }
@@ -158,56 +52,10 @@
     "/evaluations/{evaluation_id}": {
       "get": {
         "operationId": "getEvaluationStatus",
-        "parameters": [
-          {
-            "name": "evaluation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Poll an evaluation until completion.",
         "responses": {
           "200": {
-            "description": "Evaluation status response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvaluationStatusResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown evaluation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Remote API auth required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Desktop client is incompatible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "description": "Evaluation status."
           }
         }
       }
@@ -215,46 +63,10 @@
     "/evaluations/{evaluation_id}/result": {
       "get": {
         "operationId": "getEvaluationResult",
-        "parameters": [
-          {
-            "name": "evaluation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Fetch the terminal result for an evaluation.",
         "responses": {
           "200": {
-            "description": "Terminal evaluation result",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvaluationResultResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Remote API auth required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Desktop client is incompatible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "description": "Evaluation result."
           }
         }
       }
@@ -262,49 +74,10 @@
     "/evaluations/{evaluation_id}/artifacts": {
       "get": {
         "operationId": "getEvaluationArtifacts",
-        "parameters": [
-          {
-            "name": "evaluation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "List the evaluation artifacts.",
         "responses": {
           "200": {
-            "description": "Artifact descriptors for a completed evaluation",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ArtifactDescriptor"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Remote API auth required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Desktop client is incompatible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "description": "Artifact listing."
           }
         }
       }
@@ -312,429 +85,30 @@
     "/recon": {
       "post": {
         "operationId": "runRecon",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReconRequest"
-              }
-            }
-          }
-        },
+        "summary": "Run advisory reconnaissance.",
         "responses": {
           "200": {
-            "description": "Recon recommendation response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReconResponse"
-                },
-                "example": {
-                  "target": "https://example.com",
-                  "recommendation": "stealth",
-                  "posture": "browser",
-                  "confidence": 0.9,
-                  "evidence": [
-                    "cloudflare",
-                    "status:403"
-                  ],
-                  "evidenceSummary": "cloudflare, status:403",
-                  "signals": [
-                    "cloudflare"
-                  ],
-                  "autoSelectAllowed": true
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid recon request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Remote API auth required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Desktop client is incompatible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
+            "description": "Recon payload."
           }
         }
       }
     }
   },
-  "components": {
-    "schemas": {
-      "ApiError": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "code",
-          "message"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer",
-            "minimum": 100,
-            "maximum": 599
-          },
-          "details": {
-            "type": "string"
-          }
-        }
-      },
-      "HealthResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "status",
-          "service",
-          "apiVersion",
-          "authRequired",
-          "compatibility"
-        ],
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "service": {
-            "type": "string"
-          },
-          "apiVersion": {
-            "type": "string"
-          },
-          "appVersion": {
-            "type": "string"
-          },
-          "authRequired": {
-            "type": "boolean"
-          },
-          "compatibility": {
-            "$ref": "#/components/schemas/CompatibilityResponse"
-          }
-        }
-      },
-      "CompatibilityResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "minimumDesktopVersion",
-          "recommendedDesktopVersion"
-        ],
-        "properties": {
-          "minimumDesktopVersion": {
-            "type": "string"
-          },
-          "recommendedDesktopVersion": {
-            "type": "string"
-          }
-        }
-      },
-      "ApiModeResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "mode",
-          "baseUrl",
-          "transport",
-          "apiVersion",
-          "supportsRemote"
-        ],
-        "properties": {
-          "mode": {
-            "type": "string",
-            "enum": [
-              "local",
-              "remote"
-            ]
-          },
-          "baseUrl": {
-            "type": "string",
-            "format": "uri"
-          },
-          "transport": {
-            "type": "string",
-            "enum": [
-              "http"
-            ]
-          },
-          "apiVersion": {
-            "type": "string"
-          },
-          "supportsRemote": {
-            "type": "boolean"
-          }
-        }
-      },
-      "CapabilitiesResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "apiMode",
-          "evaluationProfiles",
-          "outputFormats",
-          "supportsRecon",
-          "supportsArtifacts"
-        ],
-        "properties": {
-          "apiMode": {
-            "$ref": "#/components/schemas/ApiModeResponse"
-          },
-          "evaluationProfiles": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "outputFormats": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "supportsRecon": {
-            "type": "boolean"
-          },
-          "supportsArtifacts": {
-            "type": "boolean"
-          }
-        }
-      },
-      "CreateEvaluationRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "target",
-          "profile",
-          "outputFormats",
-          "maxDepth",
-          "maxUrls",
-          "failOnCritical",
-          "budgetGate"
-        ],
-        "properties": {
-          "target": {
-            "type": "string"
-          },
-          "profile": {
-            "type": "string"
-          },
-          "outputFormats": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "type": "string"
-            }
-          },
-          "maxDepth": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 8
-          },
-          "maxUrls": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 5000
-          },
-          "failOnCritical": {
-            "type": "boolean"
-          },
-          "budgetGate": {
-            "type": "boolean"
-          }
-        }
-      },
-      "CreateEvaluationResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "evaluationId",
-          "status"
-        ],
-        "properties": {
-          "evaluationId": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "acceptedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "EvaluationStatusResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "evaluationId",
-          "status",
-          "terminal"
-        ],
-        "properties": {
-          "evaluationId": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "stage": {
-            "type": "string"
-          },
-          "progressPercent": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "message": {
-            "type": "string"
-          },
-          "exitState": {
-            "type": "string",
-            "enum": [
-              "success",
-              "failure",
-              "budget_breach",
-              "cancelled"
-            ]
-          },
-          "terminal": {
-            "type": "boolean"
-          }
-        }
-      },
-      "EvaluationResultResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "evaluationId",
-          "status",
-          "summary"
-        ],
-        "properties": {
-          "evaluationId": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        }
-      },
-      "ArtifactDescriptor": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "kind",
-          "mediaType"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "mediaType": {
-            "type": "string"
-          },
-          "downloadUrl": {
-            "type": "string",
-            "format": "uri"
-          }
-        }
-      },
-      "ReconRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "target"
-        ],
-        "properties": {
-          "target": {
-            "type": "string"
-          }
-        }
-      },
-      "ReconResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "target",
-          "recommendation",
-          "posture",
-          "confidence",
-          "evidence",
-          "evidenceSummary",
-          "signals",
-          "autoSelectAllowed"
-        ],
-        "properties": {
-          "target": {
-            "type": "string",
-            "format": "uri"
-          },
-          "recommendation": {
-            "type": "string"
-          },
-          "posture": {
-            "type": "string"
-          },
-          "confidence": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "evidence": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "evidenceSummary": {
-            "type": "string"
-          },
-          "signals": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "autoSelectAllowed": {
-            "type": "boolean"
-          }
-        }
-      }
+  "x-transport": {
+    "local": {
+      "scheme": "http",
+      "host": "127.0.0.1",
+      "port": 8000,
+      "base_url": "http://127.0.0.1:8000"
+    },
+    "cloud": {
+      "scheme": "https",
+      "auth": "bearer",
+      "base_url": "https://api.stealth-lightbeacon.example"
+    },
+    "stdin": {
+      "adapter": "stdin",
+      "purpose": "embedded fallback"
     }
   }
 }

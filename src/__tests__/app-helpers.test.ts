@@ -6,14 +6,20 @@ import {
   buildResultSeverityItems,
   buildResultSummaryMetrics,
   buildResultTimelineMetrics,
+  buildRemotePolicyGuidance,
   buildUiShellStyle,
   classifyViewport,
   buildLoopbackBaseUrl,
   buildRemoteBaseUrl,
+  compareVersionSegments,
   formatBackendMode,
   formatResultStatus,
   inferPortFromBaseUrl,
   loadUiSettings,
+  getNextWorkspaceTabKey,
+  isDesktopVersionBelow,
+  readViewportState,
+  resolveDesktopVersion,
   nextDraftConfigForMode,
   readFiniteNumber,
   summarizeHealth,
@@ -245,19 +251,199 @@ describe('App helpers', () => {
 
     expect(downloads).toEqual([
       expect.objectContaining({
+        format: 'json',
         label: 'Download JSON report',
         filename: 'eval-123-report.json',
       }),
       expect.objectContaining({
+        format: 'markdown',
         label: 'Download Markdown report',
         filename: 'eval-123-report.md',
       }),
       expect.objectContaining({
+        format: 'html',
         label: 'Download HTML report',
         filename: 'eval-123-report.html',
       }),
     ])
     expect(downloads.every((download) => download.href.startsWith('data:'))).toBe(true)
+  })
+
+  it('builds report downloads with escaped content and empty collections', () => {
+    const downloads = buildEvaluationReportDownloads(
+      'eval-escape',
+      {
+        evaluationId: 'eval-escape',
+        status: 'budget_breach',
+        summary: {
+          score: 73,
+          warnings: 2,
+          failed: 1,
+        },
+        severityCounts: {
+          critical: 1,
+        },
+        findings: [],
+        startedAt: '2026-01-15T10:00:00Z',
+        completedAt: '2026-01-15T10:01:00Z',
+      },
+      [],
+    )
+
+    const markdown = decodeURIComponent(downloads[1].href.split(',')[1] ?? '')
+    const html = decodeURIComponent(downloads[2].href.split(',')[1] ?? '')
+
+    expect(downloads).toHaveLength(3)
+    expect(markdown).toContain('No findings reported.')
+    expect(markdown).toContain('No artifacts available.')
+    expect(markdown).toContain('Severity: critical 1')
+    expect(markdown).toContain('Warnings: 2')
+    expect(html).toContain('<title>Stealth Lightbeacon Report eval-escape</title>')
+    expect(html).toContain('<p>No findings reported.</p>')
+    expect(html).toContain('<p>No artifacts available.</p>')
+  })
+
+  it('builds report downloads with escaped html content', () => {
+    const downloads = buildEvaluationReportDownloads(
+      'eval-html',
+      {
+        evaluationId: 'eval-html',
+        status: 'success',
+        summary: {
+          score: 99,
+        },
+        severityCounts: {
+          low: 1,
+        },
+        findings: [
+          {
+            ruleId: 'html-rule',
+            title: '<b>Risky</b>',
+            severity: 'low',
+            status: 'warn',
+            description: `Needs "quotes" & <tags>`,
+          },
+        ],
+        startedAt: '2026-01-15T10:00:00Z',
+        completedAt: '2026-01-15T10:01:00Z',
+      },
+      [
+        {
+          name: 'html<artifact>',
+          kind: 'html',
+          mediaType: 'text/html',
+          downloadUrl: 'https://downloads.example.test/report?kind=<html>',
+        },
+      ],
+    )
+
+    const html = decodeURIComponent(downloads[2].href.split(',')[1] ?? '')
+
+    expect(html).toContain('&lt;b&gt;Risky&lt;/b&gt;')
+    expect(html).toContain('Needs &quot;quotes&quot; &amp; &lt;tags&gt;')
+    expect(html).toContain('html&lt;artifact&gt;')
+    expect(html).toContain('report?kind=&lt;html&gt;')
+  })
+
+  it('builds history views from queued evaluations without terminal results', () => {
+    const history = buildEvaluationHistoryView(
+      {
+        evaluationId: 'eval-queued',
+        status: 'accepted',
+        acceptedAt: null,
+      },
+      {
+        evaluationId: 'eval-queued',
+        status: 'running',
+        stage: 'queued',
+        progressPercent: 0,
+        message: null,
+        exitState: null,
+        terminal: false,
+      },
+      null,
+      [],
+    )
+
+    expect(history).toEqual({
+      evaluationId: 'eval-queued',
+      acceptedAt: null,
+      statusLabel: 'running',
+      stageLabel: 'queued',
+      resultLabel: null,
+      scoreLabel: null,
+      artifactCount: 0,
+      detailLabel: 'Waiting for the terminal report.',
+    })
+  })
+
+  it('covers workspace tab wrapping and version comparison helpers directly', () => {
+    expect(getNextWorkspaceTabKey('overview', 'ArrowRight')).toBe('connection')
+    expect(getNextWorkspaceTabKey('overview', 'ArrowLeft')).toBe('settings')
+    expect(getNextWorkspaceTabKey('settings', 'ArrowDown')).toBe('overview')
+    expect(getNextWorkspaceTabKey('audit', 'Home')).toBe('overview')
+    expect(getNextWorkspaceTabKey('audit', 'End')).toBe('settings')
+    expect(getNextWorkspaceTabKey('audit', 'Escape')).toBeNull()
+
+    expect(compareVersionSegments('0.1.1', '0.1.0')).toBeGreaterThan(0)
+    expect(compareVersionSegments('0.1.1', '0.2.0')).toBeLessThan(0)
+    expect(compareVersionSegments('0.1.1', '0.1.1')).toBe(0)
+    expect(isDesktopVersionBelow('0.2.0')).toBe(true)
+    expect(isDesktopVersionBelow('0.1.0')).toBe(false)
+    expect(isDesktopVersionBelow('0.2.0', '0.2.1')).toBe(false)
+    expect(resolveDesktopVersion(null)).toBe('0.1.1')
+    expect(
+      resolveDesktopVersion({
+        status: 'ok',
+        service: 'stealth-lightbeacon-api',
+        apiVersion: '0.1.0',
+        appVersion: '0.4.0',
+        authRequired: true,
+        compatibility: {
+          minimumDesktopVersion: '0.2.0',
+          recommendedDesktopVersion: '0.2.1',
+        },
+      }),
+    ).toBe('0.4.0')
+
+    expect(
+      buildRemotePolicyGuidance({
+        status: 'ok',
+        service: 'stealth-lightbeacon-api',
+        apiVersion: '0.1.0',
+        authRequired: true,
+        compatibility: {
+          minimumDesktopVersion: '0.2.0',
+          recommendedDesktopVersion: '0.2.1',
+        },
+      }),
+    ).toEqual([
+      'Set STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN before reconnecting.',
+      'Upgrade the desktop client to 0.2.0 or newer.',
+    ])
+  })
+
+  it('uses the backend message when a queued evaluation has no terminal result yet', () => {
+    const history = buildEvaluationHistoryView(
+      {
+        evaluationId: 'eval-message',
+        status: 'accepted',
+        acceptedAt: '2026-01-15T09:59:59Z',
+      },
+      {
+        evaluationId: 'eval-message',
+        status: 'running',
+        stage: 'polling',
+        progressPercent: 15,
+        message: 'Polling the backend.',
+        exitState: null,
+        terminal: false,
+      },
+      null,
+      [],
+    )
+
+    expect(history.detailLabel).toBe('Polling the backend.')
   })
 
   it('summarizes health and low-level formatting helpers', () => {
@@ -284,6 +470,27 @@ describe('App helpers', () => {
     expect(withPortApplied('https://api.example.test', 9443)).toBe(
       'https://api.example.test:9443',
     )
+  })
+
+  it('reads viewport defaults when no window object exists', () => {
+    const originalWindow = window
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: undefined,
+    })
+
+    try {
+      expect(readViewportState()).toEqual({
+        width: 800,
+        height: 600,
+        density: 'compact',
+      })
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+    }
   })
 
   it('builds timeline metrics and finding fallbacks from partial result data', () => {
@@ -368,6 +575,49 @@ describe('App helpers', () => {
     })
   })
 
+  it('returns default ui settings when no stored preferences exist', () => {
+    window.localStorage?.clear()
+
+    expect(loadUiSettings()).toMatchObject({
+      theme: {
+        panelBg: '#fffaf2',
+        panelBorder: '#8f7860',
+        cardBg: '#fff7ec',
+        accent: '#245d56',
+        button: '#244b4f',
+      },
+      sections: {
+        recentActivity: true,
+        currentEvaluation: true,
+        terminalReport: true,
+        backendSurface: true,
+      },
+    })
+  })
+
+  it('returns default ui settings when storage is unavailable', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: undefined,
+    })
+
+    expect(loadUiSettings()).toMatchObject({
+      theme: {
+        panelBg: '#fffaf2',
+        panelBorder: '#8f7860',
+        cardBg: '#fff7ec',
+        accent: '#245d56',
+        button: '#244b4f',
+      },
+      sections: {
+        recentActivity: true,
+        currentEvaluation: true,
+        terminalReport: true,
+        backendSurface: true,
+      },
+    })
+  })
+
   it('keeps valid ui settings fields and falls back on invalid partial input', () => {
     window.localStorage.setItem(
       'stealth-lightbeacon.ui-settings.v1',
@@ -416,6 +666,71 @@ describe('App helpers', () => {
     }
 
     expect(validateEvaluationRequest(request, null)).toEqual([])
+  })
+
+  it('rejects empty output formats and unsupported profiles together', () => {
+    const request: CreateEvaluationRequest = {
+      target: 'https://example.com',
+      profile: 'unsupported',
+      outputFormats: [],
+      maxDepth: 2,
+      maxUrls: 250,
+      failOnCritical: true,
+      budgetGate: false,
+    }
+
+    expect(
+      validateEvaluationRequest(request, {
+        apiMode: {
+          mode: 'remote',
+          baseUrl: 'https://api.example.test:9443',
+          transport: 'http',
+          apiVersion: '0.1.0',
+          supportsRemote: true,
+        },
+        evaluationProfiles: ['baseline'],
+        outputFormats: ['json', 'markdown'],
+        supportsRecon: false,
+        supportsArtifacts: true,
+      }),
+    ).toEqual([
+      'Select at least one output format before submitting.',
+      'Select a profile that the backend currently supports.',
+    ])
+  })
+
+  it('rejects fully invalid requests with every validation branch active', () => {
+    const request: CreateEvaluationRequest = {
+      target: ' ',
+      profile: 'unsupported',
+      outputFormats: [],
+      maxDepth: 0,
+      maxUrls: 0,
+      failOnCritical: true,
+      budgetGate: false,
+    }
+
+    expect(
+      validateEvaluationRequest(request, {
+        apiMode: {
+          mode: 'remote',
+          baseUrl: 'https://api.example.test:9443',
+          transport: 'http',
+          apiVersion: '0.1.0',
+          supportsRemote: true,
+        },
+        evaluationProfiles: ['baseline'],
+        outputFormats: ['json', 'markdown'],
+        supportsRecon: true,
+        supportsArtifacts: true,
+      }),
+    ).toEqual([
+      'Enter a target URL before submitting.',
+      'Select at least one output format before submitting.',
+      'Max depth must be an integer between 1 and 8.',
+      'Max URLs must be an integer between 1 and 5000.',
+      'Select a profile that the backend currently supports.',
+    ])
   })
 
   it('computes shell styles and tone helpers deterministically', () => {
@@ -503,5 +818,12 @@ describe('App helpers', () => {
       }),
     ).toEqual([])
     expect(withPortApplied('not-a-url', 9443)).toBe('not-a-url')
+    expect(buildResultSummaryMetrics({ warnings: 2, failed: 1 })).toEqual([
+      { label: 'Warnings', value: '2' },
+      { label: 'Failed', value: '1' },
+    ])
+    expect(inferPortFromBaseUrl('https://api.example.test/path')).toBe(443)
+    expect(inferPortFromBaseUrl('ftp://api.example.test')).toBeNull()
+    expect(withPortApplied('   ', 9443)).toBe('https://api.example.test:9443')
   })
 })

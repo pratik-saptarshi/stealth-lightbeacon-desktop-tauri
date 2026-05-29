@@ -162,6 +162,71 @@ describe('desktop adapter', () => {
     await expect(desktop.getLastOpenedSnapshot()).resolves.toBeNull()
   })
 
+  it('rejects malformed last-opened snapshots with missing or blank fields', async () => {
+    invoke.mockResolvedValueOnce({
+      evaluation: {
+        evaluationId: 'eval-123',
+        status: 'accepted',
+        acceptedAt: '2026-05-26T12:00:00Z',
+      },
+      evaluationStatus: {
+        evaluationId: 'eval-123',
+        status: 'success',
+        terminal: true,
+      },
+      artifacts: [],
+    })
+
+    await expect(desktop.getLastOpenedSnapshot()).resolves.toBeNull()
+
+    invoke.mockResolvedValueOnce({
+      evaluation: {
+        evaluationId: 'eval-123',
+        status: null as unknown as string,
+        acceptedAt: '2026-05-26T12:00:00Z',
+      },
+      evaluationStatus: {
+        evaluationId: 'eval-123',
+        status: 'success',
+        terminal: true,
+      },
+      evaluationResult: {
+        evaluationId: 'eval-123',
+        status: 'success',
+        summary: {},
+      },
+      artifacts: [],
+    })
+
+    await expect(desktop.getLastOpenedSnapshot()).resolves.toBeNull()
+  })
+
+  it('normalizes malformed recon payloads into safe defaults', async () => {
+    invoke.mockResolvedValueOnce({
+      target: 'https://example.com',
+      recommendation: null,
+      posture: 'low-risk',
+      confidence: 7,
+      evidence: ['signal-a', 42, null],
+      evidence_summary: 'summary',
+      signals: 'not-an-array',
+      auto_select_allowed: 'true',
+    })
+
+    await expect(
+      desktop.runRecon({ target: 'https://example.com' }),
+    ).resolves.toEqual({
+      target: 'https://example.com',
+      recommendation: '',
+      posture: 'low-risk',
+      confidence: 1,
+      evidence: ['signal-a'],
+      evidenceSummary: 'summary',
+      signals: [],
+      autoSelectAllowed: true,
+    })
+  })
+
   it('detects desktop runtime from the tauri marker', () => {
     expect(desktop.isDesktopRuntime()).toBe(false)
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
@@ -188,6 +253,16 @@ describe('desktop adapter', () => {
     ).toBe(
       '[REMOTE_POLICY] Remote policy rejected the request | HTTP 403 | first; retryable: true; endpoint: /capabilities; attempts: 3; 7',
     )
+  })
+
+  it('formats structured command errors with plain object details', () => {
+    expect(
+      desktop.formatCommandError({
+        code: 'PLAIN_DETAILS',
+        message: 'Plain details',
+        details: { endpoint: '/health', retryable: false },
+      }),
+    ).toBe('[PLAIN_DETAILS] Plain details | endpoint: /health; retryable: false')
   })
 
   it('normalizes evaluation results with snake_case payloads and filters invalid entries', async () => {

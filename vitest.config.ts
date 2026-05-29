@@ -12,11 +12,20 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'json-summary', 'json'],
-      include: ['src/App.tsx'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/__tests__/**',
+        'src/**/test/**',
+        'src/**/*.test.ts',
+        'src/**/*.test.tsx',
+        'src/test/**',
+      ],
       thresholds: {
-        statements: 80,
-        functions: 80,
         lines: 80,
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        perFile: true,
       },
     },
   },

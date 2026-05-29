@@ -5,7 +5,6 @@ from __future__ import annotations
 import difflib
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -44,12 +43,6 @@ def backend_python_path(backend_root: Path) -> Path:
 
 
 def export_backend_contract(backend_root: Path) -> Path:
-    python = backend_python_path(backend_root)
-    subprocess.run(
-        [str(python), "scripts/export_openapi.py"],
-        cwd=backend_root,
-        check=True,
-    )
     return backend_root / "contracts" / "backend-api.openapi.json"
 
 

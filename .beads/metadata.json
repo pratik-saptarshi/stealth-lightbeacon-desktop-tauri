@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "stealth_lightbeacon_desktop_tauri",
+  "project_id": "70ba3117-aa4a-43c0-b942-b8fceb85c66f"
+}

@@ -33,6 +33,39 @@
 - Published the current documented GitHub release for this iteration through
   the tag-push workflow.
 
+## 2026-05-29
+
+### UI And Workflow
+
+- Added keyboard-accessible workspace tab navigation with arrow/home/end support.
+- Added recon preflight workflow in the audit panel, including capability gating,
+  execution status, and result rendering.
+- Added report-format selection and one-click download trigger for JSON, Markdown,
+  and HTML terminal outputs.
+- Added remote auth and compatibility policy guidance cards in the connection panel.
+
+### Adapter And Type Hardening
+
+- Split desktop adapter types into `src/lib/desktop.types.ts` and app view types
+  into `src/App.types.ts` for clearer ownership.
+- Normalized recon responses in the desktop adapter to guard against malformed
+  backend payloads before rendering.
+- Extended helper coverage for report rendering, viewport defaults, version
+  comparisons, request validation branches, and policy guidance.
+
+### Validation And Release Lane
+
+- Added shell validation lanes:
+  - frontend coverage gate
+  - browser smoke checks
+  - axe-core accessibility checks
+- Updated release validation to run `validate:shell` before contract and backend
+  checks.
+- Synced pinned desktop contract to backend source of truth:
+  `/Volumes/dev/Git-SCM/stealth-lightbeacon/contracts/backend-api.openapi.json`.
+- Updated contract-sync and contract tests to validate the current backend
+  contract format and release lane behavior.
+
 ## 2026-05-26
 
 ### Verified Completion

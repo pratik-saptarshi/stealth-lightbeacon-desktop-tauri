@@ -21,6 +21,7 @@ def main() -> None:
     backend_root = discover_backend_root()
     backend_python = backend_python_path(backend_root)
 
+    run(["npm", "run", "validate:shell"], cwd=ROOT)
     run([sys.executable, "scripts/check_contract_sync.py"], cwd=ROOT)
     run([str(backend_python), "-m", "pytest"], cwd=backend_root)
     run(

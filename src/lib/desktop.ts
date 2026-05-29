@@ -1,121 +1,37 @@
-export type BackendMode = 'local' | 'standalone' | 'remote'
+import type {
+  ArtifactDescriptor,
+  BackendConfig,
+  CapabilitiesResponse,
+  CommandError,
+  CreateEvaluationRequest,
+  CreateEvaluationResponse,
+  EvaluationFinding,
+  EvaluationResultResponse,
+  EvaluationStatusResponse,
+  HealthResponse,
+  LastOpenedSnapshot,
+  ReconRequest,
+  ReconResponse,
+} from './desktop.types'
 
-export type BackendConfig = {
-  mode: BackendMode
-  baseUrl: string
-  port: number
-  timeoutMs: number
-}
-
-export type CompatibilityResponse = {
-  minimumDesktopVersion: string
-  recommendedDesktopVersion: string
-}
-
-export type HealthResponse = {
-  status: string
-  service: string
-  apiVersion: string
-  appVersion?: string | null
-  authRequired: boolean
-  compatibility: CompatibilityResponse
-}
-
-export type ApiModeResponse = {
-  mode: string
-  baseUrl: string
-  transport: string
-  apiVersion: string
-  supportsRemote: boolean
-}
-
-export type CapabilitiesResponse = {
-  apiMode: ApiModeResponse
-  evaluationProfiles: string[]
-  outputFormats: string[]
-  supportsRecon: boolean
-  supportsArtifacts: boolean
-}
-
-export type CreateEvaluationRequest = {
-  target: string
-  profile: string
-  outputFormats: string[]
-  maxDepth: number
-  maxUrls: number
-  failOnCritical: boolean
-  budgetGate: boolean
-}
-
-export type CreateEvaluationResponse = {
-  evaluationId: string
-  status: string
-  acceptedAt?: string | null
-}
-
-export type EvaluationStatusResponse = {
-  evaluationId: string
-  status: string
-  stage?: string | null
-  progressPercent?: number | null
-  message?: string | null
-  exitState?: string | null
-  terminal: boolean
-}
-
-export type EvaluationFinding = {
-  ruleId?: string | null
-  title?: string | null
-  severity?: string | null
-  status?: string | null
-  description?: string | null
-}
-
-export type EvaluationResultResponse = {
-  evaluationId: string
-  status: string
-  summary: Record<string, unknown>
-  severityCounts?: Record<string, number> | null
-  findings?: EvaluationFinding[] | null
-  startedAt?: string | null
-  completedAt?: string | null
-}
-
-export type ArtifactDescriptor = {
-  name: string
-  kind: string
-  mediaType: string
-  downloadUrl?: string | null
-}
-
-export type ReconRequest = {
-  target: string
-}
-
-export type ReconResponse = {
-  target: string
-  recommendation: string
-  posture: string
-  confidence: number
-  evidence: string[]
-  evidenceSummary: string
-  signals: string[]
-  autoSelectAllowed: boolean
-}
-
-export type LastOpenedSnapshot = {
-  evaluation: CreateEvaluationResponse
-  evaluationStatus: EvaluationStatusResponse
-  evaluationResult: EvaluationResultResponse
-  artifacts: ArtifactDescriptor[]
-}
-
-export type CommandError = {
-  code?: string
-  message: string
-  status?: number | null
-  details?: unknown
-}
+export type {
+  ApiModeResponse,
+  ArtifactDescriptor,
+  BackendConfig,
+  BackendMode,
+  CapabilitiesResponse,
+  CommandError,
+  CompatibilityResponse,
+  CreateEvaluationRequest,
+  CreateEvaluationResponse,
+  EvaluationFinding,
+  EvaluationResultResponse,
+  EvaluationStatusResponse,
+  HealthResponse,
+  LastOpenedSnapshot,
+  ReconRequest,
+  ReconResponse,
+} from './desktop.types'
 
 type InvokeArgs = Record<string, unknown> | undefined
 
@@ -278,8 +194,40 @@ export async function getEvaluationArtifacts(evaluationId: string) {
   return normalizeArtifacts(artifacts)
 }
 
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.flatMap((item) =>
+    typeof item === 'string' && item.trim().length > 0 ? [item] : [],
+  )
+}
+
+function normalizeReconResponse(value: unknown): ReconResponse {
+  const candidate = isRecord(value) ? value : {}
+  const confidence =
+    typeof candidate.confidence === 'number' && Number.isFinite(candidate.confidence)
+      ? Math.min(1, Math.max(0, candidate.confidence))
+      : 0
+
+  return {
+    target: readString(candidate.target) ?? '',
+    recommendation: readString(candidate.recommendation) ?? '',
+    posture: readString(candidate.posture) ?? '',
+    confidence,
+    evidence: normalizeStringArray(candidate.evidence),
+    evidenceSummary: readString(candidate.evidenceSummary ?? candidate.evidence_summary) ?? '',
+    signals: normalizeStringArray(candidate.signals),
+    autoSelectAllowed: Boolean(
+      candidate.autoSelectAllowed ?? candidate.auto_select_allowed,
+    ),
+  }
+}
+
 export async function runRecon(request: ReconRequest) {
-  return invokeCommand<ReconResponse>('run_recon', { request })
+  const result = await invokeCommand<unknown>('run_recon', { request })
+  return normalizeReconResponse(result)
 }
 
 function normalizeLastOpenedSnapshot(value: unknown): LastOpenedSnapshot | null {

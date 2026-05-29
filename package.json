@@ -1,7 +1,7 @@
 {
   "name": "stealth-lightbeacon-desktop-tauri",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,11 +14,16 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:coverage": "vitest run src --coverage",
+    "test:coverage:frontend": "vitest run --coverage",
+    "icons:sync": "tauri icon public/favicon.svg",
     "tauri:build": "tauri build --bundles app",
     "tauri:dev": "tauri dev",
     "test": "vitest run src",
     "test:python": "python3 -m unittest discover -s tests/contracts -p 'test_*.py'",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "validate:shell": "npm run test:coverage:frontend && npm run validate:shell:smoke && npm run validate:shell:a11y",
+    "validate:shell:smoke": "node scripts/browser_smoke.mjs",
+    "validate:shell:a11y": "node scripts/validate_shell.mjs --axe",
     "validate:release": "python3 scripts/release_validate.py"
   },
   "dependencies": {

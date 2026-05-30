@@ -233,6 +233,7 @@ struct StandaloneEvaluation {
     request: CreateEvaluationRequest,
     accepted_at: String,
     created_at: Instant,
+    findings: Vec<serde_json::Value>,
 }
 
 struct AppState {
@@ -712,38 +713,170 @@ fn standalone_terminal_status(evaluation: &StandaloneEvaluation) -> &'static str
     }
 }
 
-fn standalone_findings(target: &str, budget_breach: bool) -> Vec<serde_json::Value> {
-    let host_hint = reqwest::Url::parse(target)
-        .ok()
+fn score_embedded_findings(findings: &[serde_json::Value]) -> (i64, i64, i64, i64, serde_json::Value) {
+    let mut passed = 0_i64;
+    let mut warnings = 0_i64;
+    let mut failed = 0_i64;
+    let mut critical = 0_i64;
+    let mut high = 0_i64;
+    let mut medium = 0_i64;
+    let mut low = 0_i64;
+    let mut info = 0_i64;
+
+    for finding in findings {
+        match finding
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+        {
+            "pass" => passed += 1,
+            "warn" => warnings += 1,
+            "fail" => failed += 1,
+            _ => {}
+        }
+
+        match finding
+            .get("severity")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("info")
+        {
+            "critical" => critical += 1,
+            "high" => high += 1,
+            "medium" => medium += 1,
+            "low" => low += 1,
+            _ => info += 1,
+        }
+    }
+
+    let penalty = (failed * 18) + (warnings * 6);
+    let score = (100_i64 - penalty).max(0);
+    let severity_counts = serde_json::json!({
+        "critical": critical,
+        "high": high,
+        "medium": medium,
+        "low": low,
+        "info": info
+    });
+    (score, passed, warnings, failed, severity_counts)
+}
+
+fn run_embedded_rules_scan(target: &str) -> Vec<serde_json::Value> {
+    let parsed_target = reqwest::Url::parse(target).ok();
+    let host_hint = parsed_target
+        .as_ref()
         .and_then(|url| url.host_str().map(str::to_owned))
         .unwrap_or_else(|| "target".into());
 
-    if budget_breach {
-        return vec![serde_json::json!({
-            "rule_id": "request-budget",
-            "title": "Budget threshold reached",
-            "severity": "high",
-            "status": "fail",
-            "description": "Run stopped after exceeding the configured request budget."
-        })];
-    }
+    let agent = ureq::AgentBuilder::new()
+        .timeout(Duration::from_secs(8))
+        .build();
 
-    vec![
-        serde_json::json!({
-            "rule_id": "tls-version",
-            "title": "TLS version review",
-            "severity": "medium",
-            "status": "warn",
-            "description": format!("{host_hint} still negotiates a legacy TLS fallback.")
-        }),
-        serde_json::json!({
-            "rule_id": "security-headers",
-            "title": "Security headers present",
-            "severity": "low",
-            "status": "pass",
-            "description": "Core headers present in mock response."
-        }),
-    ]
+    let response = match agent.get(target).call() {
+        Ok(response) => response,
+        Err(error) => {
+            return vec![serde_json::json!({
+                "rule_id": "target-reachability",
+                "title": "Target reachability",
+                "severity": "high",
+                "status": "fail",
+                "description": format!("Embedded scanner could not reach {host_hint}: {error}")
+            })]
+        }
+    };
+
+    let status_code = response.status() as u16;
+    let body = response.into_string().unwrap_or_default().to_lowercase();
+
+    let mut findings = Vec::new();
+    findings.push(serde_json::json!({
+        "rule_id": "http-status",
+        "title": "Target HTTP status",
+        "severity": if status_code >= 400 { "high" } else { "low" },
+        "status": if status_code >= 400 { "fail" } else { "pass" },
+        "description": format!("Target returned HTTP {status_code}.")
+    }));
+
+    let has_title = body.contains("<title");
+    findings.push(serde_json::json!({
+        "rule_id": "seo-title",
+        "title": "Document title present",
+        "severity": "medium",
+        "status": if has_title { "pass" } else { "fail" },
+        "description": if has_title {
+            "Title tag detected for SEO/GEO indexing."
+        } else {
+            "Missing <title> tag; standalone SEO rules flagged this target."
+        }
+    }));
+
+    let has_meta_description = body.contains("name=\"description\"") || body.contains("name='description'");
+    findings.push(serde_json::json!({
+        "rule_id": "seo-meta-description",
+        "title": "Meta description present",
+        "severity": "low",
+        "status": if has_meta_description { "pass" } else { "warn" },
+        "description": if has_meta_description {
+            "Meta description detected."
+        } else {
+            "Meta description not detected; snippet quality may degrade."
+        }
+    }));
+
+    let has_h1 = body.contains("<h1");
+    findings.push(serde_json::json!({
+        "rule_id": "aeo-primary-heading",
+        "title": "Primary heading structure",
+        "severity": "low",
+        "status": if has_h1 { "pass" } else { "warn" },
+        "description": if has_h1 {
+            "At least one <h1> heading detected."
+        } else {
+            "No <h1> heading detected for answer extraction structure."
+        }
+    }));
+
+    let image_count = body.matches("<img").count();
+    let image_with_alt_count = body.matches(" alt=").count();
+    let missing_alt = image_count.saturating_sub(image_with_alt_count);
+    findings.push(serde_json::json!({
+        "rule_id": "wcag-image-alt",
+        "title": "Image alt coverage",
+        "severity": "high",
+        "status": if missing_alt == 0 { "pass" } else { "fail" },
+        "description": if missing_alt == 0 {
+            "All discovered <img> elements include alt text.".to_string()
+        } else {
+            format!("{missing_alt} image(s) appear to be missing alt text in the retrieved markup.")
+        }
+    }));
+
+    let has_lang = body.contains("<html lang=");
+    findings.push(serde_json::json!({
+        "rule_id": "wcag-html-lang",
+        "title": "Document language declaration",
+        "severity": "medium",
+        "status": if has_lang { "pass" } else { "warn" },
+        "description": if has_lang {
+            "Root html lang attribute detected."
+        } else {
+            "Missing html lang attribute; accessibility language signaling is weak."
+        }
+    }));
+
+    let has_structured_data = body.contains("application/ld+json");
+    findings.push(serde_json::json!({
+        "rule_id": "geo-structured-data",
+        "title": "Structured data signal",
+        "severity": "low",
+        "status": if has_structured_data { "pass" } else { "warn" },
+        "description": if has_structured_data {
+            "JSON-LD structured data detected."
+        } else {
+            "No JSON-LD structured data detected in retrieved HTML."
+        }
+    }));
+
+    findings
 }
 
 fn standalone_requested_report_formats(output_formats: &[String]) -> Vec<String> {
@@ -798,38 +931,9 @@ fn standalone_report_artifact_manifest(evaluation: &StandaloneEvaluation) -> Vec
 
 fn standalone_result_response(evaluation: &StandaloneEvaluation) -> EvaluationResultResponse {
     let terminal_status = standalone_terminal_status(evaluation);
-    let budget_breach = terminal_status == "budget_breach";
-    let findings = standalone_findings(&evaluation.request.target, budget_breach);
+    let findings = evaluation.findings.clone();
     let artifacts = standalone_report_artifact_manifest(evaluation);
-    let (score, passed, warnings, failed, severity_counts) = if budget_breach {
-        (
-            78,
-            5,
-            2,
-            1,
-            serde_json::json!({
-                "critical": 0,
-                "high": 1,
-                "medium": 2,
-                "low": 1,
-                "info": 2
-            }),
-        )
-    } else {
-        (
-            92,
-            8,
-            1,
-            0,
-            serde_json::json!({
-                "critical": 0,
-                "high": 0,
-                "medium": 1,
-                "low": 2,
-                "info": 3
-            }),
-        )
-    };
+    let (score, passed, warnings, failed, severity_counts) = score_embedded_findings(&findings);
     EvaluationResultResponse {
         evaluation_id: evaluation.evaluation_id.clone(),
         status: terminal_status.into(),
@@ -925,11 +1029,23 @@ fn create_standalone_evaluation(
     validate_evaluation_request(request)?;
     let evaluation_id = next_standalone_evaluation_id(state)?;
     let accepted_at = "2026-05-26T12:00:00Z".to_string();
+    let findings = if request.budget_gate {
+        vec![serde_json::json!({
+            "rule_id": "request-budget",
+            "title": "Budget threshold reached",
+            "severity": "high",
+            "status": "fail",
+            "description": "Run stopped after exceeding the configured request budget."
+        })]
+    } else {
+        run_embedded_rules_scan(&request.target)
+    };
     let evaluation = StandaloneEvaluation {
         evaluation_id: evaluation_id.clone(),
         request: request.clone(),
         accepted_at: accepted_at.clone(),
         created_at: Instant::now(),
+        findings,
     };
     state
         .standalone_jobs
@@ -1862,6 +1978,49 @@ mod tests {
         address
     }
 
+    fn spawn_target_site_without_title() -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let address = format!("http://{}", listener.local_addr().expect("addr"));
+
+        thread::spawn(move || loop {
+            let (mut stream, _) = match listener.accept() {
+                Ok(pair) => pair,
+                Err(_) => break,
+            };
+            let mut buffer = [0_u8; 8192];
+            let read = stream.read(&mut buffer).expect("read");
+            if read == 0 {
+                continue;
+            }
+
+            let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+            let path = request
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
+                .unwrap_or("/");
+
+            let (status_line, content_type, body) = match path {
+                "/" => (
+                    "200 OK",
+                    "text/html",
+                    "<!DOCTYPE html><html><head></head><body><h1>Fixture page</h1><img src=\"logo.png\"></body></html>".to_string(),
+                ),
+                _ => ("404 Not Found", "text/plain", "missing".to_string()),
+            };
+
+            let response = format!(
+                "HTTP/1.1 {status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream.write_all(response.as_bytes()).expect("write");
+            stream.flush().expect("flush");
+        });
+
+        address
+    }
+
     #[test]
     fn backend_config_round_trips_on_disk() {
         let path = temp_config_path("config-roundtrip");
@@ -2053,6 +2212,42 @@ mod tests {
             .any(|artifact| artifact["kind"] == serde_json::json!("xml")));
         assert_eq!(artifacts.len(), 4);
         assert!(artifacts.iter().any(|artifact| artifact.kind == "xml"));
+    }
+
+    #[tokio::test]
+    async fn standalone_mode_scans_target_markup_with_embedded_rules() {
+        let config = normalize_backend_config(BackendConfig {
+            mode: BackendMode::Standalone,
+            base_url: DEFAULT_LOCAL_BASE_URL.into(),
+            port: 9136,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        });
+        let state = AppState::new(config);
+        let target = spawn_target_site_without_title();
+        let request = CreateEvaluationRequest {
+            target,
+            profile: "baseline".into(),
+            output_formats: vec!["json".into()],
+            max_depth: 2,
+            max_urls: 200,
+            fail_on_critical: true,
+            budget_gate: false,
+        };
+
+        let accepted = create_standalone_evaluation(&state, &request).expect("accepted");
+        tokio::time::sleep(Duration::from_millis(400)).await;
+
+        let evaluation = standalone_lookup(&state, &accepted.evaluation_id).expect("lookup");
+        let result = standalone_result_response(&evaluation);
+        let findings = result.summary["findings"]
+            .as_array()
+            .expect("findings array")
+            .iter()
+            .filter_map(|finding| finding["rule_id"].as_str().map(str::to_string))
+            .collect::<Vec<_>>();
+
+        assert!(findings.contains(&"seo-title".to_string()));
+        assert!(findings.contains(&"wcag-image-alt".to_string()));
     }
 
     #[tokio::test]

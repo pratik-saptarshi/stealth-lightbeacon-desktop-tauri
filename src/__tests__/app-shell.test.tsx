@@ -259,7 +259,8 @@ describe('App shell', () => {
     expect(
       await screen.findByRole('heading', { name: 'Stealth Lightbeacon' }),
     ).toBeInTheDocument()
-    expect(await screen.findByText('Compact laptop · 800 x 600')).toBeInTheDocument()
+    expect(await screen.findByText('Audit desktop')).toBeInTheDocument()
+    expect(await screen.findByText('Standalone scan')).toBeInTheDocument()
 
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: /^API/i }))
@@ -276,7 +277,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    expect(await screen.findByText('Browser preview')).toBeInTheDocument()
+    expect(await screen.findByText('Preview')).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /^API/i }))
     expect(
       await screen.findByText(
@@ -292,38 +293,37 @@ describe('App shell', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('tab', { name: /^Home/i })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
-    expect(document.getElementById('workspace-panel-audit')).toHaveAttribute(
-      'hidden',
-    )
-
-    await user.click(screen.getByRole('tab', { name: /^Scan/i }))
-
     expect(screen.getByRole('tab', { name: /^Scan/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(document.getElementById('workspace-panel-audit')).not.toHaveAttribute(
-      'hidden',
+    expect(document.getElementById('workspace-panel-audit')).not.toHaveAttribute('hidden')
+
+    await user.click(screen.getByRole('tab', { name: /^Settings/i }))
+
+    expect(screen.getByRole('tab', { name: /^Settings/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
     )
+    expect(document.getElementById('workspace-panel-audit')).toHaveAttribute('hidden')
   })
 
   it('defaults to standalone-first workspace tabs without API setup', async () => {
     render(<App />)
 
-    expect(await screen.findByRole('tab', { name: /^Home/i })).toHaveAttribute(
+    expect(await screen.findByRole('tab', { name: /^Scan/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('tab', { name: /^Scan/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Findings/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Reports/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /^Settings/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /^Home/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /^Connection/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /^API/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Audit desktop')).toBeInTheDocument()
+    expect(screen.getByText('Standalone scan')).toBeInTheDocument()
+    expect(screen.queryByText(/Standalone SEO, GEO, AEO/i)).not.toBeInTheDocument()
   })
 
   it('applies compact text by default and lets settings adjust shell text size', async () => {
@@ -367,7 +367,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    expect((await screen.findAllByText('Standalone')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('Standalone scan')).length).toBeGreaterThan(0)
     expect(await screen.findByText('Embedded ruleset')).toBeInTheDocument()
     expect(await screen.findByText('SEO / GEO / AEO / WCAG AA')).toBeInTheDocument()
   })
@@ -481,6 +481,19 @@ describe('App shell', () => {
       ),
     ).toBeInTheDocument()
   }, 15000)
+
+  it('renders output formats as a compact horizontal bar', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
+    const formatBar = screen.getByRole('group', { name: 'Output formats' })
+
+    expect(formatBar).toHaveClass('output-format-bar')
+    expect(within(formatBar).getByLabelText('json')).toBeChecked()
+    expect(within(formatBar).getByLabelText('markdown')).toBeChecked()
+    expect(within(formatBar).getByLabelText('html')).not.toBeChecked()
+  })
 
   it('hides optional sections from the dashboard when disabled in settings', async () => {
     const user = userEvent.setup()

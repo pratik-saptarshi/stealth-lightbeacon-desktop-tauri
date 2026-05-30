@@ -13,19 +13,19 @@ test.describe('Stealth Lightbeacon shell', () => {
   })
 
   test('keeps inactive panels hidden behind horizontal tabs', async ({ page }) => {
-    await expect(page.getByRole('tab', { name: /^Home/i })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: /^Scan/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
     await expect(
-      page.getByRole('tabpanel', { name: /^Scan/i }),
-    ).toBeHidden()
+      page.getByRole('tab', { name: /^Home/i }),
+    ).toHaveCount(0)
 
     await page.getByRole('tab', { name: /^Settings/i }).click()
 
     await expect(page.getByRole('tabpanel', { name: /^Settings/i })).toBeVisible()
     await expect(
-      page.getByRole('tabpanel', { name: /^Home/i }),
+      page.getByRole('tabpanel', { name: /^Scan/i }),
     ).toBeHidden()
     await expect(page.getByRole('tab', { name: /^Settings/i })).toHaveAttribute(
       'aria-selected',
@@ -62,7 +62,7 @@ test.describe('Stealth Lightbeacon shell', () => {
       settingsPanel.getByText(/Desktop layout defaults keep the shell compact/i),
     ).toBeVisible()
 
-    await page.getByRole('tab', { name: /^Home/i }).click()
+    await page.getByRole('tab', { name: /^Scan/i }).click()
     const adaptedMetrics = await page.evaluate(() => ({
       bodyScrollHeight: document.body.scrollHeight,
       docScrollHeight: document.documentElement.scrollHeight,

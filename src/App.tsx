@@ -290,11 +290,6 @@ const workspaceTabs: Array<{
   description: string
 }> = [
   {
-    key: 'overview',
-    label: 'Home',
-    description: 'Standalone audit summary.',
-  },
-  {
     key: 'connection',
     label: 'API Setup',
     description: 'Optional local or external API controls.',
@@ -1073,7 +1068,7 @@ function App() {
   const artifactsRef = useRef<ArtifactDescriptor[]>([])
   const [viewport, setViewport] = useState<ViewportState>(initialViewport)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
-    useState<WorkspaceTabKey>('overview')
+    useState<WorkspaceTabKey>('audit')
   const [traceExpanded, setTraceExpanded] = useState(
     initialViewport.density !== 'compact',
   )
@@ -1200,7 +1195,7 @@ function App() {
     }))
     if (!apiTabEnabled) {
       setActiveWorkspaceTab((current) =>
-        current === 'connection' ? 'overview' : current,
+        current === 'connection' ? 'audit' : current,
       )
     }
   }, [])
@@ -2147,38 +2142,24 @@ function App() {
             alt="Stealth Lightbeacon audit beacon"
           />
           <div>
-            <p className="eyebrow">Desktop audit operator</p>
+            <p className="eyebrow">Audit desktop</p>
             <div className="title-row">
               <h1>Stealth Lightbeacon</h1>
               <span className="status-pill status-live">
-                {desktopRuntime ? 'Desktop runtime' : 'Browser preview'}
+                {desktopRuntime ? 'Runtime' : 'Preview'}
               </span>
             </div>
-            <p className="brand-summary">
-              Standalone SEO, GEO, AEO, and WCAG-guided audit runs from the
-              desktop shell.
-            </p>
           </div>
         </div>
 
         <div className="topbar-meta">
           <div className="meta-block">
             <span className="meta-label">Engine</span>
-            <strong>
-              {backendConfig.mode === 'standalone'
-                ? 'Standalone'
-                : formatBackendMode(backendConfig.mode)}
-            </strong>
+            <strong>Standalone scan</strong>
           </div>
           <div className="meta-block">
-            <span className="meta-label">Readiness</span>
+            <span className="meta-label">Status</span>
             <strong>{summarizeHealth(health)}</strong>
-          </div>
-          <div className="meta-block">
-            <span className="meta-label">Viewport</span>
-            <strong>
-              {workspaceDensityLabel} · {workspaceSizeLabel}
-            </strong>
           </div>
         </div>
       </header>
@@ -2611,13 +2592,13 @@ function App() {
             </label>
           </div>
 
-          <div className="focus-strip">
+          <div className="focus-strip output-format-bar" role="group" aria-label="Output formats">
             <span className="focus-label">Output formats</span>
-            <div className="checkbox-grid">
+            <div className="output-format-options">
               {availableFormats.map((format) => {
                 const checked = request.outputFormats.includes(format)
                 return (
-                  <label key={format} className="checkbox-card">
+                  <label key={format} className="checkbox-card output-format-option">
                     <input
                       type="checkbox"
                       checked={checked}

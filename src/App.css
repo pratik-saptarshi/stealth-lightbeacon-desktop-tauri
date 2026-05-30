@@ -43,11 +43,11 @@
   flex: none;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px;
-  border-radius: 22px;
+  padding: 12px 16px;
+  border-radius: 18px;
   position: relative;
   overflow: hidden;
 }
@@ -75,7 +75,7 @@
 }
 
 .brand-mark {
-  width: clamp(64px, 8vw, 92px);
+  width: clamp(44px, 5vw, 60px);
   aspect-ratio: 1;
   flex: none;
   filter: drop-shadow(0 10px 22px rgba(29, 53, 87, 0.18));
@@ -112,21 +112,21 @@
 
 .topbar-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 10px;
-  min-width: min(100%, 360px);
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 8px;
+  min-width: min(100%, 260px);
 }
 
 .meta-block {
-  padding: 12px 14px;
-  border-radius: 16px;
+  padding: 8px 10px;
+  border-radius: 12px;
   background: rgba(255, 250, 241, 0.66);
   border: 1px solid rgba(107, 84, 62, 0.14);
 }
 
 .meta-block strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 4px;
   color: var(--text-strong);
   font-size: calc(0.95rem * var(--ui-font-scale, 0.65));
 }
@@ -520,6 +520,25 @@
   gap: 12px;
 }
 
+.output-format-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid color-mix(in srgb, var(--surface-panel-border, var(--panel-border)) 55%, white);
+}
+
+.output-format-options {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(4.5rem, max-content);
+  gap: 6px;
+  overflow-x: auto;
+}
+
 .checkbox-grid,
 .toggle-grid {
   display: grid;
@@ -534,6 +553,14 @@
   gap: 12px;
   padding: 14px 16px;
   border-radius: 18px;
+}
+
+.output-format-option {
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .checkbox-card input,
@@ -823,8 +850,8 @@
 
 .app-shell--compact .topbar,
 .app-shell--compact .panel {
-  padding: 18px 20px;
-  border-radius: 22px;
+  padding: 12px 16px;
+  border-radius: 18px;
 }
 
 .app-shell--compact .brand-summary {
@@ -974,6 +1001,7 @@
   .config-grid,
   .scan-hub,
   .scan-capability-grid,
+  .output-format-bar,
   .hero-metrics,
   .status-grid,
   .history-grid,

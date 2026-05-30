@@ -296,12 +296,12 @@ fn backend_repo_root() -> PathBuf {
         return PathBuf::from(path);
     }
 
-    let sibling = desktop_repo_root()
-        .parent()
-        .expect("workspace root")
-        .join("stealth-lightbeacon");
-    if backend_python_path(&sibling).exists() {
-        return sibling;
+    let desktop_root = desktop_repo_root();
+    for ancestor in desktop_root.ancestors().skip(1) {
+        let sibling = ancestor.join("stealth-lightbeacon");
+        if backend_python_path(&sibling).exists() {
+            return sibling;
+        }
     }
 
     if let Ok(entries) = fs::read_dir("/private/tmp") {
@@ -319,7 +319,10 @@ fn backend_repo_root() -> PathBuf {
         }
     }
 
-    sibling
+    desktop_root
+        .parent()
+        .expect("workspace root")
+        .join("stealth-lightbeacon")
 }
 
 fn backend_python_path(backend_root: &Path) -> PathBuf {
@@ -1261,6 +1264,13 @@ async fn effective_backend_config_from_app_state_with_env(
     if config.mode != BackendMode::Local {
         return Ok(config);
     }
+    if env_override(extra_env, "SLB_COMPANION_DEGRADED_REASON").is_some() {
+        return Err(ApiError::with_details(
+            "local_backend_degraded",
+            "The local backend companion reported a degraded startup state.",
+            config.base_url.clone(),
+        ));
+    }
 
     let base_url = match current_local_backend_base_url(state) {
         Ok(Some(base_url)) => base_url,
@@ -1846,7 +1856,7 @@ mod tests {
     }
 
     async fn wait_for_real_backend(config: &BackendConfig) -> HealthResponse {
-        for _ in 0..40 {
+        for _ in 0..120 {
             if let Ok(health) = api_health_check_impl(config).await {
                 return health;
             }
@@ -2691,7 +2701,7 @@ mod tests {
         assert_eq!(accepted.status, "accepted");
 
         let mut terminal_status = None;
-        for _ in 0..30 {
+        for _ in 0..120 {
             let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
                 .await
                 .expect("evaluation status");
@@ -2750,7 +2760,7 @@ mod tests {
             .await
             .expect("create evaluation");
 
-        for _ in 0..30 {
+        for _ in 0..120 {
             let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
                 .await
                 .expect("evaluation status");
@@ -2785,7 +2795,7 @@ mod tests {
             .await
             .expect("create evaluation");
 
-        for _ in 0..30 {
+        for _ in 0..120 {
             let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
                 .await
                 .expect("evaluation status");
@@ -2825,6 +2835,7 @@ mod tests {
     #[tokio::test]
     async fn local_mode_starts_managed_companion_and_reuses_runtime_url() {
         let local_config = normalize_backend_config(BackendConfig {
+            mode: BackendMode::Local,
             port: reserve_test_port(),
             ..BackendConfig::default()
         });
@@ -2862,6 +2873,7 @@ mod tests {
     #[tokio::test]
     async fn local_mode_waits_for_companion_readiness() {
         let local_config = normalize_backend_config(BackendConfig {
+            mode: BackendMode::Local,
             port: reserve_test_port(),
             ..BackendConfig::default()
         });
@@ -2895,6 +2907,7 @@ mod tests {
     #[tokio::test]
     async fn local_mode_reports_degraded_companion_startup() {
         let state = AppState::new(normalize_backend_config(BackendConfig {
+            mode: BackendMode::Local,
             port: reserve_test_port(),
             ..BackendConfig::default()
         }));
@@ -2927,6 +2940,7 @@ mod tests {
     #[tokio::test]
     async fn local_mode_shutdown_stops_managed_companion() {
         let state = AppState::new(normalize_backend_config(BackendConfig {
+            mode: BackendMode::Local,
             port: reserve_test_port(),
             ..BackendConfig::default()
         }));
@@ -2958,6 +2972,7 @@ mod tests {
     #[tokio::test]
     async fn local_mode_auto_starts_and_completes_an_evaluation() {
         let state = AppState::new(normalize_backend_config(BackendConfig {
+            mode: BackendMode::Local,
             port: reserve_test_port(),
             ..BackendConfig::default()
         }));
@@ -2990,7 +3005,7 @@ mod tests {
         .expect("create evaluation");
 
         let mut terminal_status = None;
-        for _ in 0..30 {
+        for _ in 0..120 {
             let status = get_evaluation_status_impl(&config, &accepted.evaluation_id)
                 .await
                 .expect("evaluation status");

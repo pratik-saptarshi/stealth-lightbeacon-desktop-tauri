@@ -1151,29 +1151,31 @@ describe('App shell', () => {
     expect(screen.getByText('Recent activity is disabled in Settings.')).toBeInTheDocument()
   })
 
-  it('renders optimization hub sidebar sections in reports tab', async () => {
+  it('renders a concise optimization hub in the scan tab', async () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
 
-    expect(await screen.findByText(/Web Companion: Optimization Hub/i)).toBeInTheDocument()
-    expect(screen.getByText(/Accessibility Audit/i)).toBeInTheDocument()
-    expect(screen.getByText(/SEO, GEO & AEO Performance/i)).toBeInTheDocument()
-    expect(screen.getByText(/Security & Drupal Review/i)).toBeInTheDocument()
-    expect(screen.getByText(/Page Performance Metrics/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Web Companion Optimization Hub/i)).toBeInTheDocument()
+    expect(screen.getByText(/One target. Four checks. One report./i)).toBeInTheDocument()
+    expect(screen.getByText('Accessibility')).toBeInTheDocument()
+    expect(screen.getByText('SEO / GEO / AEO')).toBeInTheDocument()
+    expect(screen.getByText('Security')).toBeInTheDocument()
+    expect(screen.getByText('Performance')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run Full Audit' })).toBeInTheDocument()
   })
 
-  it('opens audit workspace when run full audit is pressed from reports tab', async () => {
+  it('keeps reports focused on downloads instead of duplicating scan guidance', async () => {
     const user = userEvent.setup()
     render(<App />)
 
     await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
-    await user.click(screen.getByRole('button', { name: 'Run Full Audit' }))
+    const reportsPanel = screen.getByRole('tabpanel', { name: /^Reports/i })
 
-    expect(screen.getByRole('tab', { name: /^Scan/i })).toHaveAttribute('aria-selected', 'true')
-    expect(document.getElementById('workspace-panel-audit')).not.toHaveAttribute('hidden')
+    expect(within(reportsPanel).queryByText(/Web Companion Optimization Hub/i)).not.toBeInTheDocument()
+    expect(within(reportsPanel).getByRole('heading', { name: /Reporting Operations/i })).toBeInTheDocument()
+    expect(within(reportsPanel).getByRole('table', { name: 'Report downloads' })).toBeInTheDocument()
   })
 
   it('retries polling failures and allows manual recovery after repeated errors', async () => {

@@ -76,6 +76,8 @@ test.describe('Stealth Lightbeacon shell', () => {
   test('shows the recon advisory surface in the audit tab', async ({ page }) => {
     await page.getByRole('tab', { name: /^Scan/i }).click()
 
+    await expect(page.getByText(/Web Companion Optimization Hub/i)).toBeVisible()
+    await expect(page.getByText(/One target. Four checks. One report./i)).toBeVisible()
     await expect(page.getByText(/^Recon advisory$/i)).toBeVisible()
     await expect(
       page.getByRole('heading', { name: /Target posture and transport hints/i }),

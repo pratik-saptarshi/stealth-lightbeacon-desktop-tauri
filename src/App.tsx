@@ -312,12 +312,31 @@ const workspaceTabs: Array<{
   {
     key: 'activity',
     label: 'Reports',
-    description: 'Optimization hub and downloads.',
+    description: 'Downloads and activity.',
   },
   {
     key: 'settings',
     label: 'Settings',
     description: 'Display and workflow preferences.',
+  },
+]
+
+const scanCapabilitySummary = [
+  {
+    label: 'Accessibility',
+    detail: 'WCAG AA checks for images, contrast, forms, and keyboard flow.',
+  },
+  {
+    label: 'SEO / GEO / AEO',
+    detail: 'Titles, schema, answer clarity, and location signals.',
+  },
+  {
+    label: 'Security',
+    detail: 'Headers, HTTPS posture, and Drupal-specific signals.',
+  },
+  {
+    label: 'Performance',
+    detail: 'Core page speed indicators and asset recommendations.',
   },
 ]
 
@@ -1062,8 +1081,6 @@ function App() {
     initialViewport.density !== 'compact',
   )
   const [reportsLinksExpanded, setReportsLinksExpanded] = useState(true)
-  const [seoScope, setSeoScope] = useState<'current' | 'sitewide'>('current')
-  const [performanceMode, setPerformanceMode] = useState<'field' | 'lab'>('lab')
   const [pollingPaused, setPollingPaused] = useState(false)
   const [pollFailureCount, setPollFailureCount] = useState(0)
   const [pollError, setPollError] = useState<string | null>(null)
@@ -2079,15 +2096,6 @@ function App() {
     [uiSettings.apiTabEnabled],
   )
   const visibleEvaluationHistory = evaluationHistory.filter((item) => item.evaluationId)
-  const scoreMetric = terminalResultView?.summaryMetrics[0]?.value ?? '85'
-  const parsedScore = Number.parseInt(scoreMetric, 10)
-  const hubScore = Number.isFinite(parsedScore) ? parsedScore : 85
-  const accessibilityFindings = terminalResultView?.findings.slice(0, 3) ?? []
-  const seoScore = Math.min(100, Math.max(0, hubScore + 7))
-  const aeoScore = Math.min(100, Math.max(0, hubScore - 20))
-  const performanceScore = Math.min(100, Math.max(0, hubScore - 20))
-  const lcpMetric = performanceMode === 'lab' ? '2.9s' : '2.5s'
-  const tbtMetric = performanceMode === 'lab' ? '350ms' : '280ms'
   const modeOperationsCopy =
     backendConfig.mode === 'standalone'
       ? 'Embedded SEO, GEO, AEO, and WCAG 2.1/2.2 AA rules run inside the desktop boundary.'
@@ -2496,6 +2504,39 @@ function App() {
                   : 'Loading capabilities'}
             </span>
           </div>
+
+          <section className="scan-hub" aria-label="Web Companion Optimization Hub">
+            <div className="scan-hub-copy">
+              <p className="section-kicker">Web Companion Optimization Hub</p>
+              <h3>One target. Four checks. One report.</h3>
+              <p>
+                Start with the target URL, then run a focused audit for
+                accessibility, search visibility, security posture, and page
+                speed.
+              </p>
+            </div>
+            <div className="scan-hub-actions">
+              <button
+                type="button"
+                className="primary-action"
+                disabled={!canSubmit}
+                onClick={() => void handleCreateEvaluation()}
+              >
+                {submitting ? 'Submitting Evaluation' : 'Run Full Audit'}
+              </button>
+              <span className="status-pill status-muted">
+                {request.target.trim() || 'Target required'}
+              </span>
+            </div>
+            <div className="scan-capability-grid">
+              {scanCapabilitySummary.map((item) => (
+                <article key={item.label} className="scan-capability-card">
+                  <strong>{item.label}</strong>
+                  <p>{item.detail}</p>
+                </article>
+              ))}
+            </div>
+          </section>
 
           <div className="config-grid">
             <label className="field field-wide">
@@ -3046,119 +3087,6 @@ function App() {
           aria-labelledby="workspace-tab-activity"
           hidden={activeWorkspaceTab !== 'activity'}
         >
-          <div className="companion-sidebar" aria-label="Optimization hub sidebar">
-            <div className="companion-sidebar-header">
-              <h3>🌐 The Web Companion: Optimization Hub</h3>
-              <span aria-hidden="true">⚙️</span>
-            </div>
-
-            <section className="companion-section">
-              <div className="companion-section-title">♿️ 📋 WCAG 2.1/2.2 AA Accessibility Audit</div>
-              <div className="companion-score-row">
-                <div className="companion-score-gauge">
-                  <strong>{hubScore}</strong>
-                  <small>/100</small>
-                </div>
-                <div>
-                  <span className="status-pill status-live">Overall Score</span>
-                  <p>Good</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="primary-action companion-run-button"
-                onClick={() => setActiveWorkspaceTab('audit')}
-              >
-                Run Full Audit
-              </button>
-              <p className="section-kicker">Findings</p>
-              <ul className="companion-list">
-                {accessibilityFindings.length ? (
-                  accessibilityFindings.map((finding) => (
-                    <li key={finding.key}>
-                      <span aria-hidden="true">•</span>
-                      <span>{finding.title}</span>
-                    </li>
-                  ))
-                ) : (
-                  <li>
-                    <span aria-hidden="true">•</span>
-                    <span>No accessibility findings yet.</span>
-                  </li>
-                )}
-              </ul>
-            </section>
-
-            <section className="companion-section">
-              <div className="companion-section-title">🔍 🌐 🅰️ SEO, GEO & AEO Performance</div>
-              <div className="companion-tab-row">
-                <button
-                  type="button"
-                  className={seoScope === 'current' ? 'companion-tab companion-tab--active' : 'companion-tab'}
-                  onClick={() => setSeoScope('current')}
-                >
-                  Current Page
-                </button>
-                <button
-                  type="button"
-                  className={seoScope === 'sitewide' ? 'companion-tab companion-tab--active' : 'companion-tab'}
-                  onClick={() => setSeoScope('sitewide')}
-                >
-                  Site-Wide
-                </button>
-              </div>
-              <div className="companion-metrics">
-                <p><strong>On-Page SEO:</strong> {seoScore}/100</p>
-                <p><strong>Schema Markup:</strong> Found ({Math.max(1, artifacts.length)} entities)</p>
-                <p><strong>Answer Engine Optimization (AEO):</strong> {aeoScore}/100</p>
-                <p><strong>Geographic SEO:</strong> {seoScope === 'sitewide' ? 'Regional profile required' : 'N/A (set service areas)'}</p>
-              </div>
-            </section>
-
-            <section className="companion-section">
-              <div className="companion-section-title">🔒 💧 Security & Drupal Review</div>
-              <p><strong>General Site Security:</strong> High</p>
-              <ul className="companion-list">
-                <li><span aria-hidden="true">•</span><span>Content-Security-Policy: Missing</span></li>
-                <li><span aria-hidden="true">•</span><span>X-Frame-Options: SAMEORIGIN</span></li>
-                <li><span aria-hidden="true">•</span><span>Strict-Transport-Security: Enabled</span></li>
-              </ul>
-            </section>
-
-            <section className="companion-section">
-              <div className="companion-section-title">⏱️ 🚀 Page Performance Metrics</div>
-              <div className="companion-score-row">
-                <div className="companion-score-gauge companion-score-gauge--warn">
-                  <strong>{performanceScore}</strong>
-                  <small>/100</small>
-                </div>
-                <div>
-                  <span className="status-pill status-soft">Overall Score</span>
-                  <p>Needs Improvement</p>
-                </div>
-              </div>
-              <ul className="companion-list">
-                <li><span aria-hidden="true">•</span><span>Largest Contentful Paint (LCP): {lcpMetric}</span></li>
-                <li><span aria-hidden="true">•</span><span>Cumulative Layout Shift (CLS): 0.05</span></li>
-                <li><span aria-hidden="true">•</span><span>Total Blocking Time (TBT): {tbtMetric}</span></li>
-              </ul>
-              <div className="companion-toggle">
-                <span>Field Data</span>
-                <button
-                  type="button"
-                  className={performanceMode === 'lab' ? 'companion-switch companion-switch--active' : 'companion-switch'}
-                  onClick={() =>
-                    setPerformanceMode((current) => (current === 'lab' ? 'field' : 'lab'))
-                  }
-                  aria-label="Toggle performance data mode"
-                >
-                  <span />
-                </button>
-                <span>Lab Data</span>
-              </div>
-            </section>
-          </div>
-
           <div className="panel-heading">
             <div>
               <p className="section-kicker">Reports</p>

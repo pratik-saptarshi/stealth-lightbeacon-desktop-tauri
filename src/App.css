@@ -729,148 +729,68 @@
   font-weight: 600;
 }
 
-.companion-sidebar {
+.scan-hub {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  margin-bottom: 16px;
   padding: 14px;
-  border-radius: 16px;
-  border: 1px solid var(--surface-panel-border, var(--panel-border));
-  background: rgba(255, 255, 255, 0.75);
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--surface-accent, #245d56) 28%, white);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--surface-accent, #245d56) 10%, transparent),
+      transparent 58%
+    ),
+    var(--surface-card-bg, rgba(255, 255, 255, 0.52));
 }
 
-.companion-sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 700;
-  color: var(--text-strong);
+.scan-hub-copy {
+  display: grid;
+  gap: 4px;
 }
 
-.companion-sidebar-header h3 {
+.scan-hub-copy h3,
+.scan-hub-copy p {
   margin: 0;
-  font-size: calc(1rem * var(--ui-font-scale, 0.65));
 }
 
-.companion-section {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--surface-panel-border, var(--panel-border)) 70%, white);
-  background: var(--surface-card-bg, rgba(255, 255, 255, 0.52));
-}
-
-.companion-section-title {
-  font-weight: 700;
-  color: var(--text-strong);
-}
-
-.companion-score-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.companion-score-gauge {
-  width: 74px;
-  height: 74px;
-  border-radius: 999px;
-  border: 6px solid #2a6f58;
-  display: grid;
-  place-items: center;
-  text-align: center;
-}
-
-.companion-score-gauge--warn {
-  border-color: #9a612d;
-}
-
-.companion-score-gauge strong {
-  font-size: calc(1.1rem * var(--ui-font-scale, 0.65));
-  line-height: 1;
-}
-
-.companion-score-gauge small {
+.scan-hub-copy p:not(.section-kicker),
+.scan-capability-card p {
   color: var(--text-muted);
-  font-size: calc(0.72rem * var(--ui-font-scale, 0.65));
 }
 
-.companion-run-button {
-  width: 100%;
-}
-
-.companion-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.scan-hub-actions {
   display: grid;
-  gap: 6px;
-}
-
-.companion-list li {
-  display: flex;
+  align-content: start;
+  justify-items: end;
   gap: 8px;
-  align-items: flex-start;
-  color: var(--text-muted);
 }
 
-.companion-tab-row {
-  display: flex;
-  gap: 6px;
+.scan-capability-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.companion-tab {
-  border: 1px solid var(--surface-panel-border, var(--panel-border));
-  background: transparent;
-  border-radius: 8px;
-  padding: 5px 8px;
-  color: var(--text-muted);
-  cursor: pointer;
+.scan-capability-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid color-mix(in srgb, var(--surface-panel-border, var(--panel-border)) 55%, white);
 }
 
-.companion-tab--active {
-  color: var(--surface-accent, #245d56);
-  border-color: var(--surface-accent, #245d56);
-  font-weight: 700;
+.scan-capability-card strong {
+  color: var(--text-strong);
 }
 
-.companion-metrics p {
+.scan-capability-card p {
   margin: 0;
-  color: var(--text-muted);
-}
-
-.companion-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--text-muted);
-}
-
-.companion-switch {
-  width: 42px;
-  height: 22px;
-  border-radius: 999px;
-  border: 1px solid var(--surface-panel-border, var(--panel-border));
-  background: #d0d5dc;
-  position: relative;
-  cursor: pointer;
-  padding: 0;
-}
-
-.companion-switch span {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #fff;
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  transition: left 120ms ease;
-}
-
-.companion-switch--active span {
-  left: 22px;
+  line-height: 1.35;
 }
 
 .download-grid {
@@ -1052,6 +972,8 @@
 
   .topbar-meta,
   .config-grid,
+  .scan-hub,
+  .scan-capability-grid,
   .hero-metrics,
   .status-grid,
   .history-grid,
@@ -1065,6 +987,10 @@
   .primary-action,
   .secondary-action {
     width: 100%;
+  }
+
+  .scan-hub-actions {
+    justify-items: stretch;
   }
 
   .settings-drawer {

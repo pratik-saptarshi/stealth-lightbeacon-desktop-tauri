@@ -1039,6 +1039,46 @@ describe('App shell', () => {
     expect(document.getElementById('reports-links-panel')).not.toHaveAttribute('hidden')
   })
 
+  it('toggles trace visibility from the reports panel in compact viewport', async () => {
+    const user = userEvent.setup()
+    setViewportSize(800, 600)
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    expect(screen.getByRole('button', { name: 'Expand trace' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(document.getElementById('trace-panel')).toHaveAttribute('hidden')
+
+    await user.click(screen.getByRole('button', { name: 'Expand trace' }))
+    expect(screen.getByRole('button', { name: 'Collapse trace' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(document.getElementById('trace-panel')).not.toHaveAttribute('hidden')
+
+    await user.click(screen.getByRole('button', { name: 'Collapse trace' }))
+    expect(screen.getByRole('button', { name: 'Expand trace' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(document.getElementById('trace-panel')).toHaveAttribute('hidden')
+  })
+
+  it('hides trace toggle when recent activity section is disabled', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Settings/i }))
+    await user.click(screen.getByRole('checkbox', { name: /Recent activity/ }))
+
+    await user.click(screen.getByRole('tab', { name: /^Reports/i }))
+    expect(screen.queryByRole('button', { name: /trace/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Recent activity is disabled in Settings.')).toBeInTheDocument()
+  })
+
   it('retries polling failures and allows manual recovery after repeated errors', async () => {
     const user = userEvent.setup()
 

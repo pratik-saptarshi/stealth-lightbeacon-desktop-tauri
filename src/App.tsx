@@ -2992,15 +2992,17 @@ function App() {
             </div>
             <div className="heading-actions">
               <span className="status-pill status-muted">Last four events</span>
-              <button
-                type="button"
-                className="collapse-toggle"
-                aria-expanded={traceExpanded}
-                aria-controls="trace-panel"
-                onClick={() => setTraceExpanded((current) => !current)}
-              >
-                {traceExpanded ? 'Collapse trace' : 'Expand trace'}
-              </button>
+              {showRecentActivity ? (
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  aria-expanded={traceExpanded}
+                  aria-controls="trace-panel"
+                  onClick={() => setTraceExpanded((current) => !current)}
+                >
+                  {traceExpanded ? 'Collapse trace' : 'Expand trace'}
+                </button>
+              ) : null}
             </div>
           </div>
 

@@ -1,10 +1,11 @@
 .app-shell {
-  min-height: 100svh;
+  height: 100svh;
+  min-height: 0;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .topbar,
@@ -26,6 +27,7 @@
 }
 
 .topbar {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -117,6 +119,7 @@
 }
 
 .workspace-tabs {
+  flex: none;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 10px;
@@ -168,13 +171,18 @@
 }
 
 .workspace-panels {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   gap: 16px;
+  overflow: hidden;
 }
 
 .workspace-panel {
+  min-height: 0;
   display: grid;
   gap: 16px;
+  overflow: auto;
 }
 
 .workspace-panel[hidden] {

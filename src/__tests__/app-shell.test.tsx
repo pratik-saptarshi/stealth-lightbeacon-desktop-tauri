@@ -1017,6 +1017,28 @@ describe('App shell', () => {
     expect(document.getElementById('reporting-panel')).toHaveAttribute('hidden')
   })
 
+  it('toggles report links visibility from the reports panel', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    expect(await screen.findByRole('table', { name: 'Report downloads' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Collapse report links' }))
+    expect(screen.getByRole('button', { name: 'Expand report links' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(document.getElementById('reports-links-panel')).toHaveAttribute('hidden')
+
+    await user.click(screen.getByRole('button', { name: 'Expand report links' }))
+    expect(screen.getByRole('button', { name: 'Collapse report links' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(document.getElementById('reports-links-panel')).not.toHaveAttribute('hidden')
+  })
+
   it('retries polling failures and allows manual recovery after repeated errors', async () => {
     const user = userEvent.setup()
 

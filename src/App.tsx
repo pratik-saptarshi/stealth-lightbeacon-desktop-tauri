@@ -1016,6 +1016,7 @@ function App() {
   const [reportExpanded, setReportExpanded] = useState(
     initialViewport.density !== 'compact',
   )
+  const [reportsLinksExpanded, setReportsLinksExpanded] = useState(true)
   const [pollingPaused, setPollingPaused] = useState(false)
   const [pollFailureCount, setPollFailureCount] = useState(0)
   const [pollError, setPollError] = useState<string | null>(null)
@@ -3032,8 +3033,21 @@ function App() {
                 <p className="section-kicker">Downloads</p>
                 <h3>Report Links</h3>
               </div>
+              <button
+                type="button"
+                className="collapse-toggle"
+                aria-expanded={reportsLinksExpanded}
+                aria-controls="reports-links-panel"
+                onClick={() => setReportsLinksExpanded((current) => !current)}
+              >
+                {reportsLinksExpanded ? 'Collapse report links' : 'Expand report links'}
+              </button>
             </div>
-            <div className="table-scroll">
+            <div
+              id="reports-links-panel"
+              className="table-scroll"
+              hidden={!reportsLinksExpanded}
+            >
               <table className="reports-download-table" aria-label="Report downloads">
                 <thead>
                   <tr>

@@ -9,6 +9,9 @@ with `npm run test:e2e`.
   workspace view.
 - Settings expose the standard workspace-size presets for laptop and desktop
   layouts.
+- The audit tab surfaces recon state and the remote-policy readiness surface.
+- Axe-core scans verify the shell, Settings, and Audit surfaces for basic
+  accessibility regressions.
 - The compact baseline at `800 x 600` stays within the viewport without
   vertical scrolling.
 
@@ -24,6 +27,8 @@ with `npm run test:e2e`.
 
 - `npm run test:e2e`
 - `npm run test:e2e:headed`
+- `npm test`
+- `npm run test:coverage`
 
 ## Notes
 

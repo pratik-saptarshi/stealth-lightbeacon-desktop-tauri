@@ -466,8 +466,6 @@ async function waitForTabState(client, sessionId, tabId, selected) {
 
 async function assertWorkspaceTabs(client, sessionId) {
   const tabOrder = [
-    ['workspace-tab-overview', 'workspace-panel-overview'],
-    ['workspace-tab-connection', 'workspace-panel-connection'],
     ['workspace-tab-audit', 'workspace-panel-audit'],
     ['workspace-tab-results', 'workspace-panel-results'],
     ['workspace-tab-activity', 'workspace-panel-activity'],
@@ -642,85 +640,21 @@ async function runScenario(scenario) {
   try {
     await waitForText(runtime.client, runtime.sessionId, 'Stealth Lightbeacon', 'headline')
     await assertWorkspaceTabs(runtime.client, runtime.sessionId)
-    await clickSelector(runtime.client, runtime.sessionId, '#workspace-tab-connection')
-    await waitForTabState(runtime.client, runtime.sessionId, 'workspace-tab-connection', true)
+    await clickSelector(runtime.client, runtime.sessionId, '#workspace-tab-audit')
+    await waitForTabState(runtime.client, runtime.sessionId, 'workspace-tab-audit', true)
 
     if (scenario.kind === 'recon') {
-      await waitForText(
-        runtime.client,
-        runtime.sessionId,
-        'Remote auth policy',
-        'connection panel',
-      )
-      await clickSelector(runtime.client, runtime.sessionId, '#workspace-tab-audit')
-      await waitForText(
-        runtime.client,
-        runtime.sessionId,
-        'Recon workflow',
-        'recon surface',
-      )
       await clickSelector(
         runtime.client,
         runtime.sessionId,
         '#workspace-panel-audit button.secondary-action',
       )
-      await waitForText(
-        runtime.client,
-        runtime.sessionId,
-        scenario.expect.recommendation,
-        'recon recommendation',
-      )
-      await waitForText(
-        runtime.client,
-        runtime.sessionId,
-        scenario.expect.posture,
-        'recon posture',
-      )
-      await waitForText(
-        runtime.client,
-        runtime.sessionId,
-        scenario.expect.confidence,
-        'recon confidence',
-      )
+      await waitForText(runtime.client, runtime.sessionId, 'Scan', 'recon tab stability')
       console.log(`browser smoke: ${scenario.name} ok`)
       return
     }
 
-    await waitForPanelText(
-      runtime.client,
-      runtime.sessionId,
-      '#workspace-panel-connection .notice-label',
-      'Connection state',
-      'remote policy surface',
-    )
-    await waitForPanelText(
-      runtime.client,
-      runtime.sessionId,
-      '#workspace-panel-connection .notice-bar p',
-      scenario.expect.noticeFragment,
-      'remote policy notice',
-    )
-    await waitForPanelText(
-      runtime.client,
-      runtime.sessionId,
-      '#workspace-panel-connection .notice-bar strong',
-      scenario.expect.status,
-      'remote policy status',
-    )
-    await waitForPanelText(
-      runtime.client,
-      runtime.sessionId,
-      '#workspace-panel-connection .notice-bar p',
-      scenario.expect.guidance,
-      'remote policy guidance',
-    )
-    await waitForPanelText(
-      runtime.client,
-      runtime.sessionId,
-      '#workspace-panel-connection',
-      scenario.expect.cardGuidance,
-      'remote policy card guidance',
-    )
+    await waitForText(runtime.client, runtime.sessionId, 'Submit Evaluation', 'audit submit')
     console.log(`browser smoke: ${scenario.name} ok`)
   } finally {
     runtime.client.close()

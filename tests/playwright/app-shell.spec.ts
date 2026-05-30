@@ -13,12 +13,12 @@ test.describe('Stealth Lightbeacon shell', () => {
   })
 
   test('keeps inactive panels hidden behind horizontal tabs', async ({ page }) => {
-    await expect(page.getByRole('tab', { name: /^Overview/i })).toHaveAttribute(
+    await expect(page.getByRole('tab', { name: /^Connection/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
     await expect(
-      page.getByRole('tabpanel', { name: /^Connection/i }),
+      page.getByRole('tabpanel', { name: /^Audit/i }),
     ).toBeHidden()
 
     await page.getByRole('tab', { name: /^Settings/i }).click()
@@ -62,7 +62,7 @@ test.describe('Stealth Lightbeacon shell', () => {
       settingsPanel.getByText(/Desktop layout defaults keep the shell compact/i),
     ).toBeVisible()
 
-    await page.getByRole('tab', { name: /^Overview/i }).click()
+    await page.getByRole('tab', { name: /^Connection/i }).click()
     const adaptedMetrics = await page.evaluate(() => ({
       bodyScrollHeight: document.body.scrollHeight,
       docScrollHeight: document.documentElement.scrollHeight,
@@ -84,6 +84,18 @@ test.describe('Stealth Lightbeacon shell', () => {
     await expect(
       page.getByText(/Reconnect capabilities and choose a target before running recon\./i),
     ).toBeVisible()
+  })
+
+  test('shows reports tab trace and report-download table', async ({ page }) => {
+    await page.getByRole('tab', { name: /^Reports/i }).click()
+    await expect(
+      page.getByRole('heading', { name: /Reporting Operations/i }),
+    ).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Report downloads' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Report' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Filename' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Action' })).toBeVisible()
+    await expect(page.getByText('No report downloads available yet.')).toBeVisible()
   })
 
   test('stays within the 800 x 600 baseline without vertical scrolling', async ({

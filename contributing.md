@@ -20,9 +20,9 @@
 
 ## Local Workflow
 
-1. Run `npm run check`.
-2. Run `npm run check:contract-sync`.
-3. Run `npm run validate:release` for release-boundary work.
+1. Run `pnpm run check`.
+2. Run `pnpm run check:contract-sync`.
+3. Run `pnpm run validate:release` for release-boundary work.
 4. Refresh `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
    `security-policy.md`, `bill-of-materials.md`, and the roadmap docs under
    `docs/roadmap/` before tagging a public release.

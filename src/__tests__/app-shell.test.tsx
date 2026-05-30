@@ -267,11 +267,11 @@ describe('App shell', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('tab', { name: /^Overview/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /^Connection/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(document.getElementById('workspace-panel-connection')).toHaveAttribute(
+    expect(document.getElementById('workspace-panel-audit')).toHaveAttribute(
       'hidden',
     )
 
@@ -432,7 +432,7 @@ describe('App shell', () => {
     await user.click(screen.getByRole('checkbox', { name: /Recent activity/ }))
     await user.click(screen.getByRole('checkbox', { name: /Backend surface/ }))
 
-    await user.click(screen.getByRole('tab', { name: /^Activity/i }))
+    await user.click(screen.getByRole('tab', { name: /^Reports/i }))
     expect(screen.getByText('Recent activity is disabled in Settings.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: /^Connection/i }))
@@ -997,7 +997,9 @@ describe('App shell', () => {
     render(<App />)
 
     expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
-    await user.click(await screen.findByRole('tab', { name: /^Activity/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    expect(await screen.findByRole('table', { name: 'Report downloads' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Download' }).length).toBeGreaterThan(0)
     await user.click(screen.getByRole('button', { name: 'Collapse trace' }))
     expect(screen.getByRole('button', { name: 'Expand trace' })).toHaveAttribute(
       'aria-expanded',

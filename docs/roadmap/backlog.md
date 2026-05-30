@@ -89,3 +89,14 @@ Validation gate:
   surface reflects the agreed verification target.
 - Package-grade release validation still depends on deterministic backend
   readiness and environment-specific Tauri packaging behavior.
+
+## Phase R5: Test-Layer Hardening (Unit + Integration + Playwright)
+
+- R5-P0: Fix Playwright surface drift and pnpm bootstrap parity (`TH-001`, `TH-002`, `TH-003`).
+- R5-P1: Remove skipped critical async shell tests and replace timeout-based stability with deterministic sync (`TH-004`, `TH-005`, `TH-007`).
+- R5-P2: Deepen report-download table e2e checks, add mutation-style helper checks, and codify test-quality governance (`TH-008`, `TH-009`, `TH-010`).
+
+Validation gate:
+- `pnpm run test -- src/__tests__/app-shell.test.tsx src/lib/desktop.test.ts src/__tests__/app-helpers.test.ts`
+- `pnpm run test:e2e`
+- `pnpm run test:python`

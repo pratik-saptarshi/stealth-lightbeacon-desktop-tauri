@@ -285,11 +285,6 @@ const workspaceTabs: Array<{
   description: string
 }> = [
   {
-    key: 'overview',
-    label: 'Overview',
-    description: 'Compact launch summary and execution modes.',
-  },
-  {
     key: 'connection',
     label: 'Connection',
     description: 'Backend mode, health, and capability surface.',
@@ -306,8 +301,8 @@ const workspaceTabs: Array<{
   },
   {
     key: 'activity',
-    label: 'Activity',
-    description: 'Desktop adapter trace and polling history.',
+    label: 'Reports',
+    description: 'Desktop adapter trace and reporting operations.',
   },
   {
     key: 'settings',
@@ -1014,7 +1009,7 @@ function App() {
   const artifactsRef = useRef<ArtifactDescriptor[]>([])
   const [viewport, setViewport] = useState<ViewportState>(initialViewport)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
-    useState<WorkspaceTabKey>('overview')
+    useState<WorkspaceTabKey>('connection')
   const [traceExpanded, setTraceExpanded] = useState(
     initialViewport.density !== 'compact',
   )
@@ -1216,7 +1211,7 @@ function App() {
         setCapabilities(null)
         setCapabilitiesLoadState('idle')
         setNotice(
-          'Desktop commands are unavailable in browser preview. Launch `npm run tauri:dev` to connect to the backend API.',
+          'Desktop commands are unavailable in browser preview. Launch `pnpm run tauri:dev` to connect to the backend API.',
         )
         setStatusLine('Browser preview only')
       })
@@ -1754,7 +1749,7 @@ function App() {
   async function handleSaveConnection() {
     if (!desktopRuntime) {
       setNotice(
-        'Desktop commands are unavailable in browser preview. Launch `npm run tauri:dev` to save backend settings.',
+        'Desktop commands are unavailable in browser preview. Launch `pnpm run tauri:dev` to save backend settings.',
       )
       setStatusLine('Preview mode')
       return
@@ -1789,7 +1784,7 @@ function App() {
   async function handleCreateEvaluation() {
     if (!desktopRuntime) {
       setNotice(
-        'Desktop commands are unavailable in browser preview. Launch `npm run tauri:dev` to submit an evaluation.',
+        'Desktop commands are unavailable in browser preview. Launch `pnpm run tauri:dev` to submit an evaluation.',
       )
       setStatusLine('Preview mode')
       return
@@ -1889,7 +1884,7 @@ function App() {
   async function handleRunRecon() {
     if (!desktopRuntime) {
       setNotice(
-        'Desktop commands are unavailable in browser preview. Launch `npm run tauri:dev` to run recon.',
+        'Desktop commands are unavailable in browser preview. Launch `pnpm run tauri:dev` to run recon.',
       )
       setStatusLine('Preview mode')
       return
@@ -2991,8 +2986,8 @@ function App() {
         >
           <div className="panel-heading">
             <div>
-              <p className="section-kicker">Recent activity</p>
-              <h2>Desktop Adapter Trace</h2>
+              <p className="section-kicker">Reports</p>
+              <h2>Reporting Operations</h2>
             </div>
             <div className="heading-actions">
               <span className="status-pill status-muted">Last four events</span>
@@ -3030,6 +3025,45 @@ function App() {
               </article>
             </div>
           )}
+
+          <div className="history-section">
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Downloads</p>
+                <h3>Report Links</h3>
+              </div>
+            </div>
+            <div className="table-scroll">
+              <table className="reports-download-table" aria-label="Report downloads">
+                <thead>
+                  <tr>
+                    <th scope="col">Report</th>
+                    <th scope="col">Filename</th>
+                    <th scope="col">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportDownloads.length ? (
+                    reportDownloads.map((download) => (
+                      <tr key={download.label}>
+                        <td>{download.label}</td>
+                        <td>{download.filename}</td>
+                        <td>
+                          <a href={download.href} download={download.filename}>
+                            Download
+                          </a>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3}>No report downloads available yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <section

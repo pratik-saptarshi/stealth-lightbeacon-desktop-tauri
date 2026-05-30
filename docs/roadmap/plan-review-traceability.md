@@ -68,3 +68,17 @@ feature gaps, capability gaps, validation gaps, and testing gaps.
 | P1 | implementer | Keep release validation honest by validating the Tauri package boundary. | R3-F02 |
 | P2 | implementer | Maintain repo-truth docs, codemaps, and roadmap files as part of release readiness. | R3-F01, R3-F04, R3-F05 |
 | P2 | implementer | Keep governance docs linked from the root README. | R3-F04 |
+
+## Round 4: Test-Layer Quality Review Integration
+
+`Total findings: 5 | Must-fix: 3 | Bundle: 2 | Defer: 0 | Info: 0`
+`Final Recommendation: Applied with caveats`
+`Dissent Ledger: none`
+
+| ID | Severity | Bucket | Summary | Category | Action Taken |
+| --- | --- | --- | --- | --- | --- |
+| R4-F01 | HIGH | Testing gap | Playwright assertions still target removed `Overview` tab and stale navigation behavior. | Must-fix | Added P0 remediation item TH-001 in `test-hardening-remediation-plan.md`. |
+| R4-F02 | HIGH | Validation gap | Playwright config uses `npm run dev` in a pnpm-standardized repository. | Must-fix | Added P0 remediation item TH-002 to normalize runner bootstrap commands. |
+| R4-F03 | HIGH | Capability gap | `pretest:e2e` fails because Playwright binary resolution is unstable in current setup. | Must-fix | Added P0 remediation item TH-003 for CI/runner hardening and fail-fast smoke lane. |
+| R4-F04 | MEDIUM | Testing gap | Critical recon race-condition test remains skipped in shell suite. | Bundle | Added P1 remediation item TH-004 for deterministic unskip and race hardening. |
+| R4-F05 | MEDIUM | Testing gap | Multiple shell tests rely on enlarged timeouts instead of deterministic synchronization. | Bundle | Added P1 remediation item TH-005 to remove timeout-driven instability. |

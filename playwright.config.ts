@@ -11,7 +11,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4180',
+    command: 'pnpm exec vite --host 127.0.0.1 --port 4180',
     port: 4180,
     reuseExistingServer: false,
     timeout: 120_000,

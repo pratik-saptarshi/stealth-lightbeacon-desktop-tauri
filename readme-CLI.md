@@ -5,36 +5,36 @@ for local development, validation, and release work.
 
 ## Common Commands
 
-- `npm run dev`
+- `pnpm run dev`
   Starts the Vite frontend dev server.
-- `npm run tauri:dev`
+- `pnpm run tauri:dev`
   Starts the full desktop app in local development mode.
-- `npm run build`
+- `pnpm run build`
   Builds the frontend bundle into `dist/`.
-- `npm run preview`
+- `pnpm run preview`
   Serves the built frontend bundle locally.
-- `npm run check`
+- `pnpm run check`
   Runs the full validation lane: lint, coverage, browser smoke, Python contract
   tests, and Rust tests.
-- `npm run test`
+- `pnpm run test`
   Runs the React and adapter-facing Vitest suite.
-- `npm run test:coverage`
+- `pnpm run test:coverage`
   Runs the shell coverage lane with the enforced Vitest thresholds.
-- `npm run test:e2e`
+- `pnpm run test:e2e`
   Runs the Playwright browser smoke for the tabbed shell and workspace presets.
-- `npm run test:python`
+- `pnpm run test:python`
   Runs the pinned OpenAPI contract checks in `tests/contracts/`.
-- `npm run test:rust`
+- `pnpm run test:rust`
   Runs the Rust adapter tests under `src-tauri/`.
 - `cargo test --manifest-path src-tauri/Cargo.toml`
   Direct Rust test entrypoint when isolating the desktop transport layer.
-- `npm run check:contract-sync`
+- `pnpm run check:contract-sync`
   Regenerates the backend OpenAPI contract from the sibling backend repo and
   fails if the pinned desktop copy drifts.
-- `npm run validate:release`
+- `pnpm run validate:release`
   Runs the cross-repo release lane: contract sync, backend tests, desktop
   contract tests, Vitest, Rust tests, frontend build, and Tauri package build.
-- `npm run tauri:build`
+- `pnpm run tauri:build`
   Produces the macOS `.app` bundle through Tauri.
 - `git tag -a <tag> -m "<message>"`
   Creates the release tag after validation passes.

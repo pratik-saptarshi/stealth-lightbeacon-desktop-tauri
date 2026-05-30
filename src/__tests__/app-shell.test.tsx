@@ -801,7 +801,7 @@ describe('App shell', () => {
       expect(screen.getByText(/Score\s*92/i)).toBeInTheDocument(),
       { timeout: 4000 },
     )
-    expect(await screen.findByText('TLS version review')).toBeInTheDocument()
+    expect((await screen.findAllByText('TLS version review')).length).toBeGreaterThan(0)
     expect(await screen.findByText('critical 0')).toBeInTheDocument()
     expect(await screen.findByText('Completed 2026-01-15T10:00:03Z')).toBeInTheDocument()
     expect(await screen.findByText('Recent Evaluations')).toBeInTheDocument()
@@ -916,9 +916,9 @@ describe('App shell', () => {
       expect(screen.getByText(/Score\s*78/i)).toBeInTheDocument(),
       { timeout: 4000 },
     )
-    expect(await screen.findByText('Budget threshold reached')).toBeInTheDocument()
-    expect(await screen.findByText('high 1')).toBeInTheDocument()
-    expect(await screen.findByText('Failed 1')).toBeInTheDocument()
+    expect((await screen.findAllByText('Budget threshold reached')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('high 1')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('Failed 1')).length).toBeGreaterThan(0)
   }, 15000)
 
   it('renders artifact metadata and actions after terminal completion', async () => {
@@ -1085,6 +1085,31 @@ describe('App shell', () => {
     await user.click(screen.getByRole('tab', { name: /^Reports/i }))
     expect(screen.queryByRole('button', { name: /trace/i })).not.toBeInTheDocument()
     expect(screen.getByText('Recent activity is disabled in Settings.')).toBeInTheDocument()
+  })
+
+  it('renders optimization hub sidebar sections in reports tab', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+
+    expect(await screen.findByText(/Web Companion: Optimization Hub/i)).toBeInTheDocument()
+    expect(screen.getByText(/Accessibility Audit/i)).toBeInTheDocument()
+    expect(screen.getByText(/SEO, GEO & AEO Performance/i)).toBeInTheDocument()
+    expect(screen.getByText(/Security & Drupal Review/i)).toBeInTheDocument()
+    expect(screen.getByText(/Page Performance Metrics/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run Full Audit' })).toBeInTheDocument()
+  })
+
+  it('opens audit workspace when run full audit is pressed from reports tab', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    await user.click(screen.getByRole('button', { name: 'Run Full Audit' }))
+
+    expect(screen.getByRole('tab', { name: /^Audit/i })).toHaveAttribute('aria-selected', 'true')
+    expect(document.getElementById('workspace-panel-audit')).not.toHaveAttribute('hidden')
   })
 
   it('retries polling failures and allows manual recovery after repeated errors', async () => {

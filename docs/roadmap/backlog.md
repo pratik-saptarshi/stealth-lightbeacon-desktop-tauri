@@ -100,3 +100,14 @@ Validation gate:
 - `pnpm run test -- src/__tests__/app-shell.test.tsx src/lib/desktop.test.ts src/__tests__/app-helpers.test.ts`
 - `pnpm run test:e2e`
 - `pnpm run test:python`
+
+## Phase R6: Adversarial UX Contract Hardening
+
+- R6-F1: Keep report downloads single-surface (Reports tab only) and prevent duplicate action rendering.
+- R6-F2: Keep Reports-tab download actions artifact-backed (`downloadUrl`) with no data-url fallback in operations table.
+- R6-F3: Keep roadmap tab/report contract notes synchronized with implemented shell behavior after each tab UX change.
+
+Validation gate:
+- `pnpm run test -- src/__tests__/app-shell.test.tsx`
+- Confirm Results tab has no "Formatted Reports" section.
+- Confirm Reports table contains only artifact-backed action links when artifacts are available.

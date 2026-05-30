@@ -82,3 +82,23 @@ feature gaps, capability gaps, validation gaps, and testing gaps.
 | R4-F03 | HIGH | Capability gap | `pretest:e2e` fails because Playwright binary resolution is unstable in current setup. | Must-fix | Added P0 remediation item TH-003 for CI/runner hardening and fail-fast smoke lane. |
 | R4-F04 | MEDIUM | Testing gap | Critical recon race-condition test remains skipped in shell suite. | Bundle | Added P1 remediation item TH-004 for deterministic unskip and race hardening. |
 | R4-F05 | MEDIUM | Testing gap | Multiple shell tests rely on enlarged timeouts instead of deterministic synchronization. | Bundle | Added P1 remediation item TH-005 to remove timeout-driven instability. |
+
+## Round 5: Adversarial App Audit Integration
+
+`Total findings: 4 | Must-fix: 2 | Bundle: 1 | Defer: 0 | Info: 1`
+`Final Recommendation: Applied with caveats`
+`Dissent Ledger: none`
+
+| ID | Severity | Bucket | Summary | Category | Action Taken |
+| --- | --- | --- | --- | --- | --- |
+| R5-F01 | HIGH | Feature gap | Reports-tab download actions were not guaranteed to use artifact-backed links. | Must-fix | Routed report table actions to artifact `downloadUrl` links and de-duplicated row generation. |
+| R5-F02 | HIGH | Feature gap | Results tab duplicated report-download actions in a separate "Formatted Reports" section. | Must-fix | Removed the Results-tab duplicate download block and retained a single report-download surface in Reports. |
+| R5-F03 | MEDIUM | Validation gap | Roadmap tab/download contract notes drifted from implemented shell behavior. | Bundle | Added a dedicated adversarial gap report and queued roadmap alignment updates. |
+| R5-F04 | LOW | Testing gap | Prior assertions tolerated duplicate or stale report-download UX contracts. | Info | Tightened app-shell expectations around unique download surfaces and artifact-link behavior. |
+
+## Action Ledger Addendum (Round 5)
+
+| Priority | Owner | Action | Source |
+| --- | --- | --- | --- |
+| P1 | implementer | Preserve a single report-download surface in Reports and keep it artifact-backed. | R5-F01, R5-F02 |
+| P2 | implementer | Reconcile roadmap UX contracts whenever tab topology/report behavior changes. | R5-F03 |

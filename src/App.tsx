@@ -954,6 +954,31 @@ export function buildEvaluationReportDownloads(
   ]
 }
 
+function buildArtifactDownloadRows(artifacts: ArtifactDescriptor[]): ReportDownloadView[] {
+  const seen = new Set<string>()
+  const downloads: ReportDownloadView[] = []
+
+  for (const artifact of artifacts) {
+    if (!artifact.downloadUrl) {
+      continue
+    }
+
+    const key = `${artifact.name}::${artifact.downloadUrl}`
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    downloads.push({
+      label: artifact.name,
+      filename: `${artifact.kind}.${artifact.mediaType}`,
+      href: artifact.downloadUrl,
+    })
+  }
+
+  return downloads
+}
+
 export function upsertEvaluationHistoryView(
   history: EvaluationHistoryView[],
   entry: EvaluationHistoryView,
@@ -1992,14 +2017,7 @@ function App() {
     ? buildEvaluationResultView(evaluationResult)
     : null
   const reconResultView = reconResult ? buildReconResultView(reconResult) : null
-  const reportDownloads =
-    evaluationResult && activeEvaluation
-      ? buildEvaluationReportDownloads(
-          activeEvaluation.evaluationId,
-          evaluationResult,
-          artifacts,
-        )
-      : []
+  const artifactDownloadRows = buildArtifactDownloadRows(artifacts)
   const remoteDraftMode = draftConfig.mode === 'remote'
   const reportAvailable = Boolean(evaluationStatus?.terminal)
   const shellStyle = buildUiShellStyle(uiSettings)
@@ -2940,30 +2958,6 @@ function App() {
                 </div>
               ) : null}
 
-              {reportDownloads.length ? (
-                <div className="history-section">
-                  <div className="subsection-heading">
-                    <div>
-                      <p className="section-kicker">Downloads</p>
-                      <h3>Formatted Reports</h3>
-                    </div>
-                  </div>
-
-                  <div className="download-grid">
-                    {reportDownloads.map((download) => (
-                      <a
-                        key={download.label}
-                        className="download-card"
-                        href={download.href}
-                        download={download.filename}
-                      >
-                        <strong>{download.label}</strong>
-                        <span>{download.filename}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </>
           ) : (
             <div className="validation-list">
@@ -3059,14 +3053,14 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reportDownloads.length ? (
-                    reportDownloads.map((download) => (
-                      <tr key={download.label}>
+                  {artifactDownloadRows.length ? (
+                    artifactDownloadRows.map((download) => (
+                      <tr key={download.href}>
                         <td>{download.label}</td>
                         <td>{download.filename}</td>
                         <td>
-                          <a href={download.href} download={download.filename}>
-                            Download
+                          <a href={download.href} target="_blank" rel="noreferrer">
+                            {`Download ${download.label}`}
                           </a>
                         </td>
                       </tr>

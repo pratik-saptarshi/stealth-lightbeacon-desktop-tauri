@@ -806,12 +806,7 @@ describe('App shell', () => {
     expect(await screen.findByText('Completed 2026-01-15T10:00:03Z')).toBeInTheDocument()
     expect(await screen.findByText('Recent Evaluations')).toBeInTheDocument()
     expect(screen.getAllByText('eval-123').length).toBeGreaterThan(0)
-    expect(
-      screen.getByRole('link', { name: /Download JSON report/i }),
-    ).toHaveAttribute('download', 'eval-123-report.json')
-    expect(
-      screen.getByRole('link', { name: /Download Markdown report/i }),
-    ).toHaveAttribute('href', expect.stringContaining('data:'))
+    expect(screen.queryByText('Formatted Reports')).not.toBeInTheDocument()
   }, 15000)
 
   it('surfaces terminal result retrieval failures', async () => {
@@ -964,7 +959,7 @@ describe('App shell', () => {
       { timeout: 4000 },
     )
     await waitFor(
-      () => expect(screen.getByText(/text\/html/i)).toBeInTheDocument(),
+      () => expect(screen.getAllByText(/text\/html/i).length).toBeGreaterThan(0),
       { timeout: 4000 },
     )
     expect(
@@ -981,11 +976,12 @@ describe('App shell', () => {
     render(<App />)
 
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^Results/i }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(
       await screen.findByText('Accepted at 2026-05-25T08:00:00Z'),
     ).toBeInTheDocument()
     expect(await screen.findByText('Score 92')).toBeInTheDocument()
-    expect(await screen.findByText('normalized-report')).toBeInTheDocument()
+    expect((await screen.findAllByText('normalized-report')).length).toBeGreaterThan(0)
     expect(desktopApi.getEvaluationStatus).not.toHaveBeenCalled()
   })
 
@@ -999,7 +995,19 @@ describe('App shell', () => {
     expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
     await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
     expect(await screen.findByRole('table', { name: 'Report downloads' })).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Download' }).length).toBeGreaterThan(0)
+    const downloadLinks = screen.getAllByRole('link', { name: /Download /i })
+    expect(downloadLinks.length).toBe(2)
+    expect(downloadLinks[0]).toHaveAttribute(
+      'href',
+      'https://downloads.example.test/eval-123/report.json',
+    )
+    expect(downloadLinks[1]).toHaveAttribute(
+      'href',
+      'https://downloads.example.test/eval-123/report.html',
+    )
+    expect(downloadLinks.every((link) => !link.getAttribute('href')?.startsWith('data:'))).toBe(
+      true,
+    )
     await user.click(screen.getByRole('button', { name: 'Collapse trace' }))
     expect(screen.getByRole('button', { name: 'Expand trace' })).toHaveAttribute(
       'aria-expanded',

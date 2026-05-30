@@ -28,6 +28,14 @@ path serves both references here.
   deterministic backend readiness and environment-specific Tauri packaging
   checks, even though publication is documented through the tag-push workflow
   and GitHub Actions.
+- Linux packaging currently inherits GitHub advisory
+  `GHSA-wrw7-89jp-8q8g` / `RUSTSEC-2024-0429` through the Tauri GTK/WebKit
+  dependency chain (`glib 0.18.5`, patched in `glib >=0.20.0`). This is an
+  accepted upstream dependency risk tracked in Beads as
+  `stealth-lightbeacon-desktop-tauri-kh8`; do not force a local `glib`
+  override unless the Tauri/Wry/GTK chain supports it. Remediation should
+  upgrade Tauri/Wry when a compatible release resolves the GTK-RS chain, then
+  verify `cargo tree --target all -i glib`, Rust tests, and `pnpm run check`.
 
 ## Where To Look
 

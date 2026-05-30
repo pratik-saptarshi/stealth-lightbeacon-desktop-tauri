@@ -452,7 +452,7 @@ async function runSmokeScenario(scenario) {
     await expectText(window, 'Stealth Lightbeacon', 'shell headline')
 
     if (scenario.kind === 'recon') {
-      await clickTab(window, 'Audit')
+      await clickTab(window, 'Scan')
       const reconButton = await waitFor(() => {
         const button = getButtons(window).find(
           (candidate) => normalizeText(candidate.textContent ?? '') === 'Run recon',
@@ -467,7 +467,7 @@ async function runSmokeScenario(scenario) {
       return
     }
 
-    await clickTab(window, 'Connection')
+    await clickTab(window, 'Scan')
     await expectText(window, 'Capabilities unavailable.', 'policy notice')
     await expectText(window, scenario.expect.noticeFragment, 'policy message')
     await expectText(window, scenario.expect.status, 'policy status')
@@ -486,7 +486,7 @@ async function runA11yScan(scenario) {
   const axe = axeModule.default ?? axeModule
 
   try {
-    for (const tabName of ['Overview', 'Connection', 'Audit', 'Results', 'Activity', 'Settings']) {
+    for (const tabName of ['Scan', 'Findings', 'Reports', 'Settings']) {
       await clickTab(window, tabName)
 
       const { violations } = await axe.run(window.document.body, {

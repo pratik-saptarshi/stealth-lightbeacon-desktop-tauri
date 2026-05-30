@@ -507,7 +507,12 @@ describe('App helpers', () => {
       'stealth-lightbeacon.ui-settings.v1',
       JSON.stringify(stored),
     )
-    expect(loadUiSettings()).toEqual({ ...stored, workspaceSize: 'auto' })
+    expect(loadUiSettings()).toEqual({
+      ...stored,
+      workspaceSize: 'auto',
+      fontScale: 0.65,
+      apiTabEnabled: false,
+    })
 
     window.localStorage?.setItem('stealth-lightbeacon.ui-settings.v1', '{bad json')
     expect(loadUiSettings()).toMatchObject({
@@ -524,6 +529,8 @@ describe('App helpers', () => {
         terminalReport: true,
         backendSurface: true,
       },
+      fontScale: 0.65,
+      apiTabEnabled: false,
     })
   })
 
@@ -544,6 +551,8 @@ describe('App helpers', () => {
         terminalReport: true,
         backendSurface: true,
       },
+      fontScale: 0.65,
+      apiTabEnabled: false,
     })
   })
 
@@ -567,6 +576,8 @@ describe('App helpers', () => {
         terminalReport: true,
         backendSurface: true,
       },
+      fontScale: 0.65,
+      apiTabEnabled: false,
     })
   })
 
@@ -586,6 +597,8 @@ describe('App helpers', () => {
           currentEvaluation: 'nope',
           terminalReport: false,
         },
+        fontScale: 0.9,
+        apiTabEnabled: true,
       }),
     )
 
@@ -604,6 +617,8 @@ describe('App helpers', () => {
         backendSurface: true,
       },
       workspaceSize: 'auto',
+      fontScale: 0.9,
+      apiTabEnabled: true,
     })
   })
 
@@ -702,6 +717,9 @@ describe('App helpers', () => {
           terminalReport: true,
           backendSurface: true,
         },
+        workspaceSize: 'auto',
+        fontScale: 0.8,
+        apiTabEnabled: false,
       }),
     ).toMatchObject({
       '--surface-panel-bg': '#111111',
@@ -709,6 +727,7 @@ describe('App helpers', () => {
       '--surface-card-bg': '#333333',
       '--surface-accent': '#444444',
       '--surface-button': '#555555',
+      '--ui-font-scale': '0.80',
     })
     expect(resultToneClass('success')).toBe('tone-good')
     expect(resultToneClass('budget_breach')).toBe('tone-idle')

@@ -21,8 +21,8 @@ test.describe('Accessibility scan', () => {
     await expect(page.getByRole('tabpanel', { name: /^Settings/i })).toBeVisible()
     await expectNoA11yViolations(page)
 
-    await page.getByRole('tab', { name: /^Audit/i }).click()
-    await expect(page.getByRole('tabpanel', { name: /^Audit/i })).toBeVisible()
+    await page.getByRole('tab', { name: /^Scan/i }).click()
+    await expect(page.getByRole('tabpanel', { name: /^Scan/i })).toBeVisible()
     await expectNoA11yViolations(page)
   })
 })

@@ -3,7 +3,11 @@ import playwrightConfig from '../../playwright.config';
 
 describe('Playwright webServer command', () => {
   it('does not depend on pnpm exec for Vite startup', () => {
-    expect(playwrightConfig.webServer?.command).toBeDefined();
-    expect(playwrightConfig.webServer?.command).not.toContain('pnpm exec');
+    const webServer = Array.isArray(playwrightConfig.webServer)
+      ? playwrightConfig.webServer[0]
+      : playwrightConfig.webServer
+
+    expect(webServer?.command).toBeDefined();
+    expect(webServer?.command).not.toContain('pnpm exec');
   });
 });

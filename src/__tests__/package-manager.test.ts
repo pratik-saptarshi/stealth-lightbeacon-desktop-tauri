@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 describe('package manager policy', () => {
   it('uses pnpm in scripts and contributor docs', () => {
-    const repoRoot = resolve(__dirname, '..', '..')
+    const repoRoot = process.cwd()
     const packageJson = readFileSync(resolve(repoRoot, 'package.json'), 'utf8')
     const contributing = readFileSync(resolve(repoRoot, 'contributing.md'), 'utf8')
     const cliReadme = readFileSync(resolve(repoRoot, 'readme-CLI.md'), 'utf8')

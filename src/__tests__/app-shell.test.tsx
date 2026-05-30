@@ -49,6 +49,29 @@ function setViewportSize(width: number, height: number) {
   window.dispatchEvent(new Event('resize'))
 }
 
+function enableApiSetupTab() {
+  if (!window.localStorage) {
+    const storage = new Map<string, string>()
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          storage.set(key, value)
+        },
+        removeItem: (key: string) => {
+          storage.delete(key)
+        },
+        clear: () => storage.clear(),
+      },
+    })
+  }
+  window.localStorage.setItem(
+    'stealth-lightbeacon.ui-settings.v1',
+    JSON.stringify({ apiTabEnabled: true }),
+  )
+}
+
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   let reject!: (reason?: unknown) => void
@@ -230,6 +253,7 @@ describe('App shell', () => {
   })
 
   it('loads persisted backend config and capability data', async () => {
+    enableApiSetupTab()
     render(<App />)
 
     expect(
@@ -238,7 +262,7 @@ describe('App shell', () => {
     expect(await screen.findByText('Compact laptop · 800 x 600')).toBeInTheDocument()
 
     const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('tab', { name: /^API/i }))
 
     expect(await screen.findByDisplayValue(backendConfig.baseUrl)).toBeInTheDocument()
     expect(await screen.findByText('stealth-lightbeacon-api')).toBeInTheDocument()
@@ -247,12 +271,13 @@ describe('App shell', () => {
 
   it('shows browser preview mode when the desktop runtime is unavailable', async () => {
     desktopApi.isDesktopRuntime.mockReturnValue(false)
+    enableApiSetupTab()
     const user = userEvent.setup()
 
     render(<App />)
 
     expect(await screen.findByText('Browser preview')).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('tab', { name: /^API/i }))
     expect(
       await screen.findByText(
         'Browser preview loaded. The desktop runtime is required to persist backend settings and call the API.',
@@ -267,7 +292,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    expect(screen.getByRole('tab', { name: /^Connection/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /^Home/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -275,15 +300,46 @@ describe('App shell', () => {
       'hidden',
     )
 
-    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('tab', { name: /^Scan/i }))
 
-    expect(screen.getByRole('tab', { name: /^Connection/i })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: /^Scan/i })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(document.getElementById('workspace-panel-connection')).not.toHaveAttribute(
+    expect(document.getElementById('workspace-panel-audit')).not.toHaveAttribute(
       'hidden',
     )
+  })
+
+  it('defaults to standalone-first workspace tabs without API setup', async () => {
+    render(<App />)
+
+    expect(await screen.findByRole('tab', { name: /^Home/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('tab', { name: /^Scan/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Findings/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Reports/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Settings/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /^Connection/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /^API/i })).not.toBeInTheDocument()
+  })
+
+  it('applies compact text by default and lets settings adjust shell text size', async () => {
+    const user = userEvent.setup()
+
+    render(<App />)
+
+    const appShell = document.querySelector('.app-shell') as HTMLElement | null
+    expect(appShell?.style.getPropertyValue('--ui-font-scale')).toBe('0.65')
+
+    await user.click(await screen.findByRole('tab', { name: /^Settings/i }))
+    const scaleControl = screen.getByRole('slider', { name: 'Shell text size' })
+    fireEvent.change(scaleControl, { target: { value: '0.85' } })
+
+    expect(appShell?.style.getPropertyValue('--ui-font-scale')).toBe('0.85')
+    expect(screen.getByText('85%')).toBeInTheDocument()
   })
 
   it('renders standalone mode metadata when the embedded engine is configured', async () => {
@@ -311,13 +367,14 @@ describe('App shell', () => {
 
     render(<App />)
 
-    expect((await screen.findAllByText('Standalone audit engine')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('Standalone')).length).toBeGreaterThan(0)
     expect(await screen.findByText('Embedded ruleset')).toBeInTheDocument()
     expect(await screen.findByText('SEO / GEO / AEO / WCAG AA')).toBeInTheDocument()
   })
 
   it('saves edited backend connection settings through the desktop adapter', async () => {
     const user = userEvent.setup()
+    enableApiSetupTab()
     const savedConfig: desktop.BackendConfig = {
       mode: 'remote',
       baseUrl: 'https://api.example.test:9443',
@@ -328,7 +385,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
     await user.selectOptions(await screen.findByLabelText('Backend mode'), 'remote')
     const baseUrlInput = await screen.findByLabelText('Backend base URL')
     fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.test' } })
@@ -349,11 +406,12 @@ describe('App shell', () => {
 
   it('surfaces backend connection save failures', async () => {
     const user = userEvent.setup()
+    enableApiSetupTab()
     desktopApi.setBackendConfig.mockRejectedValueOnce('Save exploded')
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
     await user.click(screen.getByRole('button', { name: 'Save Connection' }))
 
     expect((await screen.findAllByText('Save exploded')).length).toBeGreaterThan(0)
@@ -380,10 +438,11 @@ describe('App shell', () => {
 
   it('updates audit controls and workspace size preferences', async () => {
     const user = userEvent.setup()
+    enableApiSetupTab()
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await user.clear(screen.getByLabelText('Max depth'))
     await user.type(screen.getByLabelText('Max depth'), '3')
     await user.clear(screen.getByLabelText('Max URLs'))
@@ -393,12 +452,12 @@ describe('App shell', () => {
     await user.click(screen.getByLabelText('Fail on critical findings'))
     await user.click(screen.getByLabelText('Budget gate enabled'))
 
-    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('tab', { name: /^API/i }))
     await user.clear(screen.getByLabelText('Timeout (ms)'))
     await user.type(screen.getByLabelText('Timeout (ms)'), '15000')
     await user.click(screen.getByRole('button', { name: 'Check Health' }))
 
-    await user.click(screen.getByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('tab', { name: /^Scan/i }))
     await user.selectOptions(screen.getByLabelText('Profile'), 'deep')
     await user.click(screen.getByRole('tab', { name: /^Settings/i }))
     await user.click(screen.getByRole('radio', { name: /^Wide desktop$/i }))
@@ -425,6 +484,7 @@ describe('App shell', () => {
 
   it('hides optional sections from the dashboard when disabled in settings', async () => {
     const user = userEvent.setup()
+    enableApiSetupTab()
 
     render(<App />)
 
@@ -435,7 +495,7 @@ describe('App shell', () => {
     await user.click(screen.getByRole('tab', { name: /^Reports/i }))
     expect(screen.getByText('Recent activity is disabled in Settings.')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('tab', { name: /^API/i }))
     expect(screen.getByText('Backend surface details are disabled in Settings.')).toBeInTheDocument()
   })
 
@@ -450,7 +510,7 @@ describe('App shell', () => {
       screen.getByRole('checkbox', { name: /Terminal report and artifacts/ }),
     )
 
-    await user.click(screen.getByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('tab', { name: /^Findings/i }))
     expect(
       await screen.findByText('Current evaluation cards are disabled in Settings.'),
     ).toBeInTheDocument()
@@ -461,6 +521,7 @@ describe('App shell', () => {
 
   it('renders browser preview fallback when the desktop runtime is unavailable', async () => {
     desktopApi.isDesktopRuntime.mockReturnValue(false)
+    enableApiSetupTab()
 
     render(<App />)
 
@@ -470,7 +531,7 @@ describe('App shell', () => {
       ),
     ).toBeInTheDocument()
     expect(await screen.findByText('Desktop runtime unavailable')).toBeInTheDocument()
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^API/i }))
     expect(
       screen.getByRole('button', { name: 'Save Connection' }),
     ).toBeInTheDocument()
@@ -481,7 +542,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByLabelText('json'))
     await user.click(screen.getByLabelText('markdown'))
@@ -506,7 +567,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
@@ -519,7 +580,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Scan/i }))
     const submitButton = await screen.findByRole('button', {
       name: 'Submit Evaluation',
     })
@@ -535,6 +596,7 @@ describe('App shell', () => {
   })
 
   it('surfaces remote auth requirements when protected capabilities fail', async () => {
+    enableApiSetupTab()
     desktopApi.apiHealthCheck.mockResolvedValueOnce({
       ...health,
       authRequired: true,
@@ -548,7 +610,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^API/i }))
     expect(
       (await screen.findAllByText(
         'Remote auth required. Set the backend auth token before loading protected capabilities.',
@@ -558,6 +620,7 @@ describe('App shell', () => {
   })
 
   it('surfaces incompatible desktop versions when protected capabilities fail', async () => {
+    enableApiSetupTab()
     desktopApi.getCapabilities.mockRejectedValueOnce({
       code: 'incompatible_client',
       message: 'Desktop version is not supported by this backend.',
@@ -567,7 +630,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^API/i }))
     expect(
       (await screen.findAllByText(
         /Desktop version is not supported by this backend\./,
@@ -585,7 +648,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
 
     await waitFor(() =>
@@ -612,7 +675,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
 
     await waitFor(() =>
@@ -634,6 +697,7 @@ describe('App shell', () => {
 
   it('clears recon output when backend capabilities refresh during a pending rerun', async () => {
     const user = userEvent.setup()
+    enableApiSetupTab()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,
       supportsRecon: true,
@@ -649,7 +713,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
 
     await waitFor(() =>
@@ -661,7 +725,7 @@ describe('App shell', () => {
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
     await waitFor(() => expect(desktopApi.runRecon).toHaveBeenCalledTimes(2))
 
-    await user.click(screen.getByRole('tab', { name: /^Connection/i }))
+    await user.click(screen.getByRole('tab', { name: /^API/i }))
     await user.selectOptions(screen.getByLabelText('Backend mode'), 'remote')
     fireEvent.change(screen.getByLabelText('Backend base URL'), {
       target: { value: 'https://api.example.test' },
@@ -669,7 +733,7 @@ describe('App shell', () => {
     fireEvent.change(screen.getByLabelText('Port'), { target: { value: '9443' } })
     await user.click(screen.getByRole('button', { name: 'Save Connection' }))
 
-    await user.click(screen.getByRole('tab', { name: /^Audit/i }))
+    await user.click(screen.getByRole('tab', { name: /^Scan/i }))
     staleRecon.resolve({ ...reconResult, target: 'https://example.com' })
 
     await waitFor(() => expect(screen.queryByText('stealth')).not.toBeInTheDocument())
@@ -688,7 +752,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
 
     await waitFor(() =>
@@ -733,7 +797,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
@@ -780,11 +844,11 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Findings/i }))
     await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     await waitFor(() =>
@@ -830,11 +894,11 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Findings/i }))
     await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     expect(
@@ -863,11 +927,11 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Findings/i }))
     await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     expect(
@@ -895,11 +959,11 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Findings/i }))
     await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     await waitFor(() =>
@@ -940,11 +1004,11 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    await user.click(await screen.findByRole('tab', { name: /^Results/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Findings/i }))
     await user.click(screen.getByRole('button', { name: /Expand reporting/i }))
     await waitFor(() =>
       expect(desktopApi.getEvaluationArtifacts).toHaveBeenCalledWith('eval-123'),
@@ -975,7 +1039,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Results/i }))
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Findings/i }))
     await userEvent.setup().click(screen.getByRole('button', { name: /Expand reporting/i }))
     expect(
       await screen.findByText('Accepted at 2026-05-25T08:00:00Z'),
@@ -1015,7 +1079,7 @@ describe('App shell', () => {
     )
     expect(document.getElementById('trace-panel')).toHaveAttribute('hidden')
 
-    await user.click(screen.getByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('tab', { name: /^Findings/i }))
     expect(await screen.findByText('Terminal report')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Collapse reporting' }))
     expect(screen.getByRole('button', { name: 'Expand reporting' })).toHaveAttribute(
@@ -1108,12 +1172,13 @@ describe('App shell', () => {
     await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
     await user.click(screen.getByRole('button', { name: 'Run Full Audit' }))
 
-    expect(screen.getByRole('tab', { name: /^Audit/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /^Scan/i })).toHaveAttribute('aria-selected', 'true')
     expect(document.getElementById('workspace-panel-audit')).not.toHaveAttribute('hidden')
   })
 
   it('retries polling failures and allows manual recovery after repeated errors', async () => {
     const user = userEvent.setup()
+    enableApiSetupTab()
 
     desktopApi.createEvaluation.mockResolvedValue({
       evaluationId: 'eval-123',
@@ -1136,7 +1201,7 @@ describe('App shell', () => {
 
     render(<App />)
 
-    await user.click(await screen.findByRole('tab', { name: /^Audit/i }))
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
@@ -1145,9 +1210,9 @@ describe('App shell', () => {
       { timeout: 4000 },
     )
 
-    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
     expect(await screen.findByText('Polling paused for eval-123 after 3 failed attempts.')).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: /^Results/i }))
+    await user.click(screen.getByRole('tab', { name: /^Findings/i }))
     expect(
       await screen.findByRole('button', { name: 'Resume Polling' }),
     ).toBeInTheDocument()
@@ -1157,7 +1222,7 @@ describe('App shell', () => {
     await waitFor(() =>
       expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(4),
     )
-    await user.click(await screen.findByRole('tab', { name: /^Connection/i }))
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
     expect(await screen.findByText('Evaluation eval-123 finished with success')).toBeInTheDocument()
   }, 10000)
 })

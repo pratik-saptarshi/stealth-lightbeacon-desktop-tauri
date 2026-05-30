@@ -2,6 +2,7 @@ import {
   useCallback,
   startTransition,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -136,6 +137,8 @@ type UiSettings = {
   theme: Record<UiThemeKey, string>
   sections: Record<UiSectionKey, boolean>
   workspaceSize: WorkspaceSizeKey
+  fontScale: number
+  apiTabEnabled: boolean
 }
 
 const defaultPort = 8000
@@ -180,6 +183,8 @@ const defaultUiSettings: UiSettings = {
     backendSurface: true,
   },
   workspaceSize: 'auto',
+  fontScale: 0.65,
+  apiTabEnabled: false,
 }
 const workspaceSizeOptions: WorkspaceSizeOption[] = [
   {
@@ -285,29 +290,34 @@ const workspaceTabs: Array<{
   description: string
 }> = [
   {
+    key: 'overview',
+    label: 'Home',
+    description: 'Standalone audit summary.',
+  },
+  {
     key: 'connection',
-    label: 'Connection',
-    description: 'Backend mode, health, and capability surface.',
+    label: 'API Setup',
+    description: 'Optional local or external API controls.',
   },
   {
     key: 'audit',
-    label: 'Audit',
+    label: 'Scan',
     description: 'Target, profile, and submission controls.',
   },
   {
     key: 'results',
-    label: 'Results',
+    label: 'Findings',
     description: 'Live status, terminal report, and artifacts.',
   },
   {
     key: 'activity',
     label: 'Reports',
-    description: 'Desktop adapter trace and reporting operations.',
+    description: 'Optimization hub and downloads.',
   },
   {
     key: 'settings',
     label: 'Settings',
-    description: 'Theme, visibility, and support preferences.',
+    description: 'Display and workflow preferences.',
   },
 ]
 
@@ -354,8 +364,17 @@ export function loadUiSettings() {
     const workspaceSize = workspaceSizeOptions.some(({ key }) => key === parsed?.workspaceSize)
       ? (parsed?.workspaceSize ?? defaultUiSettings.workspaceSize)
       : defaultUiSettings.workspaceSize
+    const parsedFontScale = Number(parsed?.fontScale)
+    const fontScale =
+      Number.isFinite(parsedFontScale) && parsedFontScale >= 0.55 && parsedFontScale <= 1.15
+        ? parsedFontScale
+        : defaultUiSettings.fontScale
+    const apiTabEnabled =
+      typeof parsed?.apiTabEnabled === 'boolean'
+        ? parsed.apiTabEnabled
+        : defaultUiSettings.apiTabEnabled
 
-    return { theme, sections, workspaceSize }
+    return { theme, sections, workspaceSize, fontScale, apiTabEnabled }
   } catch {
     return defaultUiSettings
   }
@@ -368,6 +387,7 @@ export function buildUiShellStyle(uiSettings: UiSettings): CSSProperties {
     '--surface-card-bg': uiSettings.theme.cardBg,
     '--surface-accent': uiSettings.theme.accent,
     '--surface-button': uiSettings.theme.button,
+    '--ui-font-scale': uiSettings.fontScale.toFixed(2),
   } as CSSProperties
 }
 
@@ -1034,7 +1054,7 @@ function App() {
   const artifactsRef = useRef<ArtifactDescriptor[]>([])
   const [viewport, setViewport] = useState<ViewportState>(initialViewport)
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
-    useState<WorkspaceTabKey>('connection')
+    useState<WorkspaceTabKey>('overview')
   const [traceExpanded, setTraceExpanded] = useState(
     initialViewport.density !== 'compact',
   )
@@ -1147,6 +1167,25 @@ function App() {
       ...current,
       workspaceSize,
     }))
+  }, [])
+
+  const updateFontScale = useCallback((fontScale: number) => {
+    setUiSettings((current) => ({
+      ...current,
+      fontScale,
+    }))
+  }, [])
+
+  const updateApiTabEnabled = useCallback((apiTabEnabled: boolean) => {
+    setUiSettings((current) => ({
+      ...current,
+      apiTabEnabled,
+    }))
+    if (!apiTabEnabled) {
+      setActiveWorkspaceTab((current) =>
+        current === 'connection' ? 'overview' : current,
+      )
+    }
   }, [])
 
   const resetUiSettings = useCallback(() => {
@@ -2032,6 +2071,13 @@ function App() {
   const showCurrentEvaluation = uiSettings.sections.currentEvaluation
   const showTerminalReport = uiSettings.sections.terminalReport
   const showBackendSurface = uiSettings.sections.backendSurface
+  const visibleWorkspaceTabs = useMemo(
+    () =>
+      uiSettings.apiTabEnabled
+        ? workspaceTabs
+        : workspaceTabs.filter((tab) => tab.key !== 'connection'),
+    [uiSettings.apiTabEnabled],
+  )
   const visibleEvaluationHistory = evaluationHistory.filter((item) => item.evaluationId)
   const scoreMetric = terminalResultView?.summaryMetrics[0]?.value ?? '85'
   const parsedScore = Number.parseInt(scoreMetric, 10)
@@ -2101,19 +2147,23 @@ function App() {
               </span>
             </div>
             <p className="brand-summary">
-              SEO, GEO, AEO, and WCAG-guided audit orchestration across companion,
-              standalone, and remote modes.
+              Standalone SEO, GEO, AEO, and WCAG-guided audit runs from the
+              desktop shell.
             </p>
           </div>
         </div>
 
         <div className="topbar-meta">
           <div className="meta-block">
-            <span className="meta-label">Backend mode</span>
-            <strong>{formatBackendMode(backendConfig.mode)}</strong>
+            <span className="meta-label">Engine</span>
+            <strong>
+              {backendConfig.mode === 'standalone'
+                ? 'Standalone'
+                : formatBackendMode(backendConfig.mode)}
+            </strong>
           </div>
           <div className="meta-block">
-            <span className="meta-label">Connection</span>
+            <span className="meta-label">Readiness</span>
             <strong>{summarizeHealth(health)}</strong>
           </div>
           <div className="meta-block">
@@ -2126,7 +2176,7 @@ function App() {
       </header>
 
       <nav className="workspace-tabs" role="tablist" aria-label="Workspace panels">
-        {workspaceTabs.map((tab) => {
+        {visibleWorkspaceTabs.map((tab) => {
           const selected = activeWorkspaceTab === tab.key
           return (
             <button
@@ -2157,7 +2207,7 @@ function App() {
           <div className="panel-heading">
             <div>
               <p className="section-kicker">Execution Modes</p>
-              <h2>Run audits through a companion service, embedded engine, or remote API.</h2>
+              <h2>Run standalone audits from the desktop shell.</h2>
             </div>
             <span className="status-pill status-live">
               {workspaceLayout.density === 'compact'
@@ -2172,8 +2222,8 @@ function App() {
             <div className="hero-copy">
               <p className="hero-text">
                 The Tauri layer stores connection state, coordinates evaluation
-                lifecycle, and now ships an embedded ruleset for SEO, GEO, AEO,
-                and WCAG 2.1/2.2 AA coverage when you need a standalone run.
+                lifecycle, and ships an embedded ruleset for SEO, GEO, AEO,
+                and WCAG 2.1/2.2 AA coverage without requiring an API setup.
               </p>
               <div className="notice-bar notice-bar--compact">
                 <div>
@@ -2186,10 +2236,12 @@ function App() {
 
             <div className="hero-metrics">
               <article className="metric-card">
-                <span className="metric-label">Connection target</span>
+                <span className="metric-label">Engine target</span>
                 <strong>{backendConfig.mode === 'standalone' ? 'Embedded ruleset' : backendConfig.baseUrl}</strong>
                 <p>
-                  {backendConfig.mode === 'remote'
+                  {backendConfig.mode === 'standalone'
+                    ? 'Standalone-first runs stay inside the desktop boundary.'
+                    : backendConfig.mode === 'remote'
                     ? `Remote HTTPS endpoint on port ${backendConfig.port}.`
                     : `Loopback default port ${backendConfig.port} is configurable.`}
                 </p>
@@ -3251,6 +3303,49 @@ function App() {
                 ? 'Auto detect follows the current screen size and keeps the shell compressed for the visible viewport.'
                 : `${workspaceLayout.label} layout defaults keep the shell compact for ${workspaceLayout.width} x ${workspaceLayout.height}.`}
             </p>
+          </section>
+
+          <section className="settings-section">
+            <div className="subsection-heading">
+              <div>
+                <p className="section-kicker">Display</p>
+                <h3>Text size</h3>
+              </div>
+              <span className="status-pill status-muted">
+                {Math.round(uiSettings.fontScale * 100)}%
+              </span>
+            </div>
+            <label className="field settings-field">
+              <span>Shell text size</span>
+              <input
+                aria-label="Shell text size"
+                type="range"
+                min="0.55"
+                max="1.15"
+                step="0.05"
+                value={uiSettings.fontScale}
+                onChange={(event) => updateFontScale(Number(event.target.value))}
+              />
+              <small className="field-hint">
+                Default is 65% for a compact standalone-first shell. Increase it
+                when presenting or using a larger display.
+              </small>
+            </label>
+            <label className="toggle-card settings-toggle-card">
+              <input
+                type="checkbox"
+                aria-label="Enable API setup tab"
+                checked={uiSettings.apiTabEnabled}
+                onChange={(event) => updateApiTabEnabled(event.target.checked)}
+              />
+              <span>
+                <strong>API setup tab</strong>
+                <small>
+                  Optional local companion or external API controls stay hidden
+                  until explicitly enabled.
+                </small>
+              </span>
+            </label>
           </section>
 
           <section className="settings-section">

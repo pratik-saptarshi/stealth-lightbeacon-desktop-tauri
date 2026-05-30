@@ -1687,9 +1687,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeEvaluation?.evaluationId,
+    activeEvaluation,
     desktopRuntime,
     evaluationStatus?.terminal,
     recordActivity,
+    resultLoadState,
   ])
 
   useEffect(() => {
@@ -1764,6 +1766,8 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeEvaluation?.evaluationId,
+    activeEvaluation,
+    artifactsLoadState,
     desktopRuntime,
     evaluationStatus?.terminal,
     recordActivity,

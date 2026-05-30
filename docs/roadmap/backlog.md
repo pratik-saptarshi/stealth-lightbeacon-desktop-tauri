@@ -111,3 +111,17 @@ Validation gate:
 - `pnpm run test -- src/__tests__/app-shell.test.tsx`
 - Confirm Results tab has no "Formatted Reports" section.
 - Confirm Reports table contains only artifact-backed action links when artifacts are available.
+
+## Phase R7: Quality and SOLID Remediations (Overseer Audit)
+
+- R7-C1: Refactor `AppState` concurrency locks into a single thread-safe `RwLock<AppStateInner>` structure to eliminate deadlocks.
+- R7-C2: Configure Playwright smoke tests to launch compiled Tauri application binaries natively in a test window.
+- R7-C3: Integrate automated multi-platform compiler releasing in `.github/workflows/release.yml` using `tauri-apps/tauri-action`.
+- R7-C4: Decouple monolithic `src-tauri/src/lib.rs` into `src-tauri/src/commands/` and `src-tauri/src/domain/`.
+- R7-C5: Decouple monolithic React frontend `src/App.tsx` into modular sub-views under `src/components/`.
+
+Validation gate:
+- `pnpm run test` passes without compilation or deadlock regressions.
+- `pnpm run test:e2e` successfully automates within Tauri frames.
+- Multi-platform GitHub Action triggers successfully.
+

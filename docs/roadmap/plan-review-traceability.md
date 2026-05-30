@@ -102,3 +102,30 @@ feature gaps, capability gaps, validation gaps, and testing gaps.
 | --- | --- | --- | --- |
 | P1 | implementer | Preserve a single report-download surface in Reports and keep it artifact-backed. | R5-F01, R5-F02 |
 | P2 | implementer | Reconcile roadmap UX contracts whenever tab topology/report behavior changes. | R5-F03 |
+
+## Round 6: Quality and SOLID Audit Integration
+
+`Total findings: 8 | Must-fix: 5 | Bundle: 3 | Defer: 0 | Info: 0`
+`Final Recommendation: Applied with caveats`
+`Dissent Ledger: none`
+
+| ID | Severity | Bucket | Summary | Category | Action Taken |
+| --- | --- | --- | --- | --- | --- |
+| R6-F01 | CRITICAL | Capability gap | Granular `AppState` locking creates deadlock risks. | Must-fix | Added R7-C1 to consolidate locks into single RwLock. |
+| R6-F02 | CRITICAL | Testing gap | Playwright tests bypass Tauri IPC via browser mocks. | Must-fix | Added R7-C2 to configure tauri-driver integration E2E tests. |
+| R6-F03 | CRITICAL | Capability gap | GitHub release workflow fails to package binary installations. | Must-fix | Added R7-C3 to automate macOS/Windows/Linux compiled installers in release.yml. |
+| R6-F04 | HIGH | Validation gap | Monolithic `lib.rs` violates SRP with 3k+ lines flat. | Must-fix | Added R7-C4 to extract handlers into commands/ and domain/. |
+| R6-F05 | HIGH | Validation gap | Monolithic React UI violates SRP with 109KB App.tsx. | Must-fix | Added R7-C5 to decompose UI into modular components/. |
+| R6-F06 | MEDIUM | Testing gap | Embedded scanner GET checks lack retry backoff guards. | Bundle | Added retry logic with exponential backoffs to scanner. |
+| R6-F07 | MEDIUM | Capability gap | Hardcoded, duplicated error definitions across front/back boundaries. | Bundle | Standardized on unified serialized error schemas. |
+| R6-F08 | MEDIUM | Testing gap | CI smoke workflow limited to Ubuntu runner. | Bundle | Expanded CI smoke matrix to verify multiple OS. |
+
+## Action Ledger Addendum (Round 6)
+
+| Priority | Owner | Action | Source |
+| --- | --- | --- | --- |
+| P0 | implementer | Refactor AppState locks into a unified RwLock boundary to prevent concurrent deadlocks. | R6-F01 |
+| P0 | implementer | Rebuild Playwright testing suite to launch within real Tauri executable frames. | R6-F02 |
+| P0 | implementer | Integrate tauri-apps/tauri-action package building in release.yml. | R6-F03 |
+| P1 | implementer | Modularize monolithic Rust lib.rs and frontend React App.tsx. | R6-F04, R6-F05 |
+

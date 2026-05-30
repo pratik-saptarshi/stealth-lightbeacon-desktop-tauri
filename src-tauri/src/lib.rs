@@ -1,9 +1,15 @@
+pub mod domain;
+pub mod commands;
+
+pub use domain::*;
+pub use commands::*;
+
 use std::{
     collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::Mutex,
+    sync::RwLock,
     time::{Duration, Instant},
 };
 
@@ -12,246 +18,33 @@ use tauri::{path::BaseDirectory, AppHandle, Manager, State};
 
 const BACKEND_CONFIG_FILE: &str = "backend-config.json";
 const LAST_OPENED_SNAPSHOT_FILE: &str = "snapshots/last-opened-terminal-snapshot.json";
-const DEFAULT_LOCAL_BASE_URL: &str = "http://127.0.0.1:8000";
-const DEFAULT_LOCAL_PORT: u16 = 8000;
-const DEFAULT_TIMEOUT_MS: u64 = 15_000;
 const DESKTOP_APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DESKTOP_VERSION_HEADER: &str = "X-Stealth-Lightbeacon-Desktop-Version";
 const REMOTE_AUTH_TOKEN_ENV: &str = "STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct CompatibilityResponse {
-    minimum_desktop_version: String,
-    recommended_desktop_version: String,
+
+pub struct AppStateInner {
+    pub backend_config: BackendConfig,
+    pub bootstrap_error: Option<ApiError>,
+    pub local_backend: Option<LocalBackendProcess>,
+    pub standalone_jobs: HashMap<String, StandaloneEvaluation>,
+    pub standalone_sequence: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-enum BackendMode {
-    Local,
-    Standalone,
-    Remote,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct BackendConfig {
-    mode: BackendMode,
-    base_url: String,
-    port: u16,
-    timeout_ms: u64,
-}
-
-impl Default for BackendConfig {
-    fn default() -> Self {
-        Self {
-            mode: BackendMode::Standalone,
-            base_url: DEFAULT_LOCAL_BASE_URL.into(),
-            port: DEFAULT_LOCAL_PORT,
-            timeout_ms: DEFAULT_TIMEOUT_MS,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct HealthResponse {
-    status: String,
-    service: String,
-    api_version: String,
-    app_version: Option<String>,
-    auth_required: bool,
-    compatibility: CompatibilityResponse,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct ApiModeResponse {
-    mode: String,
-    base_url: String,
-    transport: String,
-    api_version: String,
-    supports_remote: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct CapabilitiesResponse {
-    api_mode: ApiModeResponse,
-    evaluation_profiles: Vec<String>,
-    output_formats: Vec<String>,
-    supports_recon: bool,
-    supports_artifacts: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct CreateEvaluationRequest {
-    target: String,
-    profile: String,
-    output_formats: Vec<String>,
-    max_depth: u8,
-    max_urls: u16,
-    fail_on_critical: bool,
-    budget_gate: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct CreateEvaluationResponse {
-    evaluation_id: String,
-    status: String,
-    accepted_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct EvaluationStatusResponse {
-    evaluation_id: String,
-    status: String,
-    stage: Option<String>,
-    progress_percent: Option<u8>,
-    message: Option<String>,
-    exit_state: Option<String>,
-    terminal: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-struct EvaluationResultResponse {
-    evaluation_id: String,
-    status: String,
-    #[serde(deserialize_with = "deserialize_summary_object")]
-    summary: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct ArtifactDescriptor {
-    name: String,
-    kind: String,
-    media_type: String,
-    download_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct ReconRequest {
-    target: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-struct ReconResponse {
-    target: String,
-    recommendation: String,
-    posture: String,
-    confidence: f64,
-    evidence: Vec<String>,
-    evidence_summary: String,
-    signals: Vec<String>,
-    auto_select_allowed: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-struct LastOpenedSnapshot {
-    evaluation: CreateEvaluationResponse,
-    evaluation_status: EvaluationStatusResponse,
-    evaluation_result: EvaluationResultResponse,
-    artifacts: Vec<ArtifactDescriptor>,
-}
-
-fn deserialize_summary_object<'de, D>(deserializer: D) -> Result<serde_json::Value, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let summary = serde_json::Value::deserialize(deserializer)?;
-    if summary.is_object() {
-        Ok(summary)
-    } else {
-        Err(serde::de::Error::custom("summary must be a JSON object"))
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct ApiError {
-    code: String,
-    message: String,
-    status: Option<u16>,
-    details: Option<String>,
-}
-
-impl ApiError {
-    fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            code: code.into(),
-            message: message.into(),
-            status: None,
-            details: None,
-        }
-    }
-
-    fn with_status(
-        code: impl Into<String>,
-        message: impl Into<String>,
-        status: u16,
-        details: Option<String>,
-    ) -> Self {
-        Self {
-            code: code.into(),
-            message: message.into(),
-            status: Some(status),
-            details,
-        }
-    }
-
-    fn with_details(
-        code: impl Into<String>,
-        message: impl Into<String>,
-        details: impl Into<String>,
-    ) -> Self {
-        Self {
-            code: code.into(),
-            message: message.into(),
-            status: None,
-            details: Some(details.into()),
-        }
-    }
-}
-
-struct LocalBackendProcess {
-    child: Child,
-    base_url: String,
-}
-
-#[derive(Debug, Clone)]
-struct StandaloneEvaluation {
-    evaluation_id: String,
-    request: CreateEvaluationRequest,
-    accepted_at: String,
-    created_at: Instant,
-    findings: Vec<serde_json::Value>,
-}
-
-struct AppState {
-    backend_config: Mutex<BackendConfig>,
-    bootstrap_error: Mutex<Option<ApiError>>,
-    local_backend: Mutex<Option<LocalBackendProcess>>,
-    standalone_jobs: Mutex<HashMap<String, StandaloneEvaluation>>,
-    standalone_sequence: Mutex<u64>,
+pub struct AppState {
+    pub inner: RwLock<AppStateInner>,
 }
 
 impl AppState {
     fn new(backend_config: BackendConfig) -> Self {
         Self {
-            backend_config: Mutex::new(backend_config),
-            bootstrap_error: Mutex::new(None),
-            local_backend: Mutex::new(None),
-            standalone_jobs: Mutex::new(HashMap::new()),
-            standalone_sequence: Mutex::new(0),
+            inner: RwLock::new(AppStateInner {
+                backend_config,
+                bootstrap_error: None,
+                local_backend: None,
+                standalone_jobs: HashMap::new(),
+                standalone_sequence: 0,
+            }),
         }
     }
 
@@ -259,11 +52,13 @@ impl AppState {
         match result {
             Ok(config) => Self::new(config),
             Err(error) => Self {
-                backend_config: Mutex::new(BackendConfig::default()),
-                bootstrap_error: Mutex::new(Some(error)),
-                local_backend: Mutex::new(None),
-                standalone_jobs: Mutex::new(HashMap::new()),
-                standalone_sequence: Mutex::new(0),
+                inner: RwLock::new(AppStateInner {
+                    backend_config: BackendConfig::default(),
+                    bootstrap_error: Some(error),
+                    local_backend: None,
+                    standalone_jobs: HashMap::new(),
+                    standalone_sequence: 0,
+                }),
             },
         }
     }
@@ -271,8 +66,8 @@ impl AppState {
 
 impl Drop for AppState {
     fn drop(&mut self) {
-        if let Ok(slot) = self.local_backend.get_mut() {
-            if let Some(process) = slot.as_mut() {
+        if let Ok(inner) = self.inner.get_mut() {
+            if let Some(process) = inner.local_backend.as_mut() {
                 stop_local_backend_process(process);
             }
         }
@@ -382,10 +177,10 @@ fn spawn_local_backend_process_with_env(
 
 fn stop_local_backend_in_app_state(state: &AppState) -> Result<(), ApiError> {
     let mut guard = state
-        .local_backend
-        .lock()
+        .inner
+        .write()
         .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
-    if let Some(mut process) = guard.take() {
+    if let Some(mut process) = guard.local_backend.take() {
         stop_local_backend_process(&mut process);
     }
     Ok(())
@@ -393,10 +188,10 @@ fn stop_local_backend_in_app_state(state: &AppState) -> Result<(), ApiError> {
 
 fn current_local_backend_base_url(state: &AppState) -> Result<Option<String>, ApiError> {
     let mut guard = state
-        .local_backend
-        .lock()
+        .inner
+        .write()
         .map_err(|_| ApiError::new("state_error", "The local backend state is unavailable."))?;
-    let Some(process) = guard.as_mut() else {
+    let Some(process) = guard.local_backend.as_mut() else {
         return Ok(None);
     };
     match process.child.try_wait().map_err(|err| {
@@ -409,7 +204,7 @@ fn current_local_backend_base_url(state: &AppState) -> Result<Option<String>, Ap
         None => Ok(Some(process.base_url.clone())),
         Some(status) => {
             let details = status.to_string();
-            *guard = None;
+            guard.local_backend = None;
             Err(ApiError::with_details(
                 "local_backend_stopped",
                 "The local backend companion exited before it became ready.",
@@ -628,14 +423,14 @@ fn with_port_applied_to_remote_base_url(base_url: &str, port: u16) -> String {
 }
 
 fn next_standalone_evaluation_id(state: &AppState) -> Result<String, ApiError> {
-    let mut guard = state.standalone_sequence.lock().map_err(|_| {
+    let mut guard = state.inner.write().map_err(|_| {
         ApiError::new(
             "state_error",
             "The standalone evaluation state is unavailable.",
         )
     })?;
-    *guard += 1;
-    Ok(format!("standalone-{:04}", *guard))
+    guard.standalone_sequence += 1;
+    Ok(format!("standalone-{:04}", guard.standalone_sequence))
 }
 
 fn standalone_health_response() -> HealthResponse {
@@ -1005,14 +800,15 @@ fn standalone_lookup(
     evaluation_id: &str,
 ) -> Result<StandaloneEvaluation, ApiError> {
     state
-        .standalone_jobs
-        .lock()
+        .inner
+        .read()
         .map_err(|_| {
             ApiError::new(
                 "state_error",
                 "The standalone evaluation state is unavailable.",
             )
         })?
+        .standalone_jobs
         .get(evaluation_id)
         .cloned()
         .ok_or_else(|| {
@@ -1051,14 +847,15 @@ fn create_standalone_evaluation(
         findings,
     };
     state
-        .standalone_jobs
-        .lock()
+        .inner
+        .write()
         .map_err(|_| {
             ApiError::new(
                 "state_error",
                 "The standalone evaluation state is unavailable.",
             )
         })?
+        .standalone_jobs
         .insert(evaluation_id.clone(), evaluation);
     Ok(CreateEvaluationResponse {
         evaluation_id,
@@ -1213,20 +1010,14 @@ fn current_backend_config(state: &State<'_, AppState>) -> Result<BackendConfig, 
 }
 
 fn current_backend_config_from_app_state(state: &AppState) -> Result<BackendConfig, ApiError> {
-    if let Some(error) = state
-        .bootstrap_error
-        .lock()
-        .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?
-        .clone()
-    {
-        return Err(error);
+    let guard = state
+        .inner
+        .read()
+        .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?;
+    if let Some(error) = &guard.bootstrap_error {
+        return Err(error.clone());
     }
-
-    state
-        .backend_config
-        .lock()
-        .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))
-        .map(|guard| guard.clone())
+    Ok(guard.backend_config.clone())
 }
 
 async fn wait_for_local_backend_health(config: &BackendConfig) -> Result<(), ApiError> {
@@ -1277,19 +1068,19 @@ async fn effective_backend_config_from_app_state_with_env(
         Ok(None) => {
             let process = spawn_local_backend_process_with_env(config.port, extra_env)?;
             let base_url = process.base_url.clone();
-            let mut guard = state.local_backend.lock().map_err(|_| {
+            let mut guard = state.inner.write().map_err(|_| {
                 ApiError::new("state_error", "The local backend state is unavailable.")
             })?;
-            *guard = Some(process);
+            guard.local_backend = Some(process);
             base_url
         }
         Err(error) if error.code == "local_backend_stopped" => {
             let process = spawn_local_backend_process_with_env(config.port, extra_env)?;
             let base_url = process.base_url.clone();
-            let mut guard = state.local_backend.lock().map_err(|_| {
+            let mut guard = state.inner.write().map_err(|_| {
                 ApiError::new("state_error", "The local backend state is unavailable.")
             })?;
-            *guard = Some(process);
+            guard.local_backend = Some(process);
             base_url
         }
         Err(error) => return Err(error),
@@ -1326,18 +1117,11 @@ fn replace_backend_config_in_app_state(
     state: &AppState,
     config: BackendConfig,
 ) -> Result<BackendConfig, ApiError> {
-    {
-        let mut guard = state.backend_config.lock().map_err(|_| {
-            ApiError::new("state_error", "The backend config state is unavailable.")
-        })?;
-        *guard = config.clone();
-    }
-
-    let mut bootstrap_error = state
-        .bootstrap_error
-        .lock()
-        .map_err(|_| ApiError::new("state_error", "The backend config state is unavailable."))?;
-    *bootstrap_error = None;
+    let mut guard = state.inner.write().map_err(|_| {
+        ApiError::new("state_error", "The backend config state is unavailable.")
+    })?;
+    guard.backend_config = config.clone();
+    guard.bootstrap_error = None;
 
     Ok(config)
 }
@@ -1543,150 +1327,6 @@ async fn run_recon_impl(
     send_json_request(config, reqwest::Method::POST, &["recon"], Some(request)).await
 }
 
-#[tauri::command]
-fn get_backend_config(state: State<'_, AppState>) -> Result<BackendConfig, ApiError> {
-    current_backend_config(&state)
-}
-
-#[tauri::command]
-fn set_backend_config(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    config: BackendConfig,
-) -> Result<BackendConfig, ApiError> {
-    let config = normalize_backend_config(config);
-    validate_backend_config(&config)?;
-    stop_local_backend_in_app_state(state.inner())?;
-    save_backend_config(&app, &config)?;
-    replace_backend_config_in_app_state(state.inner(), config)
-}
-
-#[tauri::command]
-async fn api_health_check(state: State<'_, AppState>) -> Result<HealthResponse, ApiError> {
-    let config = current_backend_config(&state)?;
-    if config.mode == BackendMode::Standalone {
-        return Ok(standalone_health_response());
-    }
-    let config = effective_backend_config_from_app_state(state.inner()).await?;
-    api_health_check_impl(&config).await
-}
-
-#[tauri::command]
-async fn get_capabilities(state: State<'_, AppState>) -> Result<CapabilitiesResponse, ApiError> {
-    let config = current_backend_config(&state)?;
-    if config.mode == BackendMode::Standalone {
-        return Ok(standalone_capabilities_response(&config));
-    }
-    let config = effective_backend_config_from_app_state(state.inner()).await?;
-    get_capabilities_impl(&config).await
-}
-
-#[tauri::command]
-async fn create_evaluation(
-    state: State<'_, AppState>,
-    request: CreateEvaluationRequest,
-) -> Result<CreateEvaluationResponse, ApiError> {
-    let config = current_backend_config(&state)?;
-    if config.mode == BackendMode::Standalone {
-        return create_standalone_evaluation(state.inner(), &request);
-    }
-    let config = effective_backend_config_from_app_state(state.inner()).await?;
-    create_evaluation_impl(&config, &request).await
-}
-
-#[tauri::command]
-async fn get_evaluation_status(
-    state: State<'_, AppState>,
-    evaluation_id: String,
-) -> Result<EvaluationStatusResponse, ApiError> {
-    let config = current_backend_config(&state)?;
-    if config.mode == BackendMode::Standalone {
-        validate_evaluation_id(&evaluation_id)?;
-        return Ok(standalone_evaluation_status(&standalone_lookup(
-            state.inner(),
-            &evaluation_id,
-        )?));
-    }
-    let config = effective_backend_config_from_app_state(state.inner()).await?;
-    get_evaluation_status_impl(&config, &evaluation_id).await
-}
-
-#[tauri::command]
-async fn get_evaluation_result(
-    state: State<'_, AppState>,
-    evaluation_id: String,
-) -> Result<EvaluationResultResponse, ApiError> {
-    let config = current_backend_config(&state)?;
-    if config.mode == BackendMode::Standalone {
-        validate_evaluation_id(&evaluation_id)?;
-        let evaluation = standalone_lookup(state.inner(), &evaluation_id)?;
-        let status = standalone_evaluation_status(&evaluation);
-        if !status.terminal {
-            return Err(ApiError::with_status(
-                "not_ready",
-                "Standalone evaluation result is not ready yet.",
-                409,
-                Some(evaluation_id),
-            ));
-        }
-        return Ok(standalone_result_response(&evaluation));
-    }
-    let config = effective_backend_config_from_app_state(state.inner()).await?;
-    get_evaluation_result_impl(&config, &evaluation_id).await
-}
-
-#[tauri::command]
-async fn get_evaluation_artifacts(
-    state: State<'_, AppState>,
-    evaluation_id: String,
-) -> Result<Vec<ArtifactDescriptor>, ApiError> {
-    let config = current_backend_config(&state)?;
-    if config.mode == BackendMode::Standalone {
-        validate_evaluation_id(&evaluation_id)?;
-        let evaluation = standalone_lookup(state.inner(), &evaluation_id)?;
-        let status = standalone_evaluation_status(&evaluation);
-        if !status.terminal {
-            return Err(ApiError::with_status(
-                "not_ready",
-                "Standalone evaluation artifacts are not ready yet.",
-                409,
-                Some(evaluation_id),
-            ));
-        }
-        return Ok(standalone_artifacts_response(&evaluation));
-    }
-    let config = effective_backend_config_from_app_state(state.inner()).await?;
-    get_evaluation_artifacts_impl(&config, &evaluation_id).await
-}
-
-#[tauri::command]
-async fn run_recon(
-    state: State<'_, AppState>,
-    request: ReconRequest,
-) -> Result<ReconResponse, ApiError> {
-    let config = current_backend_config(&state)?;
-    if config.mode == BackendMode::Standalone {
-        validate_recon_request(&request)?;
-        return Ok(standalone_recon_response(&request));
-    }
-    let config = effective_backend_config_from_app_state(state.inner()).await?;
-    run_recon_impl(&config, &request).await
-}
-
-#[tauri::command]
-fn get_last_opened_snapshot(app: AppHandle) -> Result<Option<LastOpenedSnapshot>, ApiError> {
-    load_last_opened_snapshot(&app)
-}
-
-#[tauri::command]
-fn set_last_opened_snapshot(
-    app: AppHandle,
-    snapshot: LastOpenedSnapshot,
-) -> Result<LastOpenedSnapshot, ApiError> {
-    save_last_opened_snapshot(&app, &snapshot)?;
-    Ok(snapshot)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1696,17 +1336,17 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_backend_config,
-            set_backend_config,
-            api_health_check,
-            get_capabilities,
-            create_evaluation,
-            get_evaluation_status,
-            get_evaluation_result,
-            get_evaluation_artifacts,
-            run_recon,
-            get_last_opened_snapshot,
-            set_last_opened_snapshot
+            commands::get_backend_config,
+            commands::set_backend_config,
+            commands::api_health_check,
+            commands::get_capabilities,
+            commands::create_evaluation,
+            commands::get_evaluation_status,
+            commands::get_evaluation_result,
+            commands::get_evaluation_artifacts,
+            commands::run_recon,
+            commands::get_last_opened_snapshot,
+            commands::set_last_opened_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

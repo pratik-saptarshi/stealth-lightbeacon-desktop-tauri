@@ -510,7 +510,7 @@ describe('App helpers', () => {
     expect(loadUiSettings()).toEqual({
       ...stored,
       workspaceSize: 'auto',
-      fontScale: 0.65,
+      fontScale: 0.85,
       apiTabEnabled: false,
     })
 
@@ -529,7 +529,7 @@ describe('App helpers', () => {
         terminalReport: true,
         backendSurface: true,
       },
-      fontScale: 0.65,
+      fontScale: 0.85,
       apiTabEnabled: false,
     })
   })
@@ -551,7 +551,7 @@ describe('App helpers', () => {
         terminalReport: true,
         backendSurface: true,
       },
-      fontScale: 0.65,
+      fontScale: 0.85,
       apiTabEnabled: false,
     })
   })
@@ -576,7 +576,7 @@ describe('App helpers', () => {
         terminalReport: true,
         backendSurface: true,
       },
-      fontScale: 0.65,
+      fontScale: 0.85,
       apiTabEnabled: false,
     })
   })

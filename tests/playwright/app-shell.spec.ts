@@ -1,6 +1,46 @@
-import { expect, test } from '@playwright/test'
+import { expect, test as base } from '@playwright/test'
+import { spawn, ChildProcess } from 'child_process'
+import path from 'path'
 
 const appUrl = 'http://127.0.0.1:4180'
+
+// Custom fixture that handles native Tauri process lifecycle
+export const test = base.extend<{ tauriApp: ChildProcess | null }>({
+  tauriApp: [async ({ page }, use) => {
+    const isTauriNative = page.context().project().name === 'tauri-native'
+    let tauriProcess: ChildProcess | null = null
+
+    if (isTauriNative) {
+      console.log('Launching native Tauri E2E application frame...')
+      
+      // Determine binary path based on platform
+      const ext = process.platform === 'win32' ? '.exe' : ''
+      const binaryPath = path.resolve(
+        './src-tauri/target/debug/stealth-lightbeacon-desktop-tauri' + ext
+      )
+
+      // Spawn the native application bundle
+      tauriProcess = spawn(binaryPath, [], {
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          TAURI_E2E: 'true',
+          WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--remote-debugging-port=9222',
+        },
+      })
+
+      // Wait a moment for application frame window creation and IPC sync
+      await page.waitForTimeout(3000)
+    }
+
+    await use(tauriProcess)
+
+    if (tauriProcess) {
+      console.log('Terminating native Tauri E2E application frame...')
+      tauriProcess.kill()
+    }
+  }, { auto: true }],
+})
 
 test.describe('Stealth Lightbeacon shell', () => {
   test.beforeEach(async ({ page }) => {
@@ -86,6 +126,7 @@ test.describe('Stealth Lightbeacon shell', () => {
     await expect(
       page.getByText(/Reconnect capabilities and choose a target before running recon\./i),
     ).toBeVisible()
+    await expect(page.getByLabel('Recon details')).toHaveCount(0)
   })
 
   test('shows reports tab trace and report-download table', async ({ page }) => {

@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Overseer Review Panel Dashboard</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Outfit & Inter) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Prism.js CSS and JS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0B0F19;
+      color: #E2E8F0;
+    }
+    h1, h2, h3, .font-heading {
+      font-family: 'Outfit', sans-serif;
+    }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+    }
+    .text-glow {
+      text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+    }
+    details summary::-webkit-details-marker {
+      display: none;
+    }
+    summary {
+      list-style: none;
+    }
+    .accordion-item[open] summary .arrow-icon {
+      transform: rotate(180deg);
+    }
+    /* custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0B0F19;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    @media print {
+      body {
+        background: white;
+        color: black;
+      }
+      .glass-card {
+        background: transparent;
+        border: 1px solid #ccc;
+        backdrop-filter: none;
+      }
+      details {
+        display: block !important;
+      }
+      details[open] {
+        display: block !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+
+  <!-- Header -->
+  <header class="w-full py-6 px-8 border-b border-gray-800 bg-gray-950/80 sticky top-0 z-50 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 bg-red-600 rounded-lg flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-red-600/30">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            OVERSEER <span class="text-sm font-semibold px-2 py-0.5 bg-gray-800 text-gray-400 rounded-md border border-gray-700">v3.2.0</span>
+          </h1>
+          <p class="text-xs text-gray-400">Multi-Agent Adversarial Quality & Security Audit</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 text-sm">
+        <div class="text-right">
+          <span class="text-gray-400 block text-xs">Work Reviewed</span>
+          <span class="text-white font-medium">stealth-lightbeacon-desktop-tauri</span>
+        </div>
+        <div class="h-8 w-[1px] bg-gray-800"></div>
+        <div class="text-right">
+          <span class="text-gray-400 block text-xs">Final Verdict</span>
+          <span class="text-red-500 font-semibold uppercase text-glow">REJECT & REWRITE</span>
+        </div>
+        <div class="h-8 w-[1px] bg-gray-800"></div>
+        <div class="h-10 w-10 rounded-full bg-red-950/50 border border-red-500/30 flex items-center justify-center text-red-500 font-bold text-lg">
+          4.5
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 mt-8">
+    <!-- Top Stats / Overview -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      
+      <!-- Left Column: Summary Info -->
+      <div class="lg:col-span-1 flex flex-col gap-6">
+        <div class="glass-card p-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
+          <div class="absolute -right-10 -top-10 w-32 h-32 bg-red-500/10 rounded-full blur-2xl"></div>
+          <span class="text-gray-400 text-sm font-semibold uppercase tracking-wider">Quality Score</span>
+          <div class="text-7xl font-extrabold text-white mt-4 font-heading text-glow flex items-baseline">
+            4.5<span class="text-2xl text-gray-500 font-normal">/10</span>
+          </div>
+          <span class="text-red-500 font-bold text-sm tracking-wider uppercase mt-4 px-3 py-1 bg-red-950/40 rounded-full border border-red-800/40 flex items-center gap-1.5 animate-pulse">
+            <i class="fa-solid fa-circle-exclamation"></i> REJECT & REWRITE
+          </span>
+          <p class="text-xs text-gray-400 mt-6 leading-relaxed">
+            Critical architectural debt, testing mock blindspots, and lack of automated CI installer compiling restrict structural release.
+          </p>
+        </div>
+
+        <div class="glass-card p-5 flex flex-col gap-3 text-sm">
+          <h3 class="font-bold text-gray-300 border-b border-gray-800 pb-2 mb-1">Audit Metadata</h3>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Date Ran:</span>
+            <span class="text-white font-medium">2026-05-30</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Panel Size:</span>
+            <span class="text-white font-medium">4 Agents + Audit + Judge</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Review Mode:</span>
+            <span class="text-green-400 font-medium bg-green-950/30 px-2 py-0.5 rounded border border-green-800/30 text-xs">Precise</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Data Trace:</span>
+            <span class="text-blue-400 font-medium bg-blue-950/30 px-2 py-0.5 rounded border border-blue-800/30 text-xs">Standard Tier</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Commit State:</span>
+            <span class="text-white font-mono text-xs">main (0 behind)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Visual Charts -->
+      <div class="lg:col-span-3 glass-card p-6 flex flex-col justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-white mb-2">Architectural & Quality Distribution</h2>
+          <p class="text-xs text-gray-400">Visual mapping of severities, verification statuses, and reviewer perspectives.</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <!-- Donut: Severity -->
+          <div class="flex flex-col items-center">
+            <span class="text-xs font-semibold text-gray-400 mb-3">Severity Breakdown</span>
+            <div style="position: relative; height: 180px; width: 180px;">
+              <canvas id="severityChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Donut: Status -->
+          <div class="flex flex-col items-center">
+            <span class="text-xs font-semibold text-gray-400 mb-3">Verification Verdicts</span>
+            <div style="position: relative; height: 180px; width: 180px;">
+              <canvas id="verdictChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Bar: Reviewer Scores -->
+          <div class="flex flex-col items-center">
+            <span class="text-xs font-semibold text-gray-400 mb-3">Reviewer Scores</span>
+            <div style="position: relative; height: 180px; width: 220px;">
+              <canvas id="scoreChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Gallery -->
+    <section class="mt-8">
+      <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-users text-gray-400 text-sm"></i> Review Panelists & Support Agents
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+        <!-- Hawk -->
+        <div class="glass-card p-5 border-l-4 border-yellow-500 bg-gray-900/40 relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-heading font-bold text-white text-md">Correctness Hawk</span>
+              <span class="text-xs font-semibold px-2 py-0.5 bg-yellow-950/40 border border-yellow-800/40 text-yellow-500 rounded">5/10</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 leading-relaxed">Systematic thread concurrency analysis and deadlocks, focus on input schema drifts.</p>
+          </div>
+          <span class="text-[10px] text-yellow-600/70 tracking-wider font-semibold uppercase mt-3"><i class="fa-solid fa-circle-nodes"></i> Concurrency Specialist</span>
+        </div>
+
+        <!-- Critic -->
+        <div class="glass-card p-5 border-l-4 border-red-500 bg-gray-900/40 relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-heading font-bold text-white text-md">Architecture Critic</span>
+              <span class="text-xs font-semibold px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-500 rounded">4/10</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 leading-relaxed">SRP violation auditing, monolithic file structures decomposition, clean abstractions.</p>
+          </div>
+          <span class="text-[10px] text-red-600/70 tracking-wider font-semibold uppercase mt-3"><i class="fa-solid fa-sitemap"></i> Clean Code Expert</span>
+        </div>
+
+        <!-- Auditor -->
+        <div class="glass-card p-5 border-l-4 border-blue-500 bg-gray-900/40 relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-heading font-bold text-white text-md">Security Auditor</span>
+              <span class="text-xs font-semibold px-2 py-0.5 bg-blue-950/40 border border-blue-800/40 text-blue-400 rounded">5/10</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 leading-relaxed">Companion subprocess execution security, environment sanitizations, cleartext storage.</p>
+          </div>
+          <span class="text-[10px] text-blue-600/70 tracking-wider font-semibold uppercase mt-3"><i class="fa-solid fa-shield-virus"></i> Security Hardener</span>
+        </div>
+
+        <!-- Devil -->
+        <div class="glass-card p-5 border-l-4 border-purple-500 bg-gray-900/40 relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div class="flex justify-between items-start">
+              <span class="font-heading font-bold text-white text-md">Devil's Advocate</span>
+              <span class="text-xs font-semibold px-2 py-0.5 bg-purple-950/40 border border-purple-800/40 text-purple-400 rounded">3/10</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 leading-relaxed">Integration test mocked gap exposing, CI/CD automated packaging omissions, OS coverage.</p>
+          </div>
+          <span class="text-[10px] text-purple-600/70 tracking-wider font-semibold uppercase mt-3"><i class="fa-solid fa-skull"></i> Stress Auditor</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Findings Section -->
+    <section class="mt-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-clipboard-list text-gray-400 text-sm"></i> Audited Action Items
+        </h2>
+        <div class="flex gap-2">
+          <button onclick="filterIssues('all')" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-xs rounded border border-gray-700 text-white transition-colors duration-150">All</button>
+          <button onclick="filterIssues('p1')" class="px-3 py-1 bg-red-950/30 hover:bg-red-900/30 text-xs rounded border border-red-800/30 text-red-400 transition-colors duration-150">P1</button>
+          <button onclick="filterIssues('p2')" class="px-3 py-1 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs rounded border border-yellow-800/30 text-yellow-400 transition-colors duration-150">P2</button>
+        </div>
+      </div>
+
+      <div id="issuesList" class="flex flex-col gap-4">
+        
+        <!-- Issue 1 -->
+        <details class="glass-card group accordion-item p-4 border-l-4 border-red-500" data-severity="p1">
+          <summary class="flex justify-between items-center cursor-pointer select-none">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-500 rounded uppercase">P1</span>
+              <span class="text-white font-medium hover:text-red-400 transition-colors duration-150">Monolithic Violation of SRP in Rust Subsystem</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-400 font-mono">src-tauri/src/lib.rs</span>
+              <i class="fa-solid fa-chevron-down text-gray-500 group-open:rotate-180 transition-transform duration-200 arrow-icon"></i>
+            </div>
+          </summary>
+          
+          <div class="mt-4 pt-4 border-t border-gray-850 flex flex-col gap-6 text-sm">
+            <!-- 1. Narrative -->
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-paragraph"></i> 1. Narrative Description</summary>
+              <p class="text-gray-400 leading-relaxed pl-4">
+                A single file `lib.rs` spans over 3,026 lines and handles all Tauri commands, thread synchronization, process lifecycle management, cleartext serialization, HTTP ureq/reqwest clients, local scanning functions, and mock integrations. This is a severe violation of the Single Responsibility Principle. Modular modules inside `src-tauri/src/commands/` and `src-tauri/src/domain/` exist but are completely empty and unused, indicating a decoupled architecture was planned but entirely abandoned.
+              </p>
+            </details>
+
+            <!-- 2. Code Evidence -->
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-code"></i> 2. Code Evidence</summary>
+              <div class="pl-4 mt-2">
+                <span class="text-xs text-gray-500 font-mono">Monolithic Rust File Structure:</span>
+                <pre class="rounded-lg mt-1 overflow-x-auto"><code class="language-rust">// src-tauri/src/lib.rs (Line 1 to 3026)
+use std::{collections::HashMap, env, fs, path::{Path, PathBuf}, process::{Child, Command, Stdio}, sync::Mutex};
+
+// Structs, serialization models, state management, HTTP requests, helper utils, 
+// and 11 separate #[tauri::command] handlers all crowded in one flat file...
+</code></pre>
+              </div>
+            </details>
+
+            <!-- 3. Raised by Grid -->
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-users"></i> 3. Raised By Reviewers</summary>
+              <div class="pl-4 overflow-x-auto mt-2">
+                <table class="w-full text-left border-collapse border border-gray-800">
+                  <thead>
+                    <tr class="bg-gray-900/40 text-gray-400 text-xs">
+                      <th class="p-2 border border-gray-800">Reviewer</th>
+                      <th class="p-2 border border-gray-800">Assessed Severity</th>
+                      <th class="p-2 border border-gray-800">Comment / Rationale</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="border-t border-gray-800 text-xs">
+                      <td class="p-2 font-medium text-white border border-gray-800">Architecture Critic</td>
+                      <td class="p-2 text-red-500 border border-gray-800 font-bold">P1</td>
+                      <td class="p-2 text-gray-400 border border-gray-800">Makes maintenance highly complex and prevents mock integration units.</td>
+                    </tr>
+                    <tr class="border-t border-gray-800 text-xs">
+                      <td class="p-2 font-medium text-white border border-gray-800">Correctness Hawk</td>
+                      <td class="p-2 text-yellow-500 border border-gray-800 font-bold">P2</td>
+                      <td class="p-2 text-gray-400 border border-gray-800">Creates higher locking dependency overlaps under async calls.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <!-- 4. Judge Ruling -->
+            <details class="pl-4 border-l-2 border-gray-800" open>
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-gavel"></i> 4. Judge Ruling</summary>
+              <div class="pl-4 text-gray-400">
+                <p class="leading-relaxed">
+                  <strong>Verdict:</strong> Upheld as <span class="text-red-500 font-bold">P2</span> severity (Adjusted downward from P1 by Judge in Phase 11). While refactoring monolithic files is a critical maintainability concern, it does not cause immediate runtime errors. Extracting Tauri command handlers to dedicated files is required before modular capability features are introduced.
+                </p>
+              </div>
+            </details>
+
+            <!-- 5. Fix Recommendation -->
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-wrench"></i> 5. Fix Recommendation</summary>
+              <div class="pl-4 text-gray-400 flex flex-col gap-2">
+                <p>Move commands to modular closures inside the empty `src-tauri/src/commands/` directory:</p>
+                <pre class="rounded-lg overflow-x-auto"><code class="language-rust">// Extract commands:
+// src-tauri/src/commands/evaluations.rs
+use tauri::{State, AppHandle};
+use crate::{AppState, BackendConfig, ApiError};
+
+#[tauri::command]
+pub async fn create_evaluation(state: State<'_, AppState>) -> Result<CreateEvaluationResponse, ApiError> {
+    // isolated command logic
+}
+</code></pre>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-xs">
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Effort:</span>
+                    <span class="text-white font-medium">Medium</span>
+                  </div>
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Blast Radius:</span>
+                    <span class="text-yellow-500 font-medium">Medium</span>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+          </div>
+        </details>
+
+        <!-- Issue 2 -->
+        <details class="glass-card group accordion-item p-4 border-l-4 border-red-500" data-severity="p1">
+          <summary class="flex justify-between items-center cursor-pointer select-none">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-500 rounded uppercase">P1</span>
+              <span class="text-white font-medium hover:text-red-400 transition-colors duration-150">AppState Lock Contention & Deadlock Risk</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-400 font-mono">src-tauri/src/lib.rs</span>
+              <i class="fa-solid fa-chevron-down text-gray-500 group-open:rotate-180 transition-transform duration-200 arrow-icon"></i>
+            </div>
+          </summary>
+          
+          <div class="mt-4 pt-4 border-t border-gray-850 flex flex-col gap-6 text-sm">
+            
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-paragraph"></i> 1. Narrative Description</summary>
+              <p class="text-gray-400 leading-relaxed pl-4">
+                `AppState` defines 5 granular `Mutex` fields to lock different variables individually. In Tauri async contexts, multiple concurrent commands attempt to obtain these guards sequentially without any unified ordering contract. For example, `set_backend_config` locks the backend state inside `stop_local_backend_in_app_state` and then replaces backend configurations, locking config variables. Concurrent polling checks perform this in reverse order, which represents a classical thread deadlock path.
+              </p>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-code"></i> 2. Code Evidence</summary>
+              <div class="pl-4 mt-2">
+                <pre class="rounded-lg mt-1 overflow-x-auto"><code class="language-rust">// src-tauri/src/lib.rs:239
+struct AppState {
+    backend_config: Mutex<BackendConfig>,
+    bootstrap_error: Mutex<Option<ApiError>>,
+    local_backend: Mutex<Option<LocalBackendProcess>>,
+    standalone_jobs: Mutex<HashMap<String, StandaloneEvaluation>>,
+    standalone_sequence: Mutex<u64>,
+}
+</code></pre>
+              </div>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800" open>
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-gavel"></i> 4. Judge Ruling</summary>
+              <div class="pl-4 text-gray-400">
+                <p class="leading-relaxed">
+                  <strong>Verdict:</strong> Upheld as <span class="text-red-500 font-bold">P1 [EXISTING_DEFECT]</span>. The concurrency deadlock path is real. The judge requires consolidating these 5 Mutex locks into a single asynchronous-aware `RwLock<AppStateInner>` to enforce safe state transitions.
+                </p>
+              </div>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-wrench"></i> 5. Fix Recommendation</summary>
+              <div class="pl-4 text-gray-400 flex flex-col gap-2">
+                <pre class="rounded-lg overflow-x-auto"><code class="language-rust">struct AppStateInner {
+    backend_config: BackendConfig,
+    bootstrap_error: Option<ApiError>,
+    local_backend: Option<LocalBackendProcess>,
+    standalone_jobs: HashMap<String, StandaloneEvaluation>,
+    standalone_sequence: u64,
+}
+
+pub struct AppState(tokio::sync::RwLock<AppStateInner>);
+</code></pre>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-xs">
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Effort:</span>
+                    <span class="text-white font-medium">Medium</span>
+                  </div>
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Blast Radius:</span>
+                    <span class="text-red-500 font-medium">High</span>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+          </div>
+        </details>
+
+        <!-- Issue 3 -->
+        <details class="glass-card group accordion-item p-4 border-l-4 border-red-500" data-severity="p1">
+          <summary class="flex justify-between items-center cursor-pointer select-none">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-500 rounded uppercase">P1</span>
+              <span class="text-white font-medium hover:text-red-400 transition-colors duration-150">Playwright Browser Mocking Integration Gap</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-400 font-mono">tests/playwright/</span>
+              <i class="fa-solid fa-chevron-down text-gray-500 group-open:rotate-180 transition-transform duration-200 arrow-icon"></i>
+            </div>
+          </summary>
+          
+          <div class="mt-4 pt-4 border-t border-gray-850 flex flex-col gap-6 text-sm">
+            
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-paragraph"></i> 1. Narrative Description</summary>
+              <p class="text-gray-400 leading-relaxed pl-4">
+                Playwright browser end-to-end integration tests are executed against a mock HTTP server inside standard browser environments, bypassing the compiled Tauri application runtime completely. All Tauri command invocations are replaced with standard web mocks. If developers make signature changes to Rust commands or Tauri bindings drift, Playwright tests still pass, leaving a major E2E integration testing blindspot.
+              </p>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800" open>
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-gavel"></i> 4. Judge Ruling</summary>
+              <div class="pl-4 text-gray-400">
+                <p class="leading-relaxed">
+                  <strong>Verdict:</strong> Upheld as <span class="text-red-500 font-bold">P1 [EXISTING_DEFECT]</span>. The mock gap leaves Tauri IPC command mappings entirely unvalidated. E2E tests must be refactored to launch the packaged binary and execute assertions within a real Tauri app frame.
+                </p>
+              </div>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-wrench"></i> 5. Fix Recommendation</summary>
+              <div class="pl-4 text-gray-400 flex flex-col gap-2">
+                <p>Reconfigure Playwright to automate compiled binaries using standard tauri-driver hooks:</p>
+                <pre class="rounded-lg overflow-x-auto"><code class="language-typescript">// playwright.config.ts E2E Tauri configuration
+import { defineConfig } from '@playwright/test';
+export default defineConfig({
+  testDir: './tests/playwright',
+  use: {
+    /* Route tests inside Tauri driver ports */
+  }
+});
+</code></pre>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-xs">
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Effort:</span>
+                    <span class="text-white font-medium">High</span>
+                  </div>
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Blast Radius:</span>
+                    <span class="text-blue-500 font-medium">Low</span>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+          </div>
+        </details>
+
+        <!-- Issue 4 -->
+        <details class="glass-card group accordion-item p-4 border-l-4 border-red-500" data-severity="p1">
+          <summary class="flex justify-between items-center cursor-pointer select-none">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold px-2 py-0.5 bg-red-950/40 border border-red-800/40 text-red-500 rounded uppercase">P1</span>
+              <span class="text-white font-medium hover:text-red-400 transition-colors duration-150">Lack of Automated Cross-Platform Packaging in CI</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-400 font-mono">.github/workflows/</span>
+              <i class="fa-solid fa-chevron-down text-gray-500 group-open:rotate-180 transition-transform duration-200 arrow-icon"></i>
+            </div>
+          </summary>
+          
+          <div class="mt-4 pt-4 border-t border-gray-850 flex flex-col gap-6 text-sm">
+            
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-paragraph"></i> 1. Narrative Description</summary>
+              <p class="text-gray-400 leading-relaxed pl-4">
+                The release workflow is triggered on tag push but only spawns a standard GitHub release with text bodies (`changelog.md`). It never calls `tauri build`. As a result, releases contain no compiled binaries (e.g. macOS `.dmg`, Windows `.msi`, Linux `.deb`). Developers must package binaries locally, violating basic DevSecOps release automation and security norms.
+              </p>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800" open>
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-gavel"></i> 4. Judge Ruling</summary>
+              <div class="pl-4 text-gray-400">
+                <p class="leading-relaxed">
+                  <strong>Verdict:</strong> Upheld as <span class="text-red-500 font-bold">P1 [EXISTING_DEFECT]</span>. Standard packaging automation is entirely missing. The release pipeline must run the compilation steps across a multi-platform runner matrix.
+                </p>
+              </div>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-wrench"></i> 5. Fix Recommendation</summary>
+              <div class="pl-4 text-gray-400 flex flex-col gap-2">
+                <p>Implement `tauri-apps/tauri-action` in `release.yml`:</p>
+                <pre class="rounded-lg overflow-x-auto"><code class="language-yaml">- name: Publish Tauri App
+  uses: tauri-apps/tauri-action@v2
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    tagName: v__VERSION__
+    releaseName: "Stealth Lightbeacon v__VERSION__"
+</code></pre>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-xs">
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Effort:</span>
+                    <span class="text-white font-medium">Medium</span>
+                  </div>
+                  <div class="bg-gray-900/30 p-2 rounded border border-gray-800">
+                    <span class="text-gray-500 block">Blast Radius:</span>
+                    <span class="text-blue-500 font-medium">Low</span>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+          </div>
+        </details>
+
+        <!-- Issue 5 -->
+        <details class="glass-card group accordion-item p-4 border-l-4 border-yellow-500" data-severity="p2">
+          <summary class="flex justify-between items-center cursor-pointer select-none">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold px-2 py-0.5 bg-yellow-950/40 border border-yellow-800/40 text-yellow-500 rounded uppercase">P2</span>
+              <span class="text-white font-medium hover:text-yellow-400 transition-colors duration-150">Monolithic React Component in App.tsx</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-400 font-mono">src/App.tsx</span>
+              <i class="fa-solid fa-chevron-down text-gray-500 group-open:rotate-180 transition-transform duration-200 arrow-icon"></i>
+            </div>
+          </summary>
+          
+          <div class="mt-4 pt-4 border-t border-gray-850 flex flex-col gap-6 text-sm">
+            
+            <details class="pl-4 border-l-2 border-gray-800">
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-paragraph"></i> 1. Narrative Description</summary>
+              <p class="text-gray-400 leading-relaxed pl-4">
+                `App.tsx` has grown into a huge 109KB single React file containing all workflow panels, capability cards, settings forms, terminal mocks, styling, and timer hooks. This violates SRP and severely limits developer accessibility and component reuse.
+              </p>
+            </details>
+
+            <details class="pl-4 border-l-2 border-gray-800" open>
+              <summary class="font-semibold text-gray-300 cursor-pointer flex items-center gap-2 mb-2"><i class="fa-solid fa-gavel"></i> 4. Judge Ruling</summary>
+              <div class="pl-4 text-gray-400">
+                <p class="leading-relaxed">
+                  <strong>Verdict:</strong> Upheld as <span class="text-yellow-500 font-bold">P2 [EXISTING_DEFECT]</span>. Refactoring of the monolithic layout into separate subviews (e.g. `src/components/SettingsTab.tsx`) is heavily recommended.
+                </p>
+              </div>
+            </details>
+
+          </div>
+        </details>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="w-full text-center text-xs text-gray-500 mt-16 border-t border-gray-900 pt-8">
+    <p>Overseer v3.2.0 | Multi-Agent Review Protocol</p>
+    <p class="mt-1 text-gray-600">Tailwind, Chart.js, and Prism.js loaded via secure CDNs.</p>
+  </footer>
+
+  <script>
+    // 1. Chart.js setups
+    const ctxSev = document.getElementById('severityChart').getContext('2d');
+    new Chart(ctxSev, {
+      type: 'doughnut',
+      data: {
+        labels: ['P1 (Critical)', 'P2 (High)', 'P3 (Medium)'],
+        datasets: [{
+          data: [4, 4, 3],
+          backgroundColor: ['#EF4444', '#F59E0B', '#3B82F6'],
+          borderWidth: 1,
+          borderColor: '#1F2937'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+
+    const ctxVer = document.getElementById('verdictChart').getContext('2d');
+    new Chart(ctxVer, {
+      type: 'doughnut',
+      data: {
+        labels: ['VERIFIED', 'CONSENSUS', 'UNVERIFIED'],
+        datasets: [{
+          data: [8, 6, 0],
+          backgroundColor: ['#10B981', '#8B5CF6', '#6B7280'],
+          borderWidth: 1,
+          borderColor: '#1F2937'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+
+    const ctxScr = document.getElementById('scoreChart').getContext('2d');
+    new Chart(ctxScr, {
+      type: 'bar',
+      data: {
+        labels: ['Hawk', 'Critic', 'Auditor', 'Advocate'],
+        datasets: [{
+          label: 'Scores',
+          data: [5, 4, 5, 3],
+          backgroundColor: '#EF4444',
+          borderWidth: 0,
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { min: 0, max: 10, grid: { color: '#1F2937' }, ticks: { color: '#9CA3AF' } },
+          x: { ticks: { color: '#9CA3AF' } }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+
+    // 2. Filter Issues logic
+    function filterIssues(severity) {
+      const items = document.querySelectorAll('#issuesList > details');
+      items.forEach(item => {
+        if (severity === 'all') {
+          item.style.display = 'block';
+        } else {
+          if (item.getAttribute('data-severity') === severity) {
+            item.style.display = 'block';
+          } else {
+            item.style.display = 'none';
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

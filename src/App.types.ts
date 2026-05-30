@@ -1,4 +1,4 @@
-import type { BackendConfig } from './lib/desktop'
+import type { BackendConfig, HealthResponse, CapabilitiesResponse, ArtifactDescriptor } from './lib/desktop'
 
 export type ActivityItem = {
   id: number
@@ -29,7 +29,7 @@ export type EvaluationResultView = {
   findings: EvaluationResultFindingView[]
 }
 
-export type EvaluationHistoryView = {
+export type HistoryEntry = {
   evaluationId: string
   acceptedAt: string | null
   statusLabel: string
@@ -78,9 +78,32 @@ export type ViewportState = {
   density: ViewportDensity
 }
 
+export type WorkspaceSizeKey = 'auto' | 'laptop13' | 'laptop15' | 'desktop' | 'wideDesktop'
+
+export type WorkspaceLayout = {
+  key: WorkspaceSizeKey
+  label: string
+  width: number
+  height: number
+  density: ViewportDensity
+}
+
 export type UiSettings = {
   theme: Record<UiThemeKey, string>
   sections: Record<UiSectionKey, boolean>
+  workspaceSize: WorkspaceSizeKey
+  fontScale: number
+  apiTabEnabled: boolean
 }
 
-export type DesktopConfig = BackendConfig
+export type ThemeField = {
+  key: UiThemeKey
+  label: string
+  description: string
+}
+
+export type SectionField = {
+  key: UiSectionKey
+  label: string
+  description: string
+}

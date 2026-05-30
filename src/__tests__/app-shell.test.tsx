@@ -340,7 +340,7 @@ describe('App shell', () => {
     render(<App />)
 
     const appShell = document.querySelector('.app-shell') as HTMLElement | null
-    expect(appShell?.style.getPropertyValue('--ui-font-scale')).toBe('0.65')
+    expect(appShell?.style.getPropertyValue('--ui-font-scale')).toBe('0.85')
 
     await user.click(await screen.findByRole('tab', { name: /^Settings/i }))
     const scaleControl = screen.getByRole('slider', { name: 'Shell text size' })
@@ -678,9 +678,18 @@ describe('App shell', () => {
       }),
     )
     expect(await screen.findByText('Recon completed for https://example.com.')).toBeInTheDocument()
-    expect(await screen.findByText('stealth')).toBeInTheDocument()
-    expect(await screen.findByText('browser')).toBeInTheDocument()
-    expect(await screen.findByText('Confidence 90% · Auto-select Allowed')).toBeInTheDocument()
+    const reconDetails = await screen.findByRole('article', { name: 'Recon details' })
+    expect(within(reconDetails).getByText('stealth')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('Posture')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('browser')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('Confidence')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('90%')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('Auto-select')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('Allowed')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('Signals (1)')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('cloudflare')).toBeInTheDocument()
+    expect(within(reconDetails).getByText('Evidence (2)')).toBeInTheDocument()
+    expect(within(reconDetails).getAllByText('cloudflare, status:403').length).toBeGreaterThan(0)
   })
 
   it.skip('clears recon output when the target changes during a pending rerun', async () => {
@@ -704,7 +713,7 @@ describe('App shell', () => {
         target: 'https://example.com',
       }),
     )
-    expect(await screen.findByText('stealth')).toBeInTheDocument()
+    expect(await screen.findByRole('article', { name: 'Recon details' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
     await waitFor(() => expect(desktopApi.runRecon).toHaveBeenCalledTimes(2))
 
@@ -713,7 +722,9 @@ describe('App shell', () => {
 
     staleRecon.resolve({ ...reconResult, target: 'https://example.com' })
 
-    await waitFor(() => expect(screen.queryByText('stealth')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByRole('article', { name: 'Recon details' })).not.toBeInTheDocument(),
+    )
   })
 
   it('clears recon output when backend capabilities refresh during a pending rerun', async () => {
@@ -742,7 +753,7 @@ describe('App shell', () => {
         target: 'https://example.com',
       }),
     )
-    expect(await screen.findByText('stealth')).toBeInTheDocument()
+    expect(await screen.findByRole('article', { name: 'Recon details' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
     await waitFor(() => expect(desktopApi.runRecon).toHaveBeenCalledTimes(2))
 
@@ -757,7 +768,9 @@ describe('App shell', () => {
     await user.click(screen.getByRole('tab', { name: /^Scan/i }))
     staleRecon.resolve({ ...reconResult, target: 'https://example.com' })
 
-    await waitFor(() => expect(screen.queryByText('stealth')).not.toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByRole('article', { name: 'Recon details' })).not.toBeInTheDocument(),
+    )
     expect(screen.getByRole('button', { name: 'Run Recon' })).toBeDisabled()
   })
 
@@ -781,12 +794,12 @@ describe('App shell', () => {
         target: 'https://example.com',
       }),
     )
-    expect(await screen.findByText('stealth')).toBeInTheDocument()
+    expect(await screen.findByRole('article', { name: 'Recon details' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Run Recon' }))
 
     expect((await screen.findAllByText('Recon failed.')).length).toBeGreaterThan(0)
-    expect(screen.queryByText('stealth')).not.toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: 'Recon details' })).not.toBeInTheDocument()
   })
 
   it('starts result fetch only after the evaluation reaches a terminal status', async () => {
@@ -1008,15 +1021,6 @@ describe('App shell', () => {
     await waitFor(() =>
       expect(desktopApi.getEvaluationArtifacts).toHaveBeenCalledWith('eval-123'),
     )
-    await waitFor(
-      () =>
-        expect(
-          screen.getByText(
-            'Artifact descriptors come from GET /evaluations/{evaluation_id}/artifacts.',
-          ),
-        ).toBeInTheDocument(),
-      { timeout: 4000 },
-    )
     await waitFor(() =>
       expect(desktopApi.getEvaluationArtifacts).toHaveBeenCalledWith('eval-123'),
     )
@@ -1032,7 +1036,7 @@ describe('App shell', () => {
     expect(
       await screen.findByText('Accepted at 2026-05-25T08:00:00Z'),
     ).toBeInTheDocument()
-    expect(await screen.findByText('Score 92')).toBeInTheDocument()
+    expect(await screen.findByText('Report digest')).toBeInTheDocument()
     expect((await screen.findAllByText('normalized-report')).length).toBeGreaterThan(0)
     expect(desktopApi.getEvaluationStatus).not.toHaveBeenCalled()
   })

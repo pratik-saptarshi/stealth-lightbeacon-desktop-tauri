@@ -9,6 +9,9 @@ import {
 import type { CSSProperties } from 'react'
 
 import './App.css'
+import { SettingsTab } from './components/SettingsTab'
+import { CapabilitiesPanel } from './components/CapabilitiesPanel'
+import { EvaluationTable } from './components/EvaluationTable'
 import {
   apiHealthCheck,
   createEvaluation,
@@ -183,7 +186,7 @@ const defaultUiSettings: UiSettings = {
     backendSurface: true,
   },
   workspaceSize: 'auto',
-  fontScale: 0.65,
+  fontScale: 0.85,
   apiTabEnabled: false,
 }
 const workspaceSizeOptions: WorkspaceSizeOption[] = [
@@ -2381,92 +2384,13 @@ function App() {
             </button>
           </div>
 
-          {showBackendSurface ? (
-          <div className="validation-list">
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Service</span>
-                  <strong className={health ? 'tone-good' : 'tone-idle'}>
-                    {health?.service ?? 'Unavailable'}
-                  </strong>
-                </div>
-                <p>Health checks come from `GET /health`.</p>
-              </article>
-
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Profiles</span>
-                  <strong className="tone-good">{availableProfiles.join(', ')}</strong>
-                </div>
-                <p>Capability options are loaded from `GET /capabilities`.</p>
-              </article>
-
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Artifacts</span>
-                  <strong className={capabilities?.supportsArtifacts ? 'tone-good' : 'tone-warn'}>
-                    {capabilities?.supportsArtifacts ? 'Supported' : 'Deferred'}
-                  </strong>
-                </div>
-                <p>Phase 2 consumes artifact routes without moving persistence into the client.</p>
-              </article>
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Recon</span>
-                  <strong className={capabilities?.supportsRecon ? 'tone-good' : 'tone-warn'}>
-                    {capabilities?.supportsRecon ? 'Available' : 'Unavailable'}
-                  </strong>
-                </div>
-                <p>
-                  {capabilities?.supportsRecon
-                    ? 'Recon runs from the Audit tab against the active target.'
-                    : 'Load a backend that exposes the recon route before using this workflow.'}
-                </p>
-              </article>
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Auth</span>
-                  <strong className={health?.authRequired ? 'tone-warn' : 'tone-good'}>
-                    {health?.authRequired ? 'Required' : 'Not required'}
-                  </strong>
-                </div>
-                <p>
-                  {health?.authRequired
-                    ? 'Protected capabilities require the backend auth token before they can load.'
-                    : 'Backend capabilities load without an auth token in this mode.'}
-                </p>
-              </article>
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Compatibility</span>
-                  <strong className={connectionFailureCode === 'incompatible_client' ? 'tone-warn' : 'tone-good'}>
-                    {health?.compatibility?.minimumDesktopVersion
-                      ? `${health.compatibility.minimumDesktopVersion}+`
-                      : 'Unavailable'}
-                  </strong>
-                </div>
-                <p>
-                  {health?.compatibility
-                    ? `Recommended ${health.compatibility.recommendedDesktopVersion}. ${
-                        connectionFailureCode === 'incompatible_client'
-                          ? 'The backend rejected this desktop version.'
-                          : 'Match the backend minimum before loading protected capabilities.'
-                      }`
-                    : 'Compatibility guidance appears after health loads.'}
-                </p>
-              </article>
-            </div>
-          ) : (
-            <div className="validation-list">
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Backend surface</span>
-                  <strong className="tone-idle">Hidden</strong>
-                </div>
-                <p>Backend surface details are disabled in Settings.</p>
-              </article>
-            </div>
-          )}
+          <CapabilitiesPanel
+            showBackendSurface={showBackendSurface}
+            health={health}
+            availableProfiles={availableProfiles}
+            capabilities={capabilities}
+            connectionFailureCode={connectionFailureCode}
+          />
         </section>
 
         <section
@@ -2731,46 +2655,35 @@ function App() {
           </div>
 
           {reconResultView ? (
-            <div className="validation-list">
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Recommendation</span>
-                  <strong className="tone-good">{reconResultView.recommendation}</strong>
+            <article className="validation-card recon-summary-card" aria-label="Recon details">
+              <div className="validation-header">
+                <span>Recommendation</span>
+                <strong className="tone-good">{reconResultView.recommendation}</strong>
+              </div>
+              <p>{reconResultView.evidenceSummary}</p>
+              <dl className="recon-grid" aria-label="Recon posture signal evidence grid">
+                <div className="recon-grid-item">
+                  <dt>Posture</dt>
+                  <dd>{reconResultView.posture}</dd>
                 </div>
-                <p>{reconResultView.evidenceSummary}</p>
-              </article>
-
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Posture</span>
-                  <strong className="tone-idle">{reconResultView.posture}</strong>
+                <div className="recon-grid-item">
+                  <dt>Confidence</dt>
+                  <dd>{reconResultView.confidenceLabel}</dd>
                 </div>
-                <p>
-                  Confidence {reconResultView.confidenceLabel} · Auto-select{' '}
-                  {reconResultView.autoSelectAllowed}
-                </p>
-              </article>
-
-              {reconResultView.signals.length ? (
-                <article className="validation-card">
-                  <div className="validation-header">
-                    <span>Signals</span>
-                    <strong className="tone-idle">{reconResultView.signals.length}</strong>
-                  </div>
-                  <p>{reconResultView.signals.join(', ')}</p>
-                </article>
-              ) : null}
-
-              {reconResultView.evidence.length ? (
-                <article className="validation-card">
-                  <div className="validation-header">
-                    <span>Evidence</span>
-                    <strong className="tone-idle">{reconResultView.evidence.length}</strong>
-                  </div>
-                  <p>{reconResultView.evidence.join(', ')}</p>
-                </article>
-              ) : null}
-            </div>
+                <div className="recon-grid-item">
+                  <dt>Auto-select</dt>
+                  <dd>{reconResultView.autoSelectAllowed}</dd>
+                </div>
+                <div className="recon-grid-item recon-grid-item--wide">
+                  <dt>Signals ({reconResultView.signals.length})</dt>
+                  <dd>{reconResultView.signals.join(', ') || 'none'}</dd>
+                </div>
+                <div className="recon-grid-item recon-grid-item--wide">
+                  <dt>Evidence ({reconResultView.evidence.length})</dt>
+                  <dd>{reconResultView.evidence.join(', ') || 'none'}</dd>
+                </div>
+              </dl>
+            </article>
           ) : null}
         </section>
 
@@ -2859,210 +2772,22 @@ function App() {
             </div>
           ) : null}
 
-          {showTerminalReport ? (
-            <>
-              <div className="subsection-heading">
-                <div>
-                  <p className="section-kicker">Reporting</p>
-                  <h3>Terminal Report and Artifacts</h3>
-                </div>
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  aria-expanded={reportExpanded}
-                  aria-controls="reporting-panel"
-                  disabled={!reportAvailable}
-                  onClick={() => setReportExpanded((current) => !current)}
-                >
-                  {reportExpanded ? 'Collapse reporting' : 'Expand reporting'}
-                </button>
-              </div>
-
-              {!reportAvailable ? (
-                <div className="validation-list">
-                  <article className="validation-card">
-                    <div className="validation-header">
-                      <span>Reporting</span>
-                      <strong className="tone-idle">Waiting</strong>
-                    </div>
-                    <p>
-                      Terminal reports and artifact descriptors appear once the active audit reaches a terminal state.
-                    </p>
-                  </article>
-                </div>
-              ) : null}
-
-              {evaluationStatus?.terminal ? (
-                <div id="reporting-panel" className="validation-list" hidden={!reportExpanded}>
-                  <article className="validation-card">
-                    <div className="validation-header">
-                      <span>Terminal report</span>
-                      <strong
-                        className={
-                          evaluationResult
-                            ? resultToneClass(evaluationResult.status)
-                            : 'tone-idle'
-                        }
-                      >
-                        {terminalResultView?.statusLabel ??
-                          (resultLoadState === 'failed' ? 'Unavailable' : 'Loading')}
-                      </strong>
-                    </div>
-                    <p>
-                      {resultLoadState === 'loading'
-                        ? 'Fetching terminal result from GET /evaluations/{evaluation_id}/result.'
-                        : resultLoadState === 'failed'
-                          ? `Result retrieval failed. ${resultError ?? 'Unknown desktop command error.'}`
-                          : 'Terminal result retrieved through the desktop adapter.'}
-                    </p>
-                  </article>
-
-                  {terminalResultView?.summaryMetrics.length ? (
-                    <article className="validation-card">
-                      <div className="validation-header">
-                        <span>Summary</span>
-                        <strong className={resultToneClass(evaluationResult?.status ?? '')}>
-                          {terminalResultView.summaryMetrics[0]?.label}{' '}
-                          {terminalResultView.summaryMetrics[0]?.value}
-                        </strong>
-                      </div>
-                      {terminalResultView.summaryMetrics.slice(1).map((metric) => (
-                        <p key={metric.label}>
-                          {metric.label} {metric.value}
-                        </p>
-                      ))}
-                    </article>
-                  ) : null}
-
-                  {terminalResultView?.severityItems.length ? (
-                    <article className="validation-card">
-                      <div className="validation-header">
-                        <span>Severity counts</span>
-                        <strong className={resultToneClass(evaluationResult?.status ?? '')}>
-                          {terminalResultView.severityItems[0]}
-                        </strong>
-                      </div>
-                      {terminalResultView.severityItems.slice(1).map((item) => (
-                        <p key={item}>{item}</p>
-                      ))}
-                    </article>
-                  ) : null}
-
-                  {terminalResultView?.timelineMetrics.length ? (
-                    <article className="validation-card">
-                      <div className="validation-header">
-                        <span>Run timing</span>
-                        <strong className="tone-idle">
-                          {terminalResultView.timelineMetrics[0]?.label}{' '}
-                          {terminalResultView.timelineMetrics[0]?.value}
-                        </strong>
-                      </div>
-                      {terminalResultView.timelineMetrics.slice(1).map((metric) => (
-                        <p key={metric.label}>
-                          {metric.label} {metric.value}
-                        </p>
-                      ))}
-                    </article>
-                  ) : null}
-
-                  {terminalResultView?.findings.map((finding) => (
-                    <article key={finding.key} className="validation-card">
-                      <div className="validation-header">
-                        <span>Finding</span>
-                        <strong className="tone-idle">{finding.title}</strong>
-                      </div>
-                      {finding.meta ? <p>{finding.meta}</p> : null}
-                      {finding.description ? <p>{finding.description}</p> : null}
-                    </article>
-                  ))}
-
-                  <article className="validation-card">
-                    <div className="validation-header">
-                      <span>Artifacts</span>
-                      <strong className="tone-idle">
-                        {artifactsLoadState === 'loading'
-                          ? 'Loading'
-                          : artifactsLoadState === 'failed'
-                            ? 'Unavailable'
-                            : `${artifacts.length} loaded`}
-                      </strong>
-                    </div>
-                    <p>
-                      {artifactsLoadState === 'failed'
-                        ? `Artifact retrieval failed. ${artifactsError ?? 'Unknown desktop command error.'}`
-                        : 'Artifact descriptors come from GET /evaluations/{evaluation_id}/artifacts.'}
-                    </p>
-                  </article>
-
-                  {artifacts.map((artifact) => (
-                    <article
-                      key={`${artifact.kind}-${artifact.name}`}
-                      className="validation-card"
-                    >
-                      <div className="validation-header">
-                        <span>{artifact.kind}</span>
-                        <strong className="tone-idle">{artifact.name}</strong>
-                      </div>
-                      <p>{artifact.mediaType}</p>
-                      {artifact.downloadUrl ? (
-                        <p>
-                          <a href={artifact.downloadUrl} target="_blank" rel="noreferrer">
-                            {`Open ${artifact.name}`}
-                          </a>
-                        </p>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-
-              {visibleEvaluationHistory.length ? (
-                <div className="history-section">
-                  <div className="subsection-heading">
-                    <div>
-                      <p className="section-kicker">Run history</p>
-                      <h3>Recent Evaluations</h3>
-                    </div>
-                    <span className="status-pill status-muted">
-                      {visibleEvaluationHistory.length} cached
-                    </span>
-                  </div>
-
-                  <div className="history-grid">
-                    {visibleEvaluationHistory.map((entry) => (
-                      <article key={entry.evaluationId} className="history-card">
-                        <div className="validation-header">
-                          <span>{entry.evaluationId}</span>
-                          <strong className={entry.resultLabel === 'success' ? 'tone-good' : 'tone-idle'}>
-                            {entry.statusLabel}
-                          </strong>
-                        </div>
-                        <p>{entry.detailLabel}</p>
-                        <p>
-                          {entry.acceptedAt ? `Accepted ${entry.acceptedAt}` : 'Accepted time unavailable'}
-                        </p>
-                        <p>
-                          {entry.stageLabel ? `${entry.stageLabel} · ` : ''}
-                          {entry.scoreLabel ?? 'Score unavailable'} · {entry.artifactCount} artifacts
-                        </p>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-            </>
-          ) : (
-            <div className="validation-list">
-              <article className="validation-card">
-                <div className="validation-header">
-                  <span>Reporting</span>
-                  <strong className="tone-idle">Hidden</strong>
-                </div>
-                <p>Terminal reporting and artifact cards are disabled in Settings.</p>
-              </article>
-            </div>
-          )}
+          <EvaluationTable
+            showTerminalReport={showTerminalReport}
+            reportExpanded={reportExpanded}
+            reportAvailable={reportAvailable}
+            setReportExpanded={setReportExpanded}
+            evaluationStatus={evaluationStatus}
+            evaluationResult={evaluationResult}
+            resultLoadState={resultLoadState}
+            resultError={resultError}
+            terminalResultView={terminalResultView}
+            artifactsLoadState={artifactsLoadState}
+            artifactsError={artifactsError}
+            artifacts={artifacts}
+            visibleEvaluationHistory={visibleEvaluationHistory}
+            resultToneClass={resultToneClass}
+          />
         </section>
 
         <section
@@ -3169,171 +2894,20 @@ function App() {
           </div>
         </section>
 
-        <section
-          id="workspace-panel-settings"
-          className="panel workspace-panel"
-          role="tabpanel"
-          aria-labelledby="workspace-tab-settings"
-          hidden={activeWorkspaceTab !== 'settings'}
-        >
-          <div className="panel-heading">
-            <div>
-              <p className="section-kicker">Operator preferences</p>
-              <h2>Settings</h2>
-            </div>
-            <span className="status-pill status-muted">Persisted locally</span>
-          </div>
-
-          <section className="settings-section">
-            <div className="subsection-heading">
-              <div>
-                <p className="section-kicker">Screen size</p>
-                <h3>Workspace presets</h3>
-              </div>
-            </div>
-            <div className="toggle-grid settings-toggle-grid">
-              {workspaceSizeOptions.map((option) => (
-                <label key={option.key} className="toggle-card">
-                  <input
-                    type="radio"
-                    name="workspace-size"
-                    aria-label={option.label}
-                    aria-describedby={`workspace-size-${option.key}-description`}
-                    checked={uiSettings.workspaceSize === option.key}
-                    onChange={() => updateWorkspaceSize(option.key)}
-                  />
-                  <span>
-                    <strong>{option.label}</strong>
-                    <small id={`workspace-size-${option.key}-description`}>
-                      {option.description}
-                    </small>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <p className="field-hint">
-              {workspaceLayout.key === 'auto'
-                ? 'Auto detect follows the current screen size and keeps the shell compressed for the visible viewport.'
-                : `${workspaceLayout.label} layout defaults keep the shell compact for ${workspaceLayout.width} x ${workspaceLayout.height}.`}
-            </p>
-          </section>
-
-          <section className="settings-section">
-            <div className="subsection-heading">
-              <div>
-                <p className="section-kicker">Display</p>
-                <h3>Text size</h3>
-              </div>
-              <span className="status-pill status-muted">
-                {Math.round(uiSettings.fontScale * 100)}%
-              </span>
-            </div>
-            <label className="field settings-field">
-              <span>Shell text size</span>
-              <input
-                aria-label="Shell text size"
-                type="range"
-                min="0.55"
-                max="1.15"
-                step="0.05"
-                value={uiSettings.fontScale}
-                onChange={(event) => updateFontScale(Number(event.target.value))}
-              />
-              <small className="field-hint">
-                Default is 65% for a compact standalone-first shell. Increase it
-                when presenting or using a larger display.
-              </small>
-            </label>
-            <label className="toggle-card settings-toggle-card">
-              <input
-                type="checkbox"
-                aria-label="Enable API setup tab"
-                checked={uiSettings.apiTabEnabled}
-                onChange={(event) => updateApiTabEnabled(event.target.checked)}
-              />
-              <span>
-                <strong>API setup tab</strong>
-                <small>
-                  Optional local companion or external API controls stay hidden
-                  until explicitly enabled.
-                </small>
-              </span>
-            </label>
-          </section>
-
-          <section className="settings-section">
-            <div className="subsection-heading">
-              <div>
-                <p className="section-kicker">Theme</p>
-                <h3>Panel colors</h3>
-              </div>
-            </div>
-            <div className="settings-grid">
-              {uiThemeFields.map((field) => (
-                <label key={field.key} className="field settings-field">
-                  <span>{field.label}</span>
-                  <input
-                    aria-label={field.label}
-                    type="color"
-                    value={uiSettings.theme[field.key]}
-                    onChange={(event) => updateUiColor(field.key, event.target.value)}
-                  />
-                  <small className="field-hint">{field.description}</small>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="settings-section">
-            <div className="subsection-heading">
-              <div>
-                <p className="section-kicker">Visibility</p>
-                <h3>Optional sections</h3>
-              </div>
-            </div>
-            <div className="toggle-grid settings-toggle-grid">
-              {uiSectionFields.map((field) => (
-                <label key={field.key} className="toggle-card">
-                  <input
-                    type="checkbox"
-                    checked={uiSettings.sections[field.key]}
-                    onChange={(event) =>
-                      toggleUiSection(field.key, event.target.checked)
-                    }
-                  />
-                  <span>
-                    <strong>{field.label}</strong>
-                    <small>{field.description}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="action-row">
-              <button
-                type="button"
-                className="secondary-action"
-                onClick={resetUiSettings}
-              >
-                Restore defaults
-              </button>
-            </div>
-          </section>
-
-          <section className="settings-section">
-            <div className="subsection-heading">
-              <div>
-                <p className="section-kicker">Support</p>
-                <h3>Report a bug</h3>
-              </div>
-            </div>
-            <div className="support-card">
-              <p>Send bug reports to pratik.saptarshi@outlook.com.</p>
-              <a href="mailto:pratik.saptarshi@outlook.com?subject=Stealth%20Lightbeacon%20bug%20report">
-                Report a bug
-              </a>
-            </div>
-          </section>
-        </section>
+        <SettingsTab
+          active={activeWorkspaceTab === 'settings'}
+          uiSettings={uiSettings}
+          updateWorkspaceSize={updateWorkspaceSize}
+          updateFontScale={updateFontScale}
+          updateApiTabEnabled={updateApiTabEnabled}
+          updateUiColor={updateUiColor}
+          toggleUiSection={toggleUiSection}
+          resetUiSettings={resetUiSettings}
+          workspaceSizeOptions={workspaceSizeOptions}
+          workspaceLayout={workspaceLayout}
+          uiThemeFields={uiThemeFields}
+          uiSectionFields={uiSectionFields}
+        />
       </main>
     </div>
   )

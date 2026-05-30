@@ -1632,9 +1632,11 @@ function App() {
     }
   }, [
     activeEvaluation?.evaluationId,
+    activeEvaluation,
     desktopRuntime,
     evaluationStatus?.terminal,
     recordActivity,
+    resultLoadState,
   ])
 
   useEffect(() => {
@@ -1707,6 +1709,8 @@ function App() {
     }
   }, [
     activeEvaluation?.evaluationId,
+    activeEvaluation,
+    artifactsLoadState,
     desktopRuntime,
     evaluationStatus?.terminal,
     recordActivity,

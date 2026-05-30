@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'docs', 'src-tauri', 'coverage']),
+  globalIgnores(['dist', 'docs', 'src-tauri', 'coverage', '.worktrees', '.pnpm-store', 'coverage-temp']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -17,6 +17,9 @@ export default defineConfig([
     ],
     languageOptions: {
       globals: globals.browser,
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

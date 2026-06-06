@@ -4,14 +4,14 @@ This roadmap is now historical and completion-oriented rather than forward
 planning. It records the phase model that was executed to make the desktop app
 work end to end with the sibling backend companion.
 
-Verified state on 2026-05-27:
+Verified state on 2026-06-06:
 
 - Desktop runtime features through recon, remote policy, and release hardening
   are implemented locally.
 - Backend companion work required by the original desktop plan is implemented in
   `/private/tmp/stealth-lightbeacon-phase-0a-0b`.
-- The remaining work in this repo is frontend verification follow-up plus
-  release-operability cleanup.
+- The remaining work in this repo is mostly residual hardening (multi-platform
+  packaging and SOLID refactors) and ongoing cross-repo publication parity.
 
 See
 [desktop-backend-contract.md](../../desktop-backend-contract.md)
@@ -54,7 +54,7 @@ for the current remediation backlog.
 | 3A | Complete | Managed local companion lifecycle |
 | 3B | Complete | Remote auth, compatibility, and transport substrate with surfaced UX |
 | 4 | Complete | Recon route, transport, and React workflow wiring |
-| 5 | Partial | Contract sync and local validation exist, but package-grade release validation remains incomplete |
+| 5 | Complete | Contract sync, package-grade release validation, and Tauri package checks are complete on this checkout. |
 
 ## Phase Summary
 
@@ -93,8 +93,8 @@ for the current remediation backlog.
 ### Phase 5
 
 - Contract sync and cross-repo validation became part of the release boundary.
-- Tauri package validation remains part of the release lane, but deterministic
-  readiness still needs hardening.
+- `pnpm run validate:release` now includes package build and deterministic shell
+  readiness checks used by local proofing.
 
 ## Completion Definition
 

@@ -2,7 +2,7 @@
 
 ## Current Branch Merge Plan
 
-- Branch: feat/phase5-tdd
+- Branch: phase5-release-validation
 - Base: main
 - Method: progressive checkpoint merges with validation after each step
 
@@ -46,3 +46,18 @@
   - node ./node_modules/vitest/vitest.mjs run src/__tests__/*.test.ts src/__tests__/*.tsx
 - Status: complete
 - Tag: checkpoint/main-phase5-3-queue-clean
+
+### Merge Checkpoint 4 — Release Validation Unblocking
+- Commit: 29ce408
+- Merge commit: TBD
+- Scope: type-only import cleanup, deterministic smoke fixture migration, and Tauri release-lane hardening
+- Validation run:
+  - python3 scripts/check_contract_sync.py
+  - python3 -m unittest discover -s tests/contracts -p "test_*.py"
+  - pnpm run test:coverage:frontend
+  - pnpm exec playwright test
+  - pnpm run test:python
+  - pnpm run test:rust
+  - pnpm run validate:release
+- Status: completed
+- Tag: checkpoint/main-phase5-4-release-validation

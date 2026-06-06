@@ -24,10 +24,9 @@ path serves both references here.
 - The first desktop launch opens at `800 x 600`, which keeps the default
   workspace compact and scroll-light.
 - Phases `0`, `1`, `2`, `3`, and `4` are complete and validated.
-- Phase `5` is partial because release validation and packaging still depend on
-  deterministic backend readiness and environment-specific Tauri packaging
-  checks, even though publication is documented through the tag-push workflow
-  and GitHub Actions.
+- Phase `5` is complete for package-grade release validation on the desktop
+  repository, including Tauri bundle construction and the local shell readiness
+  path used by release checks.
 - Linux packaging currently inherits GitHub advisory
   `GHSA-wrw7-89jp-8q8g` / `RUSTSEC-2024-0429` through the Tauri GTK/WebKit
   dependency chain (`glib 0.18.5`, patched in `glib >=0.20.0`). This is an

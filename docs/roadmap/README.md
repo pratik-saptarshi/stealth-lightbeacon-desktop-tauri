@@ -12,13 +12,13 @@ desktop client.
 
 ## Validation Surface
 
-- `npm run test:e2e` runs the browser suite that checks the tabbed shell,
-- `npm test` runs the unit suite for the React shell and desktop adapter seam.
-- `npm run test:coverage` measures the React shell coverage gate at 80 percent
+- `pnpm run test:e2e` runs the browser suite that checks the tabbed shell,
+- `pnpm run test` runs the unit suite for the React shell and desktop adapter seam.
+- `pnpm run test:coverage` measures the React shell coverage gate at 80 percent
   or higher.
-- `npm run test:e2e` also covers recon advisory visibility and axe-core scans
+- `pnpm run test:e2e` also covers recon advisory visibility and axe-core scans
   on the shell, Settings, and Audit views.
-- `npm run build` validates the production bundle.
+- `pnpm run build` validates the production bundle.
 
 ## Current Focus
 

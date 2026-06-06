@@ -12,7 +12,7 @@ Status was revalidated against the desktop repo and the backend worktree
 | 2. Results and artifacts | Complete | Result retrieval, artifact retrieval, and terminal snapshot persistence are implemented and validated against the backend worktree. |
 | 3. Recon | Complete | Backend route, desktop transport support, and operator workflow are wired in `src/App.tsx`. |
 | 4. Hybrid local and remote backend operations | Complete | Local companion lifecycle plus remote auth and compatibility UX are implemented. |
-| 5. History and release hardening | Partial | Contract sync, release validation, and packaging checks are implemented; remaining work is package-grade release validation hardening. |
+| 5. History and release hardening | Complete | Contract sync, release validation, and packaging checks are implemented and validated on this checkout. |
 
 ## Cross-Repo Execution Ledger
 
@@ -27,7 +27,7 @@ Status was revalidated against the desktop repo and the backend worktree
 | 3A. Local companion lifecycle management | Complete | Managed local companion startup, readiness, degraded state, and shutdown are implemented. |
 | 3B. Remote auth, version compatibility, transport policy | Complete | Remote HTTPS enforcement, auth token lookup, and compatibility UX are implemented. |
 | 4. Recon advisory API alignment | Complete | Backend recon route and desktop transport support are wired into the React shell. |
-| 5. Release hardening and contract-sync automation | Partial | Cross-repo validation exists; package-grade release validation still needs deterministic readiness hardening. |
+| 5. Release hardening and contract-sync automation | Complete | Cross-repo validation and package-grade release validation are now in place with deterministic release-lane checks. |
 
 ## Feature Map
 
@@ -59,8 +59,8 @@ Validation gate:
   surface mix and keep the Playwright and accessibility suite green.
 
 Validation gate:
-- `npm run test:coverage` passes.
-- `npm run test:e2e` passes.
+- `pnpm run test:coverage` passes.
+- `pnpm run test:e2e` passes.
 - The shell stays within the compact 800 x 600 scroll budget.
 
 ### Phase R3: Package-Grade Release Validation
@@ -70,10 +70,10 @@ Validation gate:
   record the `.app` artifact evidence.
 - R3-C3: Stabilize backend readiness and loopback health checks in the release
   lane so the validation path is deterministic.
-- R3-T1: Re-run `npm run validate:release` after the packaging lane is fixed.
+- R3-T1: Re-run `pnpm run validate:release` after the packaging lane is fixed.
 
 Validation gate:
-- `npm run validate:release` completes end to end.
+- `pnpm run validate:release` completes end to end.
 - The release lane exercises the Tauri package boundary, not only the web
   bundle.
 - Readiness failures are treated as a test or environment issue only after
@@ -85,10 +85,10 @@ Validation gate:
 
 ## Current Remaining Risk
 
-- Frontend coverage still needs the branch threshold tightened so the shell
-  surface reflects the agreed verification target.
-- Package-grade release validation still depends on deterministic backend
-  readiness and environment-specific Tauri packaging behavior.
+- Frontend coverage thresholds are enforced, but branch coverage tuning remains
+  an ongoing target as UI surfaces grow.
+- Platform-specific packaging variance outside this checkout still requires
+  periodic matrix validation in release tooling.
 
 ## Phase R5: Test-Layer Hardening (Unit + Integration + Playwright)
 
@@ -124,4 +124,3 @@ Validation gate:
 - `pnpm run test` passes without compilation or deadlock regressions.
 - `pnpm run test:e2e` successfully automates within Tauri frames.
 - Multi-platform GitHub Action triggers successfully.
-

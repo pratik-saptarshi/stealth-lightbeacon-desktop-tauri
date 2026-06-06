@@ -72,9 +72,8 @@ artifacts, recon output, and the canonical OpenAPI contract.
 ## Current Completion Status
 
 - Phases `0`, `1`, `2`, `3`, and `4`: complete and validated.
-- Phase `5`: partial, because contract sync and release validation exist, but
-  package-grade release validation still needs deterministic backend readiness
-  and environment-specific Tauri packaging behavior.
+- Phase `5`: complete on this checkout, including `pnpm run validate:release`
+  with package build and deterministic shell readiness.
 
 ## Integration
 

@@ -13,22 +13,26 @@
 - Completed Phase-5 checkpoint 3:
   - merge queue revalidation confirmed no additional feature branches/worktrees pending
     for mainline merge at this date.
+- Completed Phase-5 checkpoint 4:
+  - TypeScript and Rust release validation blockers were removed, including API type import cleanup, shell smoke stability fixes, and Playwright fixture migration.
+- Completed end-to-end package-grade release validation via:
+  - `pnpm run validate:release` (including Tauri package build).
 
 ### Validation Evidence
 
+- `pnpm run validate:release`
 - `python3 scripts/check_contract_sync.py`
 - `python3 -m unittest discover -s tests/contracts -p "test_*.py"`
-- `node ./node_modules/vitest/vitest.mjs run src/__tests__/app-shell.test.tsx`
-- `node ./node_modules/vitest/vitest.mjs run src/__tests__/app-helpers.test.ts src/lib/desktop.test.ts`
-- `node ./node_modules/vitest/vitest.mjs run src/__tests__/*.test.ts src/__tests__/*.tsx`
+- `pnpm run test -- --run src/lib/desktop.test.ts src/__tests__/app-shell.test.tsx`
+- `pnpm exec playwright test` (browser-smoke and a11y scenarios)
 
 ### Current Roadmap Completion
 
 - Phases 0, 1, 2, 3, and 4 are complete.
-- Phase 5 remains partial:
-  - `R5` validation tasks are partially complete.
-  - package-grade release validation in `R3` still depends on deterministic
-    environment checks and successful execution of the full `validate:release` lane.
+- `R5` validation tasks completed in this checkpoint with full release gating on
+  the local branch.
+- `R3` now includes Tauri package build execution as part of release validation,
+  and the blocker for deterministic `validate:release` completion has been resolved.
 
 ### Track Note
 

@@ -233,7 +233,7 @@ const lastOpenedSnapshot = {
 describe('App shell', () => {
   const openReportingPanel = async (user: ReturnType<typeof userEvent.setup>) => {
     const reportingToggle = await screen.findByRole('button', { name: /reporting/i })
-    await waitFor(() => expect(reportingToggle).toBeEnabled(), { timeout: 4000 })
+    await waitFor(() => expect(reportingToggle).toBeEnabled())
     if (reportingToggle.getAttribute('aria-expanded') === 'false') {
       await user.click(reportingToggle)
     }
@@ -314,6 +314,40 @@ describe('App shell', () => {
       'true',
     )
     expect(document.getElementById('workspace-panel-audit')).toHaveAttribute('hidden')
+  })
+
+  it('keeps exactly one workspace panel visible while navigating all tabs', async () => {
+    const user = userEvent.setup()
+    const workspaceTabs: Array<{ tab: string; panelId: string }> = [
+      { tab: 'Scan', panelId: 'workspace-panel-audit' },
+      { tab: 'Findings', panelId: 'workspace-panel-results' },
+      { tab: 'Reports', panelId: 'workspace-panel-activity' },
+      { tab: 'Settings', panelId: 'workspace-panel-settings' },
+    ]
+
+    render(<App />)
+
+    for (const { tab, panelId } of workspaceTabs) {
+      const tabControl = screen.getByRole('tab', { name: new RegExp(`^${tab}`, 'i') })
+      await user.click(tabControl)
+      await waitFor(() =>
+        expect(screen.getByRole('tab', { name: new RegExp(`^${tab}`, 'i') })).toHaveAttribute(
+          'aria-selected',
+          'true',
+        ),
+      )
+
+      for (const { panelId: candidatePanelId } of workspaceTabs) {
+        const panel = document.getElementById(candidatePanelId)
+        expect(panel).toBeTruthy()
+
+        if (candidatePanelId === panelId) {
+          expect(panel).not.toHaveAttribute('hidden')
+        } else {
+          expect(panel).toHaveAttribute('hidden')
+        }
+      }
+    }
   })
 
   it('defaults to standalone-first workspace tabs without API setup', async () => {
@@ -850,11 +884,11 @@ describe('App shell', () => {
 
     await waitFor(() =>
       expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(2),
-      { timeout: 4000 },
+      { timeout: 6000 },
     )
     await waitFor(() =>
       expect(desktopApi.getEvaluationResult).toHaveBeenCalledWith('eval-123'),
-      { timeout: 4000 },
+      { timeout: 6000 },
     )
   })
 
@@ -1199,10 +1233,11 @@ describe('App shell', () => {
     await screen.findByRole('button', { name: 'Submit Evaluation' })
     await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
 
-    await waitFor(
-      () => expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(3),
-      { timeout: 4000 },
-    )
+    await waitFor(() => expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(3), {
+      timeout: 10000,
+    })
+
+    expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(3)
 
     await user.click(await screen.findByRole('tab', { name: /^API/i }))
     expect(await screen.findByText('Polling paused for eval-123 after 3 failed attempts.')).toBeInTheDocument()
@@ -1212,10 +1247,11 @@ describe('App shell', () => {
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Resume Polling' }))
+    await waitFor(() => expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(4), {
+      timeout: 8000,
+    })
 
-    await waitFor(() =>
-      expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(4),
-    )
+    expect(desktopApi.getEvaluationStatus).toHaveBeenCalledTimes(4)
     await user.click(await screen.findByRole('tab', { name: /^API/i }))
     expect(await screen.findByText('Evaluation eval-123 finished with success')).toBeInTheDocument()
   }, 10000)

@@ -49,7 +49,7 @@
 
 ### Merge Checkpoint 4 — Release Validation Unblocking
 - Commit: c79b973
-- Merge commit: c7d5a65
+- Merge commit: c539add
 - Scope: type-only import cleanup, deterministic smoke fixture migration, and Tauri release-lane hardening
 - Validation run:
   - python3 scripts/check_contract_sync.py

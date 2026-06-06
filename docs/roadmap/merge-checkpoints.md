@@ -2,48 +2,34 @@
 
 ## Current Branch Merge Plan
 
-- Branch: 
-- Base: 
+- Branch: feat/phase5-tdd
+- Base: main
 - Method: progressive checkpoint merges with validation after each step
 
 ## Checkpoints
 
 ### Merge Checkpoint 1 — pnpm Validation Parity
-- Commit: 
-- Merge commit: 
+- Commit: 8a0ee7c
+- Merge commit: 2f90129
 - Scope: desktop validation/CLI parity
-  - 
-  - 
-  - 
-  - 
+  - scripts/browser_smoke.mjs
+  - scripts/validate_shell.mjs
+  - scripts/release_validate.py
+  - tests/contracts/test_release_validate_a11y.py
 - Validation run:
-  - contract-sync: ok ✅
-  -  ✅
-  - 
- RUN  v4.1.7 /Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri
-
-
- Test Files  1 passed (1)
-      Tests  38 passed (38)
-   Start at  13:46:02
-   Duration  14.53s (transform 217ms, setup 203ms, import 504ms, tests 12.01s, environment 1.52s) ✅
+  - python3 scripts/check_contract_sync.py
+  - python3 -m unittest discover -s tests/contracts -p "test_*.py"
+  - node ./node_modules/vitest/vitest.mjs run src/__tests__/app-shell.test.tsx
 - Status: completed
-- Tag: 
+- Tag: checkpoint/main-phase5-1-merge-1
 
 ### Merge Checkpoint 2 — Polling Determinism & Panel UX
-- Commit: 
-- Merge commit: 
-- Scope:  determinism and polling assertions
+- Commit: fb16751
+- Merge commit: bb192ba
+- Scope: src/__tests__/app-shell.test.tsx determinism and polling assertions
 - Validation run:
-  - contract-sync: ok ✅
-  -  ✅
-  - 
- RUN  v4.1.7 /Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri
-
-
- Test Files  5 passed (5)
-      Tests  65 passed (65)
-   Start at  13:46:18
-   Duration  22.00s (transform 921ms, setup 1.93s, import 5.28s, tests 17.75s, environment 14.18s) ✅
+  - python3 scripts/check_contract_sync.py
+  - python3 -m unittest discover -s tests/contracts -p "test_*.py"
+  - node ./node_modules/vitest/vitest.mjs run src/__tests__/*.test.ts src/__tests__/*.tsx
 - Status: completed
-- Tag: 
+- Tag: checkpoint/main-phase5-2-merge-2

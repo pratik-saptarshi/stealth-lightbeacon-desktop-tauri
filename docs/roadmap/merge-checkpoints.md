@@ -48,7 +48,7 @@
 - Tag: checkpoint/main-phase5-3-queue-clean
 
 ### Merge Checkpoint 4 — Release Validation Unblocking
-- Commit: 29ce408
+- Commit: ccb9dfe
 - Merge commit: TBD
 - Scope: type-only import cleanup, deterministic smoke fixture migration, and Tauri release-lane hardening
 - Validation run:

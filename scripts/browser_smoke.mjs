@@ -499,9 +499,9 @@ async function launchPreviewServer(previewPort) {
   const preview = spawn(
     'pnpm',
     [
-      'run',
+      'exec',
+      'vite',
       'preview',
-      '--',
       '--host',
       '127.0.0.1',
       '--port',

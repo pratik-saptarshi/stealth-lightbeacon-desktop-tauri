@@ -1,11 +1,6 @@
 import React from 'react'
-import {
-  EvaluationStatusResponse,
-  EvaluationResultResponse,
-  ArtifactDescriptor,
-  EvaluationResultView,
-  HistoryEntry,
-} from '../App.types'
+import type { ArtifactDescriptor, EvaluationResultResponse, EvaluationStatusResponse } from '../lib/desktop'
+import type { EvaluationResultView, HistoryEntry } from '../App.types'
 
 interface EvaluationTableProps {
   showTerminalReport: boolean

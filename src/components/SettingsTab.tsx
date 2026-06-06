@@ -1,5 +1,5 @@
 import React from 'react'
-import { UiSettings, WorkspaceSizeKey, WorkspaceLayout, ThemeField, SectionField } from '../App.types'
+import type { UiSettings, WorkspaceSizeKey, WorkspaceLayout, ThemeField, SectionField } from '../App.types'
 
 interface SettingsTabProps {
   active: boolean

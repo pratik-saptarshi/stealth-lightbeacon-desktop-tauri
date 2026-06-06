@@ -29,9 +29,9 @@ pub struct BackendConfig {
     pub timeout_ms: u64,
 }
 
-const DEFAULT_LOCAL_BASE_URL: &str = "http://127.0.0.1:8000";
-const DEFAULT_LOCAL_PORT: u16 = 8000;
-const DEFAULT_TIMEOUT_MS: u64 = 15_000;
+pub(crate) const DEFAULT_LOCAL_BASE_URL: &str = "http://127.0.0.1:8000";
+pub(crate) const DEFAULT_LOCAL_PORT: u16 = 8000;
+pub(crate) const DEFAULT_TIMEOUT_MS: u64 = 15_000;
 
 impl Default for BackendConfig {
     fn default() -> Self {

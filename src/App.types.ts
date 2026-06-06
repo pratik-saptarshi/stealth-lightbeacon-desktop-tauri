@@ -1,5 +1,3 @@
-import type { BackendConfig, HealthResponse, CapabilitiesResponse, ArtifactDescriptor } from './lib/desktop'
-
 export type ActivityItem = {
   id: number
   title: string

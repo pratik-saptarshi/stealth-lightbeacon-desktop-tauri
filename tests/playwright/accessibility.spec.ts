@@ -1,6 +1,8 @@
-import { expect, test } from './app-shell.spec'
+import { expect, test } from '@playwright/test'
 
 import { expectNoA11yViolations } from './axe'
+
+const appUrl = 'http://127.0.0.1:4180'
 
 test.describe('Accessibility scan', () => {
   test.beforeEach(async ({ page }) => {

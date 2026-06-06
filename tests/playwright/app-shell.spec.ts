@@ -2,12 +2,12 @@ import { expect, test as base } from '@playwright/test'
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
 
-const appUrl = 'http://127.0.0.1:4180'
+export const appUrl = 'http://127.0.0.1:4180'
 
 // Custom fixture that handles native Tauri process lifecycle
 export const test = base.extend<{ tauriApp: ChildProcess | null }>({
-  tauriApp: [async ({ page }, use) => {
-    const isTauriNative = page.context().project().name === 'tauri-native'
+  tauriApp: [async ({}, use, testInfo) => {
+    const isTauriNative = testInfo.project.name === 'tauri-native'
     let tauriProcess: ChildProcess | null = null
 
     if (isTauriNative) {

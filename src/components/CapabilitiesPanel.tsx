@@ -1,5 +1,5 @@
 import React from 'react'
-import { HealthResponse, CapabilitiesResponse } from '../App.types'
+import type { HealthResponse, CapabilitiesResponse } from '../lib/desktop'
 
 interface CapabilitiesPanelProps {
   showBackendSurface: boolean

@@ -18,3 +18,19 @@ class ReleaseValidateA11yTest(unittest.TestCase):
             release_validate.index("validate:shell"),
             release_validate.index("check_contract_sync.py"),
         )
+
+    def test_release_lane_prefers_pnpm_instead_of_npm(self) -> None:
+        release_validate = (ROOT / "scripts" / "release_validate.py").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertIn("[\"pnpm\", \"run\", \"validate:shell\"]", release_validate)
+        self.assertIn("[\"pnpm\", \"run\", \"test:e2e\"]", release_validate)
+        self.assertIn("[\"pnpm\", \"run\", \"test\", \"--\", \"--run\"", release_validate)
+        self.assertIn("[\"pnpm\", \"run\", \"build\"]", release_validate)
+        self.assertIn("[\"pnpm\", \"run\", \"tauri:build\"]", release_validate)
+
+        self.assertNotIn('run(["npm", "run", "validate:shell"]', release_validate)
+        self.assertNotIn('run(["npm", "run", "test:e2e"]', release_validate)
+        self.assertNotIn('run(["npm", "run", "build"]', release_validate)
+        self.assertNotIn('run(["npm", "run", "tauri:build"]', release_validate)

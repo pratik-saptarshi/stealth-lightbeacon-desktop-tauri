@@ -21,7 +21,7 @@ def main() -> None:
     backend_root = discover_backend_root()
     backend_python = backend_python_path(backend_root)
 
-    run(["npm", "run", "validate:shell"], cwd=ROOT)
+    run(["pnpm", "run", "validate:shell"], cwd=ROOT)
     run([sys.executable, "scripts/check_contract_sync.py"], cwd=ROOT)
     run([str(backend_python), "-m", "pytest"], cwd=backend_root)
     run(
@@ -29,13 +29,13 @@ def main() -> None:
         cwd=ROOT,
     )
     run(
-        ["npm", "run", "test", "--", "--run", "src/lib/desktop.test.ts", "src/__tests__/app-shell.test.tsx"],
+        ["pnpm", "run", "test", "--", "--run", "src/lib/desktop.test.ts", "src/__tests__/app-shell.test.tsx"],
         cwd=ROOT,
     )
-    run(["npm", "run", "test:e2e"], cwd=ROOT)
+    run(["pnpm", "run", "test:e2e"], cwd=ROOT)
     run(["cargo", "test", "--manifest-path", "src-tauri/Cargo.toml"], cwd=ROOT)
-    run(["npm", "run", "build"], cwd=ROOT)
-    run(["npm", "run", "tauri:build"], cwd=ROOT)
+    run(["pnpm", "run", "build"], cwd=ROOT)
+    run(["pnpm", "run", "tauri:build"], cwd=ROOT)
 
     print("release-validation: ok")
 

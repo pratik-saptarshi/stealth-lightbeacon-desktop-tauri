@@ -497,7 +497,7 @@ async function assertWorkspaceTabs(client, sessionId) {
 
 async function launchPreviewServer(previewPort) {
   const preview = spawn(
-    'npm',
+    'pnpm',
     [
       'run',
       'preview',
@@ -665,7 +665,7 @@ async function runScenario(scenario) {
 }
 
 async function main() {
-  run('npm', ['run', 'build'], ROOT)
+  run('pnpm', ['run', 'build'], ROOT)
 
   const smokeScenarios = [
     createBrowserScenario('recon flow', 'recon', {

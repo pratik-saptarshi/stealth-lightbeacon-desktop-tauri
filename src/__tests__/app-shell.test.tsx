@@ -692,7 +692,7 @@ describe('App shell', () => {
     expect(within(reconDetails).getAllByText('cloudflare, status:403').length).toBeGreaterThan(0)
   })
 
-  it.skip('clears recon output when the target changes during a pending rerun', async () => {
+  it('clears recon output when the target changes during a pending rerun', async () => {
     const user = userEvent.setup()
     desktopApi.getCapabilities.mockResolvedValueOnce({
       ...capabilities,

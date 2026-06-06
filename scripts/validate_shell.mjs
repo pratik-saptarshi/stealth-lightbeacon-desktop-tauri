@@ -517,7 +517,7 @@ async function runA11yScan(scenario) {
 }
 
 async function main() {
-  run('npm', ['run', 'build'], ROOT)
+  run('pnpm', ['run', 'build'], ROOT)
 
   const smokeScenarios = [
     {

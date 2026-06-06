@@ -33,3 +33,16 @@
   - node ./node_modules/vitest/vitest.mjs run src/__tests__/*.test.ts src/__tests__/*.tsx
 - Status: completed
 - Tag: checkpoint/main-phase5-2-merge-2
+
+### Merge Checkpoint 3 — Merge Queue Revalidation
+- Branch candidates checked:
+  - local: feat/phase5-tdd, main
+  - remote: origin/main only
+- Decision: no additional merge-ready worktrees/features detected on 2026-06-06.
+- Scope: merge orchestration only
+- Validation run:
+  - python3 scripts/check_contract_sync.py
+  - python3 -m unittest discover -s tests/contracts -p "test_*.py"
+  - node ./node_modules/vitest/vitest.mjs run src/__tests__/*.test.ts src/__tests__/*.tsx
+- Status: complete
+- Tag: checkpoint/main-phase5-3-queue-clean

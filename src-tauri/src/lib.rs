@@ -8,13 +8,18 @@ use std::{
     collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::RwLock,
     time::{Duration, Instant},
 };
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use tauri::{path::BaseDirectory, AppHandle, Manager, State};
+
+use crate::domain::{
+    load_last_opened_snapshot_from,
+    save_last_opened_snapshot_to,
+};
 
 const BACKEND_CONFIG_FILE: &str = "backend-config.json";
 const LAST_OPENED_SNAPSHOT_FILE: &str = "snapshots/last-opened-terminal-snapshot.json";
@@ -300,101 +305,6 @@ fn load_backend_config(app: &AppHandle) -> Result<BackendConfig, ApiError> {
 
 fn save_backend_config(app: &AppHandle, config: &BackendConfig) -> Result<(), ApiError> {
     save_backend_config_to(&config_path(app)?, config)
-}
-
-fn validate_last_opened_snapshot(snapshot: &LastOpenedSnapshot) -> Result<(), ApiError> {
-    validate_evaluation_id(&snapshot.evaluation.evaluation_id)?;
-    validate_evaluation_id(&snapshot.evaluation_status.evaluation_id)?;
-    validate_evaluation_id(&snapshot.evaluation_result.evaluation_id)?;
-
-    if !snapshot.evaluation_status.terminal {
-        return Err(ApiError::new(
-            "invalid_snapshot",
-            "Last-opened snapshot requires a terminal evaluation status.",
-        ));
-    }
-
-    if snapshot.evaluation.evaluation_id != snapshot.evaluation_status.evaluation_id
-        || snapshot.evaluation.evaluation_id != snapshot.evaluation_result.evaluation_id
-    {
-        return Err(ApiError::new(
-            "invalid_snapshot",
-            "Last-opened snapshot evaluation ids must match.",
-        ));
-    }
-
-    for artifact in &snapshot.artifacts {
-        if artifact.name.trim().is_empty()
-            || artifact.kind.trim().is_empty()
-            || artifact.media_type.trim().is_empty()
-        {
-            return Err(ApiError::new(
-                "invalid_snapshot",
-                "Last-opened snapshot artifacts require name, kind, and media type.",
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-fn load_last_opened_snapshot_from(path: &Path) -> Result<Option<LastOpenedSnapshot>, ApiError> {
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let raw = fs::read_to_string(path).map_err(|err| {
-        ApiError::with_details(
-            "snapshot_read_error",
-            "Unable to read the last-opened snapshot file.",
-            err.to_string(),
-        )
-    })?;
-
-    let snapshot = serde_json::from_str::<LastOpenedSnapshot>(&raw).map_err(|err| {
-        ApiError::with_details(
-            "snapshot_parse_error",
-            "Unable to parse the last-opened snapshot file.",
-            err.to_string(),
-        )
-    })?;
-
-    validate_last_opened_snapshot(&snapshot)?;
-
-    Ok(Some(snapshot))
-}
-
-fn save_last_opened_snapshot_to(
-    path: &Path,
-    snapshot: &LastOpenedSnapshot,
-) -> Result<(), ApiError> {
-    validate_last_opened_snapshot(snapshot)?;
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|err| {
-            ApiError::with_details(
-                "snapshot_write_error",
-                "Unable to create the last-opened snapshot directory.",
-                err.to_string(),
-            )
-        })?;
-    }
-
-    let serialized = serde_json::to_string_pretty(snapshot).map_err(|err| {
-        ApiError::with_details(
-            "snapshot_serialize_error",
-            "Unable to serialize the last-opened snapshot.",
-            err.to_string(),
-        )
-    })?;
-
-    fs::write(path, serialized).map_err(|err| {
-        ApiError::with_details(
-            "snapshot_write_error",
-            "Unable to persist the last-opened snapshot.",
-            err.to_string(),
-        )
-    })
 }
 
 fn load_last_opened_snapshot(app: &AppHandle) -> Result<Option<LastOpenedSnapshot>, ApiError> {

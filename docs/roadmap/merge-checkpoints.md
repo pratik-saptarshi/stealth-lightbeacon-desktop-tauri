@@ -61,3 +61,18 @@
   - pnpm run validate:release
 - Status: completed
 - Tag: checkpoint/main-phase5-4-release-validation
+
+### Merge Checkpoint 5 — Companion Readiness Backoff
+- Branch: feat/r7-local-backoff
+- Base: main
+- Scope: local companion readiness polling stability
+- Code changes:
+  - `src-tauri/src/lib.rs`
+    - introduce `companion_health_retry_delay_ms`
+    - switch `wait_for_local_backend_health` to exponential backoff (100→1600ms cap)
+- Test coverage:
+  - `cargo test --lib tests::companion_health_retry_delay_is_exponential_with_cap -- --exact`
+- Validation status:
+  - test passes (1/1 in scope)
+  - existing full Rust suite remains environment-constrained (listener `Operation not permitted` on local fixture binding)
+- Tag: checkpoint/main-r7-local-backoff-1

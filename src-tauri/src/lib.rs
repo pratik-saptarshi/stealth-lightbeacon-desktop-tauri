@@ -994,6 +994,22 @@ fn validate_evaluation_id(evaluation_id: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+fn companion_health_retry_delay_ms(
+    attempt: usize,
+    base: Duration,
+    max: Duration,
+) -> Duration {
+    let mut delay_ms = base.as_millis() as u64;
+    for _ in 0..attempt {
+        delay_ms = delay_ms.saturating_mul(2);
+        if delay_ms >= max.as_millis() as u64 {
+            return max;
+        }
+    }
+    let max_ms = max.as_millis() as u64;
+    Duration::from_millis(std::cmp::min(delay_ms, max_ms))
+}
+
 fn validate_recon_request(request: &ReconRequest) -> Result<(), ApiError> {
     if request.target.trim().is_empty() {
         return Err(ApiError::new(
@@ -1022,6 +1038,7 @@ fn current_backend_config_from_app_state(state: &AppState) -> Result<BackendConf
 
 async fn wait_for_local_backend_health(config: &BackendConfig) -> Result<(), ApiError> {
     let deadline = Instant::now() + Duration::from_millis(config.timeout_ms.max(1_000));
+    let mut attempt = 0_usize;
     loop {
         match api_health_check_impl(config).await {
             Ok(health) if health.status == "ok" => return Ok(()),
@@ -1043,7 +1060,13 @@ async fn wait_for_local_backend_health(config: &BackendConfig) -> Result<(), Api
                 config.base_url.clone(),
             ));
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        let delay = companion_health_retry_delay_ms(
+            attempt,
+            Duration::from_millis(100),
+            Duration::from_millis(1_600),
+        );
+        tokio::time::sleep(delay).await;
+        attempt = attempt.saturating_add(1);
     }
 }
 
@@ -1709,6 +1732,34 @@ mod tests {
         let error = validate_backend_config(&config).expect_err("invalid remote config");
         assert_eq!(error.code, "invalid_config");
         assert_eq!(error.message, "Remote backends must use https.");
+    }
+
+    #[test]
+    fn companion_health_retry_delay_is_exponential_with_cap() {
+        let base = Duration::from_millis(100);
+        let max = Duration::from_millis(1600);
+
+        assert_eq!(companion_health_retry_delay_ms(0, base, max), base);
+        assert_eq!(
+            companion_health_retry_delay_ms(1, base, max),
+            Duration::from_millis(200)
+        );
+        assert_eq!(
+            companion_health_retry_delay_ms(2, base, max),
+            Duration::from_millis(400)
+        );
+        assert_eq!(
+            companion_health_retry_delay_ms(3, base, max),
+            Duration::from_millis(800)
+        );
+        assert_eq!(
+            companion_health_retry_delay_ms(4, base, max),
+            Duration::from_millis(1600)
+        );
+        assert_eq!(
+            companion_health_retry_delay_ms(5, base, max),
+            Duration::from_millis(1600)
+        );
     }
 
     #[test]

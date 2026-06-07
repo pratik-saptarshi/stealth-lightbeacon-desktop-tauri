@@ -1016,6 +1016,20 @@ function buildArtifactDownloadRows(artifacts: ArtifactDescriptor[]): ReportDownl
   return downloads
 }
 
+function buildReportDownloadRows(
+  artifacts: ArtifactDescriptor[],
+  result: EvaluationResultResponse | null,
+  evaluationId: string | null | undefined,
+): ReportDownloadView[] {
+  const artifactDownloads = buildArtifactDownloadRows(artifacts)
+
+  if (artifactDownloads.length > 0 || !result || !evaluationId) {
+    return artifactDownloads
+  }
+
+  return buildEvaluationReportDownloads(evaluationId, result, artifacts)
+}
+
 export function upsertEvaluationHistoryView(
   history: EvaluationHistoryView[],
   entry: EvaluationHistoryView,
@@ -2081,7 +2095,11 @@ function App() {
     ? buildEvaluationResultView(evaluationResult)
     : null
   const reconResultView = reconResult ? buildReconResultView(reconResult) : null
-  const artifactDownloadRows = buildArtifactDownloadRows(artifacts)
+  const artifactDownloadRows = buildReportDownloadRows(
+    artifacts,
+    evaluationResult,
+    activeEvaluation?.evaluationId,
+  )
   const remoteDraftMode = draftConfig.mode === 'remote'
   const reportAvailable = Boolean(evaluationStatus?.terminal)
   const shellStyle = buildUiShellStyle(uiSettings)

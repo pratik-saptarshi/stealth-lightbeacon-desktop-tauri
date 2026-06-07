@@ -1075,6 +1075,29 @@ describe('App shell', () => {
     expect(desktopApi.getEvaluationStatus).not.toHaveBeenCalled()
   })
 
+  it('renders generated report downloads when snapshot artifacts lack URLs', async () => {
+    const user = userEvent.setup()
+    desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce({
+      ...lastOpenedSnapshot,
+      artifacts: [
+        { ...artifacts[0], downloadUrl: null },
+        { ...artifacts[1], downloadUrl: null },
+      ],
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    const reportsPanel = screen.getByRole('tabpanel', { name: /^Reports/i })
+    const reportLinks = within(reportsPanel).getAllByRole('link', { name: /Download /i })
+
+    expect(reportLinks).toHaveLength(3)
+    expect(reportLinks[0]).toHaveAttribute('href', expect.stringMatching(/^data:application\/json;/))
+    expect(reportLinks[1]).toHaveAttribute('href', expect.stringMatching(/^data:text\/markdown;/))
+    expect(reportLinks[2]).toHaveAttribute('href', expect.stringMatching(/^data:text\/html;/))
+    expect(within(reportsPanel).queryByText('No report downloads available yet.')).not.toBeInTheDocument()
+  })
+
   it('collapses trace and reporting panels on demand', async () => {
     const user = userEvent.setup()
     desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)

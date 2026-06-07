@@ -1,8 +1,8 @@
 {
   "metadata": {
     "version": "1.0.0",
-    "last_run": "2026-05-27T13:15:03.091Z",
-    "root": "/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri/.worktrees/release-docs",
+    "last_run": "2026-06-07T17:41:15.955Z",
+    "root": "/Volumes/dev/Git-SCM/stealth-lightbeacon-desktop-tauri",
     "include_patterns": [
       "src/**/*.ts",
       "src/**/*.tsx",
@@ -23,21 +23,32 @@
     "exceptions": []
   },
   "file_hashes": {
-    "package.json": "4be325e51c17aa4f64b0019709773495",
-    "src-tauri/Cargo.toml": "e99ac5213dc94e06caeed51c18315962",
-    "src-tauri/src/lib.rs": "0035dab7fb619535d5202a00477d920c",
+    "package.json": "ab63ff7ae2ed6019394b8dd58480efb7",
+    "src-tauri/Cargo.toml": "11250eebdd691ae052504b12f61309c7",
+    "src-tauri/src/commands/mod.rs": "b6d17d7d38e995641390cd6ce8e6e855",
+    "src-tauri/src/domain/mod.rs": "cdd90f6e984ff658d4b0f434d265cfc7",
+    "src-tauri/src/domain/snapshot.rs": "2298cf048efa630bae4244cd8dd6d0df",
+    "src-tauri/src/lib.rs": "4bdcbbb97024f88e8222dc2f0b4706ef",
     "src-tauri/src/main.rs": "fc68ca29d34230a199f6a097333d4601",
-    "src/App.tsx": "4d2deafe385f715f8808d3ea68e557b3",
-    "src/lib/desktop.ts": "ff4e484ea9e1ed94d75ab43652a42bdb",
+    "src/App.tsx": "3f2d75d5275630996090c804fa00318b",
+    "src/App.types.ts": "0ea3e8cf84f2e1d9f14d86331b076e33",
+    "src/components/CapabilitiesPanel.tsx": "36faed3b68a89dc18e227c13cdef8e2a",
+    "src/components/EvaluationTable.tsx": "8ae0bed1c2806e9efc8f512e53f15cb5",
+    "src/components/SettingsTab.tsx": "3724969de9416dc81be5ab3659fd080a",
+    "src/lib/desktop.ts": "e8184b9597fbc6bd17df33aca2021d3a",
+    "src/lib/desktop.types.ts": "366a0f6573a5a69ce0c2034aa28cc0cf",
     "src/main.tsx": "787e5a07efeb2bf6209d5937195f2f68",
     "src/test/setup.ts": "2c271435e60d9aeb6cd3a5e1e122a5c0"
   },
   "folder_hashes": {
-    ".": "552a91a3c1d0125cba44a1f009f9934f",
-    "src-tauri": "568473a02c5f68208e0675f0563ce044",
-    "src-tauri/src": "1324d517a4435fad44073d7d952bf5a0",
-    "src": "d532e4a2bb23261d9406fa79c55f97bb",
-    "src/lib": "16567e7b9959425f5ca27f1a7b888891",
+    ".": "d8522e3f7ad1bcf1f6e69b059bf1c37e",
+    "src-tauri": "9d649617fa0f4f0c27d842974c79bcb8",
+    "src-tauri/src": "0e733b7e22e2489dadbb0d50e6c8103a",
+    "src-tauri/src/commands": "a07a2179fa23e8c6fa82d40dc084b05c",
+    "src-tauri/src/domain": "1e8454b9554e83c0360ce8b792706e22",
+    "src": "a393d0ffce65702a0443b2b14d6fa1d9",
+    "src/components": "99571f60a3b2f3baf6ae32faa620a08c",
+    "src/lib": "20e19d0fb12b4a27f180bbc6403a89fe",
     "src/test": "a03e7d50e87a31eb41dbef57402c3aca"
   }
 }

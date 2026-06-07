@@ -43,6 +43,8 @@ artifacts, recon output, and the canonical OpenAPI contract.
 | `src/lib/` | Frontend adapter seam to Tauri commands | [src/lib/codemap.md](src/lib/codemap.md) |
 | `src-tauri/` | Packaged Tauri app, build metadata, and packaging config | [src-tauri/codemap.md](src-tauri/codemap.md) |
 | `src-tauri/src/` | Rust transport/runtime boundary and IPC tests | [src-tauri/src/codemap.md](src-tauri/src/codemap.md) |
+| `src-tauri/src/commands/` | Tauri command entry points and mode dispatch | [src-tauri/src/commands/codemap.md](src-tauri/src/commands/codemap.md) |
+| `src-tauri/src/domain/` | Runtime domain models and snapshot persistence helpers | [src-tauri/src/domain/codemap.md](src-tauri/src/domain/codemap.md) |
 | `contracts/` | Pinned backend OpenAPI snapshot | contract assertions and sync target |
 | `scripts/` | Drift sync and release validation automation | release gate helpers |
 | `tests/` | Python contract checks and backend-facing fixtures | contract test suite |
@@ -74,6 +76,8 @@ artifacts, recon output, and the canonical OpenAPI contract.
 - Phases `0`, `1`, `2`, `3`, and `4`: complete and validated.
 - Phase `5`: complete on this checkout, including `pnpm run validate:release`
   with package build and deterministic shell readiness.
+- Checkpoint `6`: `R7-C4` snapshot persistence moved to `src-tauri/src/domain`,
+  with command wiring kept in `src-tauri/src/commands`.
 
 ## Integration
 

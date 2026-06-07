@@ -64,3 +64,10 @@ and turns those commands into HTTP calls against the Stealth Lightbeacon API.
   round-tripping, invalid input rejection, local companion lifecycle, real
   backend integration, result and artifact retrieval, recon, snapshot
   persistence, and release-time readiness assumptions.
+
+## Subdirectories
+
+- [commands/](commands/codemap.md): Tauri command entry points (`#[tauri::command]`)
+  with mode-aware dispatch between standalone behavior and HTTP-backed paths.
+- [domain/](domain/codemap.md): Shared runtime domain models plus snapshot
+  persistence/validation helpers (`snapshot.rs`).

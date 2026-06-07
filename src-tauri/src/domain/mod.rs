@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     process::Child,
     time::Instant,
 };
+
+mod snapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -248,3 +249,8 @@ pub struct StandaloneEvaluation {
     pub created_at: Instant,
     pub findings: Vec<serde_json::Value>,
 }
+
+pub(crate) use snapshot::{
+    load_last_opened_snapshot_from,
+    save_last_opened_snapshot_to,
+};

@@ -76,3 +76,23 @@
   - test passes (1/1 in scope)
   - existing full Rust suite remains environment-constrained (listener `Operation not permitted` on local fixture binding)
 - Tag: checkpoint/main-r7-local-backoff-1
+
+### Merge Checkpoint 6 — R7-C4 Snapshot Domain Extraction
+- Branch: feat/r7-c4-commands-modularization
+- Base: main
+- Scope: move last-opened snapshot persistence validation/load/save helpers into
+  `src-tauri/src/domain/snapshot.rs` and keep `lib.rs` command wiring thin
+
+  - `src-tauri/src/domain/snapshot.rs` (new):
+    - `validate_last_opened_snapshot`
+    - `load_last_opened_snapshot_from`
+    - `save_last_opened_snapshot_to`
+  - `src-tauri/src/lib.rs`:
+    - delegate snapshot persistence helpers to domain module
+    - retain path resolution wrappers used by command handlers
+
+- Validation status:
+  - `cargo test domain::snapshot::tests::validate_snapshot_rejects_non_terminal_status -- --exact` (pass)
+  - `cargo test domain::snapshot::tests::validate_snapshot_rejects_artifacts_with_empty_media_type -- --exact` (pass)
+  - `cargo test tests::last_opened_snapshot_round_trips_on_disk -- --exact` (pass)
+  - broader `cargo test --lib` remains environment-constrained (`Operation not permitted` on listener bind for network-heavy suite)

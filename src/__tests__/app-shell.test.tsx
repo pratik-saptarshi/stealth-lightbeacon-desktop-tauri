@@ -1095,6 +1095,9 @@ describe('App shell', () => {
     expect(reportLinks[0]).toHaveAttribute('href', expect.stringMatching(/^data:application\/json;/))
     expect(reportLinks[1]).toHaveAttribute('href', expect.stringMatching(/^data:text\/markdown;/))
     expect(reportLinks[2]).toHaveAttribute('href', expect.stringMatching(/^data:text\/html;/))
+    expect(reportLinks[0]).toHaveAttribute('download', 'eval-cached-report.json')
+    expect(reportLinks[1]).toHaveAttribute('download', 'eval-cached-report.md')
+    expect(reportLinks[2]).toHaveAttribute('download', 'eval-cached-report.html')
     expect(within(reportsPanel).queryByText('No report downloads available yet.')).not.toBeInTheDocument()
   })
 
@@ -1114,10 +1117,12 @@ describe('App shell', () => {
       'href',
       'https://downloads.example.test/eval-123/report.json',
     )
+    expect(downloadLinks[0]).toHaveAttribute('download', 'normalized_report.json')
     expect(downloadLinks[1]).toHaveAttribute(
       'href',
       'https://downloads.example.test/eval-123/report.html',
     )
+    expect(downloadLinks[1]).toHaveAttribute('download', 'html.html')
     expect(downloadLinks.every((link) => !link.getAttribute('href')?.startsWith('data:'))).toBe(
       true,
     )

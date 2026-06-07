@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 
 import './App.css'
 import { SettingsTab } from './components/SettingsTab'
@@ -771,6 +771,38 @@ function buildDataUrl(mimeType: string, content: string) {
   return `data:${mimeType};charset=utf-8,${encodeURIComponent(content)}`
 }
 
+function triggerDownloadFromUrl(url: string, filename: string) {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.rel = 'noopener noreferrer'
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
+function isDataOrBlobUrl(url: string) {
+  return url.startsWith('data:') || url.startsWith('blob:')
+}
+
+async function downloadArtifactWithFetch(url: string, filename: string) {
+  const request = await fetch(url, { credentials: 'include' })
+  if (!request.ok) {
+    return false
+  }
+
+  const blob = await request.blob()
+  const blobUrl = URL.createObjectURL(blob)
+  try {
+    triggerDownloadFromUrl(blobUrl, filename)
+  } finally {
+    URL.revokeObjectURL(blobUrl)
+  }
+
+  return true
+}
+
 export function buildEvaluationHistoryView(
   evaluation: CreateEvaluationResponse,
   evaluationStatus: EvaluationStatusResponse | null,
@@ -1008,12 +1040,20 @@ function buildArtifactDownloadRows(artifacts: ArtifactDescriptor[]): ReportDownl
     seen.add(key)
     downloads.push({
       label: artifact.name,
-      filename: `${artifact.kind}.${artifact.mediaType}`,
+      filename: toSafeDownloadFilenameKind(artifact.kind, artifact.mediaType),
       href: artifact.downloadUrl,
     })
   }
 
   return downloads
+}
+
+function toSafeDownloadFilenameKind(kind: string, mediaType: string) {
+  const safeKind = kind.replace(/[^a-zA-Z0-9._-]+/g, '_')
+  const safeExt = mediaType.includes('/') ? mediaType.split('/').pop() : mediaType
+  const extension = safeExt ? safeExt.replace(/[^a-zA-Z0-9]+/g, '_').toLowerCase() : 'bin'
+
+  return `${safeKind}.${extension}`
 }
 
 function buildReportDownloadRows(
@@ -1132,6 +1172,39 @@ function App() {
       })
     })
   }, [])
+
+  const handleReportDownload = useCallback(
+    async (event: MouseEvent<HTMLAnchorElement>, download: ReportDownloadView) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return
+      }
+
+      event.preventDefault()
+
+      if (isDataOrBlobUrl(download.href)) {
+        triggerDownloadFromUrl(download.href, download.filename)
+        return
+      }
+
+      try {
+        const downloaded = await downloadArtifactWithFetch(download.href, download.filename)
+        if (!downloaded) {
+          throw new Error('Download endpoint returned an error.')
+        }
+      } catch {
+        triggerDownloadFromUrl(download.href, download.filename)
+        setNotice(`Download for ${download.label} could not be fetched directly; opened instead.`)
+      }
+    },
+    [setNotice],
+  )
 
   useEffect(() => {
     try {
@@ -2895,7 +2968,14 @@ function App() {
                         <td>{download.label}</td>
                         <td>{download.filename}</td>
                         <td>
-                          <a href={download.href} target="_blank" rel="noreferrer">
+                          <a
+                            href={download.href}
+                            download={download.filename}
+                            rel="noopener noreferrer"
+                            onClick={(event) => {
+                              void handleReportDownload(event, download)
+                            }}
+                          >
                             {`Download ${download.label}`}
                           </a>
                         </td>

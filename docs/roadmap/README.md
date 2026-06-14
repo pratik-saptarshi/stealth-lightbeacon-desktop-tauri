@@ -9,6 +9,7 @@ desktop client.
 - [Implementation roadmap](./implementation-roadmap.md)
 - [Plan review traceability](./plan-review-traceability.md)
 - [Playwright test suite](./playwright-test-suite.md)
+- [glib advisory tracker](./glib-advisory-tracker.md)
 
 ## Validation Surface
 

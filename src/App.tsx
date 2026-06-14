@@ -1774,7 +1774,6 @@ function App() {
       cancelled = true
     }
     // Loading state flips inside this effect; depending on it cancels the in-flight request.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeEvaluation?.evaluationId,
     activeEvaluation,
@@ -1853,7 +1852,6 @@ function App() {
       cancelled = true
     }
     // Loading state flips inside this effect; depending on it cancels the in-flight request.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeEvaluation?.evaluationId,
     activeEvaluation,

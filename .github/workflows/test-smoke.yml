@@ -32,4 +32,4 @@ jobs:
         run: pnpm run test -- src/__tests__/app-shell.test.tsx src/lib/desktop.test.ts src/__tests__/app-helpers.test.ts
 
       - name: Playwright navigation and reports smoke
-        run: pnpm run test:e2e -- --grep "keeps inactive panels hidden behind horizontal tabs|shows reports tab trace and report-download table"
+        run: pnpm run test:e2e --grep "keeps inactive panels hidden behind horizontal tabs|shows reports tab trace and report-download table"

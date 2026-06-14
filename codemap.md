@@ -30,6 +30,7 @@ artifacts, recon output, and the canonical OpenAPI contract.
 - `src-tauri/tauri.conf.json`: desktop window defaults and packaging metadata.
 - `src/main.tsx`: React bootstrap.
 - `src/App.tsx`: operator shell and workflow state.
+- `src/components/`: modular React subviews extracted from the shell.
 - `src/lib/desktop.ts`: typed Tauri adapter boundary.
 - `src-tauri/src/main.rs`: Rust bootstrap.
 - `src-tauri/src/lib.rs`: trusted runtime, transport policy, and IPC surface.
@@ -41,6 +42,7 @@ artifacts, recon output, and the canonical OpenAPI contract.
 | `./` | Repo truth docs, release gates, contract snapshot, and atlas tracking | [codemap.md](codemap.md) |
 | `docs/roadmap/` | Future-state planning, review, and execution records | roadmap index and phase ledger |
 | `src/` | React operator shell and workflow UI | [src/codemap.md](src/codemap.md) |
+| `src/components/` | Modular shell subviews and panel content | [src/components/codemap.md](src/components/codemap.md) |
 | `src/lib/` | Frontend adapter seam to Tauri commands | [src/lib/codemap.md](src/lib/codemap.md) |
 | `src-tauri/` | Packaged Tauri app, build metadata, and packaging config | [src-tauri/codemap.md](src-tauri/codemap.md) |
 | `src-tauri/src/` | Rust transport/runtime boundary and IPC tests | [src-tauri/src/codemap.md](src-tauri/src/codemap.md) |

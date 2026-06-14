@@ -10,9 +10,9 @@ and turns those commands into HTTP calls against the Stealth Lightbeacon API.
 ## Design
 
 - `main.rs` is only a bootstrap shim. It immediately calls `app_lib::run()`.
-- `lib.rs` is the real backend module today. It holds the command contracts,
-  config model, validation rules, local companion lifecycle, HTTP adapter, app
-  setup, recon proxy, and tests in one file.
+- `lib.rs` is the module root and runtime orchestrator. It wires `domain/` and
+  `commands/`, owns app setup, validation rules, local companion lifecycle,
+  HTTP adapter helpers, and the runtime tests.
 - The backend is intentionally thin. It does not perform evaluation work
   itself; it validates requests, remembers which backend to talk to, enforces
   transport policy, and proxies operations to the API.
@@ -28,9 +28,10 @@ and turns those commands into HTTP calls against the Stealth Lightbeacon API.
 2. `run()` builds the Tauri app, loads persisted backend config inside
    `.setup(...)`, falls back to the local default (`http://127.0.0.1:8000`,
    15000 ms) if loading fails, and registers the command handlers.
-3. The frontend calls into Rust through Tauri commands for config, health,
-   capabilities, evaluation creation, evaluation status, terminal result
-   retrieval, artifact retrieval, recon, and snapshot persistence.
+3. The frontend calls into Rust through Tauri commands defined in `commands/`
+   for config, health, capabilities, evaluation creation, evaluation status,
+   terminal result retrieval, artifact retrieval, recon, and snapshot
+   persistence.
 4. In local mode, effective config resolution can spawn the sibling backend
    companion, wait for readiness, and reuse the discovered loopback URL.
 5. Networked commands delegate to `*_impl` helpers, which converge on
@@ -47,7 +48,7 @@ and turns those commands into HTTP calls against the Stealth Lightbeacon API.
 ## Integration
 
 - Frontend integration: the UI talks to this tree exclusively through Tauri
-  `invoke(...)` calls.
+  `invoke(...)` calls, which route through `commands/`.
 - Filesystem integration: config and snapshot storage are app-scoped through
   Tauri path resolution rather than hard-coded repo paths.
 - Backend API integration covers `/health`, `/capabilities`, `/evaluations`,

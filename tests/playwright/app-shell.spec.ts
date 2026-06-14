@@ -29,8 +29,8 @@ export const test = base.extend<{ tauriApp: ChildProcess | null }>({
         },
       })
 
-      // Wait a moment for application frame window creation and IPC sync
-      await page.waitForTimeout(3000)
+      // Wait a moment for application frame window creation and IPC sync.
+      await new Promise((resolve) => setTimeout(resolve, 3000))
     }
 
     await use(tauriProcess)

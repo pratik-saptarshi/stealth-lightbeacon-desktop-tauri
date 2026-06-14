@@ -56,4 +56,5 @@ Validated worktree used for this integration:
   `.github/workflows/release.yml`
 - public documentation set:
   `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
-  `contributing.md`, `security-policy.md`, `bill-of-materials.md`
+  `contributing.md`, `security-policy.md`, `bill-of-materials.md`,
+  `docs/bill-of-materials.html.md`

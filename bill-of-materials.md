@@ -58,3 +58,9 @@ Validated worktree used for this integration:
   `changelog.md`, `README.md`, `architecture.md`, `readme-CLI.md`,
   `contributing.md`, `security-policy.md`, `bill-of-materials.md`,
   `docs/bill-of-materials.html.md`
+
+## Publish Gate
+
+The release checklist, secret-scan guidance, and delivery evidence live in
+`docs/bill-of-materials.html.md`. Use that document as the canonical publish
+readiness gate before pushing `main` to `origin` or tagging a release.

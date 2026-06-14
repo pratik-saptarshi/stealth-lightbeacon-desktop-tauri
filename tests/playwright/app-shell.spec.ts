@@ -6,6 +6,7 @@ export const appUrl = 'http://127.0.0.1:4180'
 
 // Custom fixture that handles native Tauri process lifecycle
 export const test = base.extend<{ tauriApp: ChildProcess | null }>({
+  // eslint-disable-next-line no-empty-pattern
   tauriApp: [async ({}, use, testInfo) => {
     const isTauriNative = testInfo.project.name === 'tauri-native'
     let tauriProcess: ChildProcess | null = null

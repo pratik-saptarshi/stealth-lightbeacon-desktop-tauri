@@ -60,6 +60,23 @@ repository is pushed to `origin` or a release tag is published.
 - [scripts/release_validate.py](../scripts/release_validate.py)
 - [.github/workflows/release.yml](../.github/workflows/release.yml)
 
+## Publish Gate Workflow
+
+Use the commands below as the repeatable evidence trail before pushing `main`
+to `origin` or cutting a release tag.
+
+1. `pnpm run check`
+2. `pnpm run check:contract-sync`
+3. `pnpm run validate:release`
+4. `rg -n --hidden --glob '!.git' --glob '!node_modules' --glob '!dist' --glob '!coverage' --glob '!target' '(ghp_|github_pat_|BEGIN PRIVATE KEY|STEALTH_LIGHTBEACON_REMOTE_AUTH_TOKEN|127\\.0\\.0\\.1:8000)' .`
+5. Review the staged diff, `README.md`, `architecture.md`, `readme-CLI.md`,
+   `contributing.md`, `security-policy.md`, `bill-of-materials.md`, and the
+   roadmap docs for accidental private endpoints or secret material.
+6. `git status --short` must be clean except for the intended commit.
+7. `git push origin main`.
+8. `gh run watch <run-id> --exit-status` for the pushed commit until the
+   workflow completes successfully.
+
 ## Publish Readiness Checklist
 
 Use this list as the gate before pushing `main` to `origin` or cutting a
@@ -82,10 +99,11 @@ release tag.
       and internal-only endpoints.
 - [ ] Confirm `security-policy.md` still matches the current transport and
       token-handling behavior.
-- [ ] Verify no new secrets are introduced in the frontend adapter or public
+- [ ] No new secrets are introduced in the frontend adapter or public
       docs.
 - [ ] Confirm release notes and changelog entries do not leak private backend
       details.
+- [ ] Record the scan command output in the commit or release evidence.
 
 ### Documentation
 
@@ -105,6 +123,8 @@ release tag.
 - [ ] `main` has been pushed to `origin`.
 - [ ] The GitHub Actions release job has been monitored to completion after the
       push or tag.
+- [ ] The final `main` push is reflected in the latest successful GitHub
+      Actions run for the same SHA.
 
 ## Evidence Notes
 
@@ -114,3 +134,5 @@ release tag.
   GitHub release workflow.
 - Public docs are part of the release boundary and must stay synchronized with
   the code before publication.
+- The compact root BOM mirrors the inventory, while this document is the
+  publish gate with the explicit delivery checklist.

@@ -36,7 +36,7 @@ Status was revalidated against the desktop repo and the backend worktree
 | Repo truth, atlas, and governance docs | R1 | Complete | Docs, codemaps, and phase ledger now match the verified code. |
 | Recon operator workflow | R2 | Complete | Recon is wired into the React shell and validated. |
 | Remote policy UX | R2 | Complete | Unauthorized and compatibility handling are surfaced to the operator. |
-| Frontend verification | R2 | Partial | Vitest coverage, browser smoke, and accessibility checks are in place; branch coverage follow-up remains. |
+| Frontend verification | R2 | Partial | Vitest coverage, browser smoke, and accessibility checks are in place; branch coverage now clears the repo gate and continues toward the aspirational 90% roadmap target. |
 | Release packaging and validation | R3 | Partial | Keep the Tauri bundle in the release lane and stabilize readiness and loopback checks. |
 | GitHub publication | R4 | Complete | Release tags and the GitHub release workflow are in place. |
 
@@ -85,8 +85,9 @@ Validation gate:
 
 ## Current Remaining Risk
 
-- Frontend coverage thresholds are enforced, but branch coverage tuning remains
-  an ongoing target as UI surfaces grow.
+- Frontend coverage thresholds are enforced at the current repo gate, and the
+  coverage roadmap still tracks the longer-term 90% aspiration as UI surfaces
+  grow.
 - Platform-specific packaging variance outside this checkout still requires
   periodic matrix validation in release tooling.
 

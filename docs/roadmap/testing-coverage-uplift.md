@@ -10,10 +10,10 @@ Beads remains the task source of truth. This note summarizes the current coverag
 
 - Measured with `npm run test:coverage`
 - Latest frontend coverage:
-  - Statements: `90.05%`
-  - Lines: `90.6%`
-  - Functions: `90.73%`
-  - Branches: `83.52%`
+  - Statements: `91.73%`
+  - Lines: `91.61%`
+  - Functions: `95.65%`
+  - Branches: `87.84%`
 
 ## Completed Test Slices
 
@@ -31,7 +31,8 @@ Beads remains the task source of truth. This note summarizes the current coverag
 ## Remaining Gap
 
 - Statement coverage now clears the 90% target.
-- Branch coverage remains below 90% and is the next measurable gap if the shell needs more hardening.
+- Branch coverage now clears the repo gate and remains the next target on the
+  longer-term 90% coverage roadmap.
 
 ## Commands
 

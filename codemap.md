@@ -21,6 +21,7 @@ artifacts, recon output, and the canonical OpenAPI contract.
   mapping.
 - `docs/roadmap/playwright-test-suite.md`: browser validation guide and test
   surface.
+- `docs/bill-of-materials.html.md`: publish-readiness BOM and release gate.
 - `changelog.md`: release notes and documentation history.
 - `shared-axioms.md`: cross-repo boundary ownership and validation axioms.
 - `scripts/check_contract_sync.py`: pinned contract drift gate.
@@ -74,8 +75,9 @@ artifacts, recon output, and the canonical OpenAPI contract.
 ## Current Completion Status
 
 - Phases `0`, `1`, `2`, `3`, and `4`: complete and validated.
-- Phase `5`: complete on this checkout, including `pnpm run validate:release`
-  with package build and deterministic shell readiness.
+- Phase `5`: complete on this checkout, including
+  `python3 scripts/release_validate.py` with package build and deterministic
+  shell readiness.
 - Checkpoint `6`: `R7-C4` snapshot persistence moved to `src-tauri/src/domain`,
   with command wiring kept in `src-tauri/src/commands`.
 
@@ -90,8 +92,9 @@ artifacts, recon output, and the canonical OpenAPI contract.
   - `readme.md`
   - `architecture.md`
   - `docs/roadmap/backlog.md`
-  - `docs/roadmap/implementation-roadmap.md`
-  - `docs/roadmap/plan-review-traceability.md`
-  - `docs/roadmap/README.md`
-  - `docs/roadmap/playwright-test-suite.md`
-  - `readme-CLI.md`
+- `docs/roadmap/implementation-roadmap.md`
+- `docs/roadmap/plan-review-traceability.md`
+- `docs/roadmap/README.md`
+- `docs/roadmap/playwright-test-suite.md`
+- `docs/bill-of-materials.html.md`
+- `readme-CLI.md`

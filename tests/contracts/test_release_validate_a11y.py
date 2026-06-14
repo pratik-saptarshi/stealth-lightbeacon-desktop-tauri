@@ -13,24 +13,26 @@ class ReleaseValidateA11yTest(unittest.TestCase):
     def test_release_lane_runs_shell_a11y_gate(self) -> None:
         release_validate = (ROOT / "scripts" / "release_validate.py").read_text(encoding="utf-8")
 
-        self.assertIn("validate:shell", release_validate)
+        self.assertIn('tool("vitest")', release_validate)
+        self.assertIn('node", "scripts/browser_smoke.mjs"', release_validate)
+        self.assertIn('node", "scripts/validate_shell.mjs", "--axe"', release_validate)
         self.assertLess(
-            release_validate.index("validate:shell"),
+            release_validate.index('tool("vitest")'),
             release_validate.index("check_contract_sync.py"),
         )
 
-    def test_release_lane_prefers_pnpm_instead_of_npm(self) -> None:
+    def test_release_lane_uses_local_tool_shims_instead_of_pnpm(self) -> None:
         release_validate = (ROOT / "scripts" / "release_validate.py").read_text(
             encoding="utf-8",
         )
 
-        self.assertIn("[\"pnpm\", \"run\", \"validate:shell\"]", release_validate)
-        self.assertIn("[\"pnpm\", \"run\", \"test:e2e\"]", release_validate)
-        self.assertIn("[\"pnpm\", \"run\", \"test\", \"--\", \"--run\"", release_validate)
-        self.assertIn("[\"pnpm\", \"run\", \"build\"]", release_validate)
-        self.assertIn("[\"pnpm\", \"run\", \"tauri:build\"]", release_validate)
+        self.assertIn("tool(\"vitest\")", release_validate)
+        self.assertIn("tool(\"playwright\")", release_validate)
+        self.assertIn("tool(\"tsc\")", release_validate)
+        self.assertIn("tool(\"vite\")", release_validate)
+        self.assertIn("tool(\"tauri\")", release_validate)
 
-        self.assertNotIn('run(["npm", "run", "validate:shell"]', release_validate)
-        self.assertNotIn('run(["npm", "run", "test:e2e"]', release_validate)
-        self.assertNotIn('run(["npm", "run", "build"]', release_validate)
-        self.assertNotIn('run(["npm", "run", "tauri:build"]', release_validate)
+        self.assertNotIn("[\"pnpm\", \"run\", \"validate:shell\"]", release_validate)
+        self.assertNotIn("[\"pnpm\", \"run\", \"test:e2e\"]", release_validate)
+        self.assertNotIn("[\"pnpm\", \"run\", \"build\"]", release_validate)
+        self.assertNotIn("[\"pnpm\", \"run\", \"tauri:build\"]", release_validate)

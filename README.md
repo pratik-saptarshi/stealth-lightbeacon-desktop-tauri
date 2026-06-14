@@ -51,4 +51,5 @@ path serves both references here.
 - [changelog.md](changelog.md)
 - [contributing.md](contributing.md)
 - [security-policy.md](security-policy.md)
+- [docs/bill-of-materials.html.md](docs/bill-of-materials.html.md)
 - [bill-of-materials.md](bill-of-materials.md)

@@ -1283,4 +1283,195 @@ describe('App shell', () => {
     await user.click(await screen.findByRole('tab', { name: /^API/i }))
     expect(await screen.findByText('Evaluation eval-123 finished with success')).toBeInTheDocument()
   }, 10000)
+
+  it('downloads artifact files through a fetch-backed flow for remote report links', async () => {
+    const user = userEvent.setup()
+    desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
+    const blob = new Blob([JSON.stringify({ status: 'ok' })], { type: 'application/json' })
+    const fetchMock = vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(blob, {
+        status: 200,
+        statusText: 'OK',
+      }),
+    )
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click')
+    const createObjectUrl = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:artifacts.test')
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL')
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    const reportLink = await screen.findByRole('link', { name: /Download normalized-report/i })
+    await user.click(reportLink)
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://downloads.example.test/eval-123/report.json',
+        { credentials: 'include' },
+      ),
+    )
+    expect(createObjectUrl).toHaveBeenCalledTimes(1)
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:artifacts.test')
+    expect(anchorClick).toHaveBeenCalled()
+
+    anchorClick.mockRestore()
+    createObjectUrl.mockRestore()
+    revokeObjectUrl.mockRestore()
+    fetchMock.mockRestore()
+  })
+
+  it('falls back to direct report downloads when remote artifact fetch fails', async () => {
+    const user = userEvent.setup()
+    desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
+    const fetchMock = vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response(null, {
+        status: 500,
+        statusText: 'boom',
+      }),
+    )
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    await user.click(await screen.findByRole('link', { name: /Download normalized-report/i }))
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://downloads.example.test/eval-123/report.json',
+        { credentials: 'include' },
+      ),
+    )
+    expect(
+      await screen.findByText('Download for normalized-report could not be fetched directly; opened instead.'),
+    ).toBeInTheDocument()
+
+    fetchMock.mockRestore()
+  })
+
+  it('skips fetch-based report handling when download click modifiers are used', async () => {
+    const user = userEvent.setup()
+    desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
+    const fetchMock = vi.spyOn(window, 'fetch').mockResolvedValue(
+      new Response('{}', {
+        status: 200,
+      }),
+    )
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    const reportLink = await screen.findByRole('link', { name: /Download normalized-report/i })
+
+    const blocked = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    })
+    blocked.preventDefault()
+    reportLink.dispatchEvent(blocked)
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    fetchMock.mockRestore()
+  })
+
+  it('deduplicates report download rows and sanitizes filenames', async () => {
+    const user = userEvent.setup()
+    desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce({
+      ...lastOpenedSnapshot,
+      artifacts: [
+        {
+          name: 'Normalized JSON',
+          kind: 'normalized report/json',
+          mediaType: 'application/json',
+          downloadUrl: 'https://downloads.example.test/eval-123/report.json',
+        },
+        {
+          name: 'Normalized JSON',
+          kind: 'normalized report/json',
+          mediaType: 'application/json',
+          downloadUrl: 'https://downloads.example.test/eval-123/report.json',
+        },
+        {
+          name: 'HTML Artifact',
+          kind: 'html/report output',
+          mediaType: 'text/custom; charset=utf-8',
+          downloadUrl: 'https://downloads.example.test/eval-123/report-custom',
+        },
+        {
+          name: 'Binary Dump',
+          kind: 'binary dump',
+          mediaType: '',
+          downloadUrl: 'https://downloads.example.test/eval-123/binary',
+        },
+      ],
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    const links = screen.getAllByRole('link', { name: /Download /i })
+
+    expect(links).toHaveLength(3)
+    expect(links[0]).toHaveAttribute('download', 'normalized_report_json.json')
+    expect(links[1]).toHaveAttribute('download', 'html_report_output.custom_charset_utf_8')
+    expect(links[2]).toHaveAttribute('download', 'binary_dump.bin')
+  })
+
+  it('surfaces remote auth and compatibility mismatch notices during bootstrap refresh', async () => {
+    const user = userEvent.setup()
+    enableApiSetupTab()
+    desktopApi.apiHealthCheck.mockResolvedValueOnce({
+      ...health,
+      authRequired: true,
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
+    expect(
+      await screen.findByText(
+        'stealth-lightbeacon-api is reachable, but remote auth is required before protected capabilities can load.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('surfaces auth-required notices when refresh receives unauthorized capabilities', async () => {
+    const user = userEvent.setup()
+    enableApiSetupTab()
+    desktopApi.apiHealthCheck.mockResolvedValueOnce(health)
+    desktopApi.getCapabilities.mockRejectedValueOnce({
+      status: 401,
+      message: 'expired token',
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
+    expect(
+      (await screen.findAllByText(
+        /Remote auth required\. Set the backend auth token before loading protected capabilities\./i,
+      )).length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('surfaces compatibility mismatch notices when the backend reports incompatible client', async () => {
+    const user = userEvent.setup()
+    enableApiSetupTab()
+    desktopApi.apiHealthCheck.mockResolvedValueOnce(health)
+    desktopApi.getCapabilities.mockRejectedValueOnce({
+      code: 'incompatible_client',
+      message: 'desktop mismatch',
+    })
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
+    expect(
+      (await screen.findAllByText(
+        'Desktop version is not supported by this backend. Minimum 0.1.0, recommended 0.1.0.',
+      )).length,
+    ).toBeGreaterThan(0)
+  })
 })

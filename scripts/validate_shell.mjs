@@ -12,6 +12,11 @@ const DIST_DIR = path.join(ROOT, 'dist')
 const APP_VERSION = '0.1.0'
 const DESKTOP_VERSION = '0.1.1'
 
+function tool(name) {
+  const suffix = process.platform === 'win32' ? '.cmd' : ''
+  return path.join(ROOT, 'node_modules', '.bin', `${name}${suffix}`)
+}
+
 const args = new Set(process.argv.slice(2))
 const runSmoke = args.size === 0 || args.has('--smoke')
 const runA11y = args.size === 0 || args.has('--axe')
@@ -517,7 +522,8 @@ async function runA11yScan(scenario) {
 }
 
 async function main() {
-  run('pnpm', ['run', 'build'], ROOT)
+  run(tool('tsc'), ['-b'], ROOT)
+  run(tool('vite'), ['build'], ROOT)
 
   const smokeScenarios = [
     {

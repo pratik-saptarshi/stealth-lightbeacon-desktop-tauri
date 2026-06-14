@@ -1287,11 +1287,13 @@ describe('App shell', () => {
   it('downloads artifact files through a fetch-backed flow for remote report links', async () => {
     const user = userEvent.setup()
     desktopApi.getLastOpenedSnapshot.mockResolvedValueOnce(lastOpenedSnapshot)
-    const blob = new Blob([JSON.stringify({ status: 'ok' })], { type: 'application/json' })
     const fetchMock = vi.spyOn(window, 'fetch').mockResolvedValue(
-      new Response(blob, {
+      new Response(JSON.stringify({ status: 'ok' }), {
         status: 200,
         statusText: 'OK',
+        headers: {
+          'content-type': 'application/json',
+        },
       }),
     )
     const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click')
@@ -1302,6 +1304,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
     await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
     const reportLink = await screen.findByRole('link', { name: /Download normalized-report/i })
     await user.click(reportLink)
@@ -1334,6 +1337,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
     await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
     await user.click(await screen.findByRole('link', { name: /Download normalized-report/i }))
 
@@ -1361,6 +1365,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
     await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
     const reportLink = await screen.findByRole('link', { name: /Download normalized-report/i })
 
@@ -1410,6 +1415,7 @@ describe('App shell', () => {
 
     render(<App />)
 
+    expect(await screen.findByText('Last-opened snapshot restored')).toBeInTheDocument()
     await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
     const links = screen.getAllByRole('link', { name: /Download /i })
 

@@ -460,6 +460,29 @@ describe('App shell', () => {
     expect((await screen.findAllByText('Save failed')).length).toBeGreaterThan(0)
   })
 
+  it('falls back to audit mode when disabling the API setup tab from the connection view', async () => {
+    const user = userEvent.setup()
+    enableApiSetupTab()
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
+    const apiToggle = document.querySelector(
+      'input[aria-label="Enable API setup tab"]',
+    ) as HTMLInputElement | null
+
+    expect(apiToggle).toBeTruthy()
+    fireEvent.click(apiToggle as HTMLInputElement)
+
+    await waitFor(() =>
+      expect(screen.queryByRole('tab', { name: /^API/i })).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('tab', { name: /^Scan/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
   it('opens settings tab and applies custom panel colors', async () => {
     render(<App />)
 
@@ -692,6 +715,21 @@ describe('App shell', () => {
       )).length,
     ).toBeGreaterThan(0)
     expect(await screen.findByText('0.1.0+')).toBeInTheDocument()
+  })
+
+  it('surfaces backend unavailable notices when capabilities fail without a message', async () => {
+    const user = userEvent.setup()
+    enableApiSetupTab()
+    desktopApi.apiHealthCheck.mockResolvedValueOnce(health)
+    desktopApi.getCapabilities.mockRejectedValueOnce({
+      message: 'not surfaced',
+    })
+    desktopApi.formatCommandError.mockImplementationOnce(() => '')
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^API/i }))
+    expect((await screen.findAllByText('Backend unavailable.')).length).toBeGreaterThan(0)
   })
 
   it('runs recon when the backend advertises support for the target', async () => {
@@ -1479,5 +1517,34 @@ describe('App shell', () => {
         'Desktop version is not supported by this backend. Minimum 0.1.0, recommended 0.1.0.',
       )).length,
     ).toBeGreaterThan(0)
+  })
+
+  it('surfaces bootstrap failures when backend config lookup rejects', async () => {
+    desktopApi.getBackendConfig.mockRejectedValueOnce('config lookup failed')
+
+    render(<App />)
+
+    expect(await screen.findByText('Bootstrap failed')).toBeInTheDocument()
+  })
+
+  it('surfaces snapshot save failures after a terminal run settles', async () => {
+    const user = userEvent.setup()
+    desktopApi.setLastOpenedSnapshot.mockRejectedValueOnce('snapshot save failed')
+
+    render(<App />)
+
+    await user.click(await screen.findByRole('tab', { name: /^Scan/i }))
+    await screen.findByRole('button', { name: 'Submit Evaluation' })
+    await user.click(screen.getByRole('button', { name: 'Submit Evaluation' }))
+
+    await waitFor(() =>
+      expect(desktopApi.setLastOpenedSnapshot).toHaveBeenCalled(),
+    )
+
+    await user.click(await screen.findByRole('tab', { name: /^Reports/i }))
+    await user.click(await screen.findByRole('button', { name: /Expand trace/i }))
+
+    expect(await screen.findByText('Last-opened snapshot failed')).toBeInTheDocument()
+    expect(await screen.findByText('snapshot save failed')).toBeInTheDocument()
   })
 })

@@ -622,6 +622,23 @@ describe('App helpers', () => {
     })
   })
 
+  it('falls back to default workspace size and shell scale for invalid stored settings', () => {
+    window.localStorage.setItem(
+      'stealth-lightbeacon.ui-settings.v1',
+      JSON.stringify({
+        workspaceSize: 'tablet',
+        fontScale: 1.4,
+        apiTabEnabled: 'enabled',
+      }),
+    )
+
+    expect(loadUiSettings()).toMatchObject({
+      workspaceSize: 'auto',
+      fontScale: 0.85,
+      apiTabEnabled: false,
+    })
+  })
+
   it('validates requests without capability data as long as the payload is well formed', () => {
     const request: CreateEvaluationRequest = {
       target: 'https://example.com',

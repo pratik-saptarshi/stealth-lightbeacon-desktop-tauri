@@ -93,6 +93,40 @@ describe('EvaluationTable coverage hardening', () => {
     expect(screen.getByText('Fetching terminal result from GET /evaluations/{evaluation_id}/result.')).toBeInTheDocument()
   })
 
+  it('covers terminal report failure fallback text when the command omits details', () => {
+    const status: EvaluationStatusResponse = {
+      evaluationId: 'eval-fail',
+      status: 'failed',
+      stage: 'completed',
+      progressPercent: 100,
+      message: 'Result unavailable',
+      terminal: true,
+    }
+
+    render(
+      <EvaluationTable
+        showTerminalReport={true}
+        reportAvailable={true}
+        reportExpanded={true}
+        setReportExpanded={vi.fn()}
+        evaluationStatus={status}
+        evaluationResult={null}
+        resultLoadState="failed"
+        resultError={null}
+        terminalResultView={null}
+        artifactsLoadState="ready"
+        artifactsError={null}
+        artifacts={[]}
+        visibleEvaluationHistory={[]}
+        resultToneClass={vi.fn(() => 'tone-idle')}
+      />,
+    )
+
+    expect(
+      screen.getByText('Result retrieval failed. Unknown desktop command error.'),
+    ).toBeInTheDocument()
+  })
+
   it('covers terminal-result digest with findings, artifacts, and history branches', () => {
     const status: EvaluationStatusResponse = {
       evaluationId: 'eval-done',

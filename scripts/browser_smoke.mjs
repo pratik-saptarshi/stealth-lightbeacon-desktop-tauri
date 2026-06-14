@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -10,6 +10,11 @@ import { fileURLToPath } from 'node:url'
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const APP_VERSION = '0.1.0'
 const DESKTOP_VERSION = '0.1.1'
+
+function tool(name) {
+  const suffix = process.platform === 'win32' ? '.cmd' : ''
+  return path.join(ROOT, 'node_modules', '.bin', `${name}${suffix}`)
+}
 
 function fail(message) {
   console.error(message)
@@ -101,6 +106,34 @@ async function waitForJson(url, label, timeoutMs = 15000) {
 }
 
 function findChromium() {
+  const cacheRoots = [
+    path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright'),
+    path.join(os.homedir(), '.cache', 'ms-playwright'),
+  ]
+
+  for (const cacheRoot of cacheRoots) {
+    if (!existsSync(cacheRoot)) {
+      continue
+    }
+
+    for (const entry of readdirSync(cacheRoot)) {
+      if (!entry.startsWith('chromium_headless_shell-')) {
+        continue
+      }
+
+      const executable = path.join(
+        cacheRoot,
+        entry,
+        'chrome-headless-shell-mac-x64',
+        'chrome-headless-shell',
+      )
+
+      if (existsSync(executable)) {
+        return executable
+      }
+    }
+  }
+
   const candidates = [
     process.env.CHROMIUM,
     process.env.CHROMIUM_BIN,
@@ -497,17 +530,8 @@ async function assertWorkspaceTabs(client, sessionId) {
 
 async function launchPreviewServer(previewPort) {
   const preview = spawn(
-    'pnpm',
-    [
-      'exec',
-      'vite',
-      'preview',
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(previewPort),
-      '--strictPort',
-    ],
+    tool('vite'),
+    ['preview', '--host', '127.0.0.1', '--port', String(previewPort), '--strictPort'],
     {
       cwd: ROOT,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -665,7 +689,8 @@ async function runScenario(scenario) {
 }
 
 async function main() {
-  run('pnpm', ['run', 'build'], ROOT)
+  run(tool('tsc'), ['-b'], ROOT)
+  run(tool('vite'), ['build'], ROOT)
 
   const smokeScenarios = [
     createBrowserScenario('recon flow', 'recon', {

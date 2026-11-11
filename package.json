@@ -28,31 +28,31 @@
     "validate:release": "python3 scripts/release_validate.py"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "@tauri-apps/api": "^2.12.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.60.0",
-    "@tauri-apps/cli": "^2.11.2",
+    "@playwright/test": "^1.64.1",
+    "@tauri-apps/cli": "^2.12.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.12.3",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
     "@vitest/coverage-v8": "^4.1.7",
-    "axe-core": "^4.11.4",
-    "eslint": "^10.3.0",
+    "axe-core": "^4.14.0",
+    "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.6.0",
+    "globals": "^17.14.0",
     "jsdom": "^29.1.1",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.5",
     "vitest": "^4.1.7"
   }
 }

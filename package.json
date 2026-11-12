@@ -31,7 +31,8 @@
     "validate:shell:smoke": "node scripts/browser_smoke.mjs",
     "validate:shell:a11y": "node scripts/validate_shell.mjs --axe",
     "validate:release": "python3 scripts/release_validate.py",
-    "release:verify": "pnpm run build && pnpm run test && pnpm run test:python && pnpm run test:rust"
+    "release:verify": "pnpm run build && pnpm run test && pnpm run test:python && pnpm run test:rust:unit",
+    "test:rust:unit": "cargo test --manifest-path src-tauri/Cargo.toml -- --skip real_backend --skip local_mode_"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

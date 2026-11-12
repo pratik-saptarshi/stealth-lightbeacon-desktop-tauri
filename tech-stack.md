@@ -26,5 +26,5 @@
 
 ## Toolchain pin
 
-- Node.js `26.13.1` (`.nvmrc`, `package.json#engines.node`).
+- Node.js `26.13.1` (`.nvmrc` exact pin; `package.json#engines.node` is `>=26.13.1 <27`).
 - pnpm `10.12.4` for the Tauri v2 desktop build. The sibling lightbeacon repos use `11.4.0`; aligning this repo is a follow-up so the desktop toolchain is not changed in the Node security patch.

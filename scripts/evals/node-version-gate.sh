@@ -1,51 +1,75 @@
 #!/usr/bin/env bash
-# Eval gate: repository must be on the latest security-patched Node 26.x runtime.
+# Eval gate: repository must run the latest security-patched Node 26.x runtime.
 set -euo pipefail
 TARGET="26.13.1"
-FLOOR=">=26.13.1 <27"
 fail=0
-
 err() { echo "FAIL: $*" >&2; fail=1; }
-ok() { echo "ok: $*"; }
+ok()  { echo "ok: $*"; }
 
-[ -f .nvmrc ] && [ "$(tr -d '[:space:]' < .nvmrc)" = "$TARGET" ] && ok ".nvmrc=$TARGET" || err ".nvmrc must be $TARGET"
-[ -f .node-version ] && [ "$(tr -d '[:space:]' < .node-version)" = "$TARGET" ] && ok ".node-version=$TARGET" || err ".node-version must be $TARGET"
+# S1 — runtime pins
+for f in .nvmrc .node-version; do
+  if [ -f "$f" ] && [ "$(tr -d '[:space:]' < "$f")" = "$TARGET" ]; then
+    ok "$f=$TARGET"
+  else
+    err "$f must be $TARGET"
+  fi
+done
+if [ -f .tool-versions ]; then
+  if grep -Eq "^nodejs[[:space:]]+${TARGET}$" .tool-versions; then
+    ok ".tool-versions=$TARGET"
+  else
+    err ".tool-versions must pin nodejs $TARGET"
+  fi
+fi
 
-python3 - "$FLOOR" <<'PY' || fail=1
-import json, sys
-floor = sys.argv[1]
+# S2 — engines floor
+python3 - "$TARGET" <<'PY' || fail=1
+import json, re, sys
+target = sys.argv[1]
 eng = (json.load(open("package.json")).get("engines") or {}).get("node", "")
-if floor in eng:
+if re.search(rf">=\s*{re.escape(target)}(?:\s|<|$)", eng):
     print(f"ok: engines.node={eng}")
 else:
-    print(f"FAIL: engines.node must contain {floor!r}, got {eng!r}", file=sys.stderr)
+    print(f"FAIL: engines.node must require >={target}, got {eng!r}", file=sys.stderr)
     sys.exit(1)
 PY
 
+# S3/S4 — every GitHub workflow resolves the exact patched Node
 python3 - "$TARGET" <<'PY' || fail=1
 import glob, re, sys
 target = sys.argv[1]
-major = int(target.split(".")[0])
 bad = []
-for path in glob.glob(".github/workflows/*.yml") + glob.glob(".github/workflows/*.yaml"):
+for path in sorted(glob.glob(".github/workflows/*.yml") + glob.glob(".github/workflows/*.yaml")):
     text = open(path).read()
-    if "setup-node" not in text:
-        continue
-    versions = []
-    for m in re.finditer(r"node-version:\s*(?:\[([^\]]+)\]|['\"]?([0-9]+(?:\.x)?(?:\.[0-9]+)*)['\"]?)", text):
+    for m in re.finditer(r"node-version:\s*(?:\[([^\]]+)\]|['\"]?([^'\"\s,]+)['\"]?)", text):
         raw = m.group(1) or m.group(2)
-        versions += [v.strip() for v in raw.split(",")]
-    if not versions:
-        bad.append(f"{path}: no node-version found")
-        continue
-    for v in versions:
-        if int(v.split(".")[0]) < major:
-            bad.append(f"{path}: node-version {v} < {target}")
+        for v in [x.strip() for x in raw.split(",") if x.strip()]:
+            if v.startswith("${{"):
+                continue
+            if v != target:
+                bad.append(f"{path}: node-version {v} != {target}")
+    for m in re.finditer(r"image:\s*['\"]?node:([0-9][0-9.]*)", text):
+        if m.group(1) != target:
+            bad.append(f"{path}: image node:{m.group(1)} != {target}")
+    for m in re.finditer(r"FORCE_JAVASCRIPT_ACTIONS_TO_NODE(\d+)", text):
+        if m.group(1) != target.split(".")[0]:
+            bad.append(f"{path}: forces JS actions to Node {m.group(1)}")
 if bad:
     print("FAIL: " + "; ".join(bad), file=sys.stderr)
     sys.exit(1)
-print("ok: GitHub workflows pin Node >= " + target)
+print(f"ok: GitHub workflows pin Node {target}")
 PY
+
+# S4 — scripts must not install an older Node
+if [ -d scripts ]; then
+  hits=$(grep -RInE --include='*.sh' 'node@(1[0-9]|2[0-5])(\.[0-9]+)*' scripts tools 2>/dev/null || true)
+  if [ -n "$hits" ]; then
+    echo "$hits" >&2
+    err "scripts install Node older than $TARGET"
+  else
+    ok "scripts do not pin older Node"
+  fi
+fi
 
 if [ "$fail" -ne 0 ]; then
   echo "GATE: FAILED" >&2

@@ -25,7 +25,7 @@
     "tauri:build": "tauri build --bundles app",
     "tauri:dev": "tauri dev",
     "test": "vitest run src",
-    "test:python": "python3 -m unittest discover -s tests/contracts -p 'test_*.py'",
+    "test:python": "node -e \"const{spawnSync}=require('node:child_process');const p=process.platform==='win32'?'python':'python3';const r=spawnSync(p,['-m','unittest','discover','-s','tests/contracts','-p','test_*.py'],{stdio:'inherit'});process.exit(r.status??1)\"",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "validate:shell": "pnpm run test:coverage:frontend && pnpm run validate:shell:smoke && pnpm run validate:shell:a11y",
     "validate:shell:smoke": "node scripts/browser_smoke.mjs",

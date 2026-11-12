@@ -59,9 +59,10 @@ class TestReleaseWorkflowTest(unittest.TestCase):
             "pnpm run build",
             "pnpm run test",
             "pnpm run test:python",
-            "pnpm run test:rust",
+            "pnpm run test:rust:unit",
         ):
             self.assertIn(command, script)
+        self.assertNotRegex(script, r"pnpm run test:rust(?:\s|$)")
         self.assertNotIn("validate:release", script)
         self.assertNotIn("release_validate.py", script)
 

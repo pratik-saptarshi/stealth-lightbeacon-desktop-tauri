@@ -30,6 +30,11 @@ jobs:
         with:
           node-version: 26.13.1
 
+      - name: Verify Node runtime policy
+        env:
+          GATE_REQUIRE_RUNTIME: "1"
+        run: bash scripts/evals/node-version-gate.sh
+
       - name: Install pnpm
         uses: pnpm/action-setup@v5
         with:

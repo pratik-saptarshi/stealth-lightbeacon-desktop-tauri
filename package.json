@@ -14,6 +14,7 @@
     "check": "pnpm run lint && pnpm run test:coverage && pnpm run test:e2e && pnpm run test:python && pnpm run test:rust",
     "lint": "eslint .",
     "eval:node-version": "bash scripts/evals/node-version-gate.sh",
+    "eval:node-version:test": "bash scripts/evals/node-version-gate.test.sh",
     "preview": "vite preview",
     "pretest:e2e": "pnpm exec playwright install chromium",
     "test:e2e": "pnpm exec playwright test",

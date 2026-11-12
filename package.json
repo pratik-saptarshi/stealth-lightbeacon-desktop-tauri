@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.4",
   "packageManager": "pnpm@10.12.4",
+  "engines": {
+    "node": ">=26.13.1 <27"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +13,7 @@
     "check:contract-sync": "python3 scripts/check_contract_sync.py",
     "check": "pnpm run lint && pnpm run test:coverage && pnpm run test:e2e && pnpm run test:python && pnpm run test:rust",
     "lint": "eslint .",
+    "eval:node-version": "bash scripts/evals/node-version-gate.sh",
     "preview": "vite preview",
     "pretest:e2e": "pnpm exec playwright install chromium",
     "test:e2e": "pnpm exec playwright test",

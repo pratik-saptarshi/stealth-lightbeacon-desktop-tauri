@@ -1953,7 +1953,7 @@ mod tests {
     async fn http_adapter_preserves_remote_auth_required_errors() {
         let (base_url, _) = spawn_stub_server(vec![StubExchange {
             expected_prefix: "GET /capabilities HTTP/1.1",
-            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.1"#),
+            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.4"#),
             status_line: "401 Unauthorized",
             response_body: r#"{"code":"unauthorized","message":"Remote API auth required.","details":"SLB_API_AUTH_TOKEN"}"#,
         }]);
@@ -1983,7 +1983,7 @@ mod tests {
     async fn http_adapter_preserves_incompatible_client_errors() {
         let (base_url, _) = spawn_stub_server(vec![StubExchange {
             expected_prefix: "GET /capabilities HTTP/1.1",
-            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.1"#),
+            expected_body: Some(r#"x-stealth-lightbeacon-desktop-version: 0.1.4"#),
             status_line: "409 Conflict",
             response_body: r#"{"code":"incompatible_client","message":"Desktop version is not supported by this backend.","details":"0.0.1"}"#,
         }]);

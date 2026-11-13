@@ -1,6 +1,6 @@
 [package]
 name = "stealth-lightbeacon-desktop-tauri"
-version = "0.1.1"
+version = "0.1.4"
 description = "OpenAPI-first Tauri desktop client for the Stealth Lightbeacon backend API"
 authors = ["OpenAI Codex"]
 edition = "2021"

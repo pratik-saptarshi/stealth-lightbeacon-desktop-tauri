@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-24.04
@@ -13,9 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      - name: Verify Node runtime policy
-        run: bash scripts/evals/node-version-gate.sh
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
@@ -27,6 +29,14 @@ jobs:
         with:
           node-version: 26.13.1
           cache: pnpm
+
+      - name: Verify Node runtime policy
+        env:
+          GATE_REQUIRE_RUNTIME: "1"
+        run: bash scripts/evals/node-version-gate.sh
+
+      - name: Verify Node gate self-test
+        run: pnpm run eval:node-version:test
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

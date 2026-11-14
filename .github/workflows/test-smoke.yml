@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Fast lint (oxlint)
+        run: pnpm run lint:fast
+
       - name: Shell unit/integration smoke
         run: pnpm run test -- src/__tests__/app-shell.test.tsx src/lib/desktop.test.ts src/__tests__/app-helpers.test.ts
 

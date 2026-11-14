@@ -386,18 +386,6 @@ function getButtons(window) {
   return [...window.document.querySelectorAll('button')]
 }
 
-function clickButton(window, matcher, label) {
-  const button = getButtons(window).find((candidate) =>
-    matcher(normalizeText(candidate.textContent ?? '')),
-  )
-
-  if (!button) {
-    throw new Error(`Missing ${label}`)
-  }
-
-  button.click()
-}
-
 function getTabButton(window, tabLabel) {
   const button = getButtons(window).find((candidate) =>
     normalizeText(candidate.textContent ?? '').startsWith(tabLabel),

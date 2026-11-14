@@ -19,6 +19,25 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust security tooling
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-sbom
+
+      - name: Audit Rust dependencies and generate SBOM
+        run: bash scripts/evals/rust-security.sh
+
+      - name: Upload Rust SBOM
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rust-sbom
+          path: .tmp/rust-sbom.cdx.json
+          if-no-files-found: warn
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:

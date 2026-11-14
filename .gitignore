@@ -13,6 +13,7 @@ dist-ssr
 .worktrees
 coverage
 test-results/
+.tmp/
 *.local
 
 src-tauri/target

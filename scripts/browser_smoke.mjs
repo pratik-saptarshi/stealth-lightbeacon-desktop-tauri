@@ -452,33 +452,6 @@ async function waitForText(client, sessionId, expected, label, timeoutMs = 10000
   }, label, timeoutMs)
 }
 
-async function waitForPanelText(
-  client,
-  sessionId,
-  selector,
-  expected,
-  label,
-  timeoutMs = 10000,
-) {
-  let lastText = ''
-
-  await waitFor(async () => {
-    const text = await evalPage(
-      client,
-      sessionId,
-      `(() => {
-        const element = document.querySelector(${JSON.stringify(selector)});
-        return element ? element.textContent ?? '' : '';
-      })()`,
-    )
-
-    lastText = normalizeText(String(text ?? ''))
-    return lastText.includes(expected)
-  }, label, timeoutMs).catch((error) => {
-    throw new Error(`${error.message}: ${lastText}`)
-  })
-}
-
 async function waitForTabState(client, sessionId, tabId, selected) {
   await waitFor(async () => {
     const state = await evalPage(

@@ -33,7 +33,8 @@
     "validate:release": "python3 scripts/release_validate.py",
     "release:verify": "pnpm run build && pnpm run test && pnpm run test:python && pnpm run test:rust:unit",
     "test:rust:unit": "cargo test --manifest-path src-tauri/Cargo.toml -- --skip real_backend --skip local_mode_",
-    "audit": "pnpm audit --audit-level=high"
+    "audit": "pnpm audit --audit-level=high",
+    "lint:fast": "oxlint --deny-warnings"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
@@ -58,6 +59,7 @@
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.14.0",
     "jsdom": "^31.0.1",
+    "oxlint": "1.93.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.2",
     "vite": "^8.3.8",
